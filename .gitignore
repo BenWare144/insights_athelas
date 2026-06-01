@@ -1,0 +1,6 @@
+# Ignore everything in this folder by default...
+*
+
+# ...except the script and this .gitignore itself.
+!.gitignore
+!athelas-appointments-compact.user.js
