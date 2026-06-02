@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      5.0.0
+// @version      7.2.0
 // @description  Compact spacing for Appointments / Calendar / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and auto-fill newly added interventions (justification, procedure, Done) from a lookup table. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
@@ -38,16 +38,18 @@
             const existing = root.querySelector(selector);
             if (existing) { log && log.log(`waitFor("${selector}") -> already in DOM`); return resolve(existing); }
             log && log.log(`waitFor("${selector}") -> waiting (timeout ${timeoutMs}ms)`);
+            let timeoutId = null;
             const obs = new MutationObserver(() => {
                 const el = root.querySelector(selector);
                 if (el) {
                     obs.disconnect();
+                    if (timeoutId) clearTimeout(timeoutId);
                     log && log.log(`waitFor("${selector}") -> resolved`);
                     resolve(el);
                 }
             });
             obs.observe(root === document ? document.documentElement : root, { childList: true, subtree: true });
-            setTimeout(() => {
+            timeoutId = setTimeout(() => {
                 obs.disconnect();
                 log && log.warn(`waitFor("${selector}") -> TIMEOUT`);
                 resolve(null);
@@ -58,23 +60,36 @@
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
     /** Click via a dispatched MouseEvent with simulated=true (same pattern as Ben's Hippo
-     *  script). Falls back to native .click() if dispatch returns false. */
+     *  script). Falls back to native .click() if dispatch returns false.
+     *
+     *  NOTE: do NOT pass `view: window` to MouseEvent under Tampermonkey - the script's
+     *  `window` is a sandboxed proxy, not a real Window, and the MouseEvent constructor
+     *  rejects it with `Failed to convert value to 'Window'`. bubbles+cancelable are
+     *  sufficient for React onClick handlers to fire. */
     function simulateClick(el, log) {
         if (!el) { log && log.warn('simulateClick: element is null'); return false; }
+        // Always run the native click first - it's the most reliable path for MUI buttons
+        // and won't throw under a sandboxed window. Dispatch the MouseEvent afterwards
+        // for handlers that listen for the synthetic event specifically.
+        let nativeOk = false;
         try {
-            const ev = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+            if (typeof el.click === 'function') {
+                el.click();
+                nativeOk = true;
+                log && log.log('simulateClick: native .click() called');
+            }
+        } catch (err) {
+            log && log.error('simulateClick: native .click() threw', err);
+        }
+        try {
+            const ev = new MouseEvent('click', { bubbles: true, cancelable: true });
             ev.simulated = true; // React15 used this; harmless otherwise
             const dispatched = el.dispatchEvent(ev);
             log && log.log(`simulateClick: dispatched MouseEvent -> defaultPrevented=${ev.defaultPrevented}, dispatched=${dispatched}`, el);
-            // Belt + suspenders: also call native .click() for elements that only listen to click().
-            if (typeof el.click === 'function') {
-                el.click();
-                log && log.log('simulateClick: native .click() also called');
-            }
             return true;
         } catch (err) {
-            log && log.error('simulateClick: threw', err);
-            return false;
+            log && log.error('simulateClick: dispatch threw', err);
+            return nativeOk;
         }
     }
 
@@ -134,20 +149,62 @@
         }
     }
 
-    /** Toggle an MUI Checkbox to a target state. MUI checkbox = the visible button +
-     *  the hidden <input type="checkbox"> sibling that holds the real state. Either
-     *  is clickable but the <input> is the most predictable target. */
-    function ensureChecked(input, shouldBeChecked, log) {
+    /** Toggle an MUI Checkbox to a target state.
+     *
+     *  MUI Checkbox structure: a <span class="MuiCheckbox-root MuiButtonBase-root">
+     *  wrapper that holds the click handler, containing a hidden
+     *  <input type="checkbox" class="PrivateSwitchBase-input"> positioned absolutely
+     *  over the wrapper. The hidden input is what the user visually clicks (it has
+     *  opacity:0 covering the full wrapper) - but for synthetic clicks we usually
+     *  need to target the wrapper, because MUI installs its onClick there and the
+     *  input itself often has e.stopPropagation/preventDefault from React's controlled
+     *  component plumbing.
+     *
+     *  We try three strategies in order, with a small async settle so React has time
+     *  to re-render and reflect the new checked state in the input's DOM property. */
+    async function ensureChecked(input, shouldBeChecked, log) {
         if (!input) { log && log.warn('ensureChecked: input is null'); return false; }
-        const before = !!input.checked;
-        if (before === !!shouldBeChecked) {
-            log && log.log(`ensureChecked: already ${shouldBeChecked}, no action`);
+        const target = !!shouldBeChecked;
+        if (!!input.checked === target) {
+            log && log.log(`ensureChecked: already ${target}, no action`);
             return true;
         }
-        log && log.log(`ensureChecked: ${before} -> ${shouldBeChecked}, clicking`);
+
+        // Strategy 1: click the MUI wrapper span (most reliable on MUI 5+).
+        const wrapper = input.closest('.MuiCheckbox-root, .PrivateSwitchBase-root');
+        if (wrapper && wrapper !== input) {
+            log && log.log('ensureChecked: strategy 1 - click MUI wrapper span', wrapper);
+            simulateClick(wrapper, log);
+            await sleep(150);
+            if (!!input.checked === target) { log && log.log(`  strategy 1 worked, checked=${input.checked}`); return true; }
+        }
+
+        // Strategy 2: click the input directly (what we did before; some MUI versions
+        // wire onChange on the input itself).
+        log && log.log('ensureChecked: strategy 2 - click input directly');
         simulateClick(input, log);
-        log && log.log(`ensureChecked: state after click = ${input.checked}`);
-        return input.checked === !!shouldBeChecked;
+        await sleep(150);
+        if (!!input.checked === target) { log && log.log(`  strategy 2 worked, checked=${input.checked}`); return true; }
+
+        // Strategy 3: bypass via the native `checked` setter + dispatch click + change.
+        // This is the React-controlled-component analogue of setReactValue.
+        log && log.log('ensureChecked: strategy 3 - native setter + dispatch click/change');
+        try {
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked').set;
+            setter.call(input, target);
+            input.dispatchEvent(new Event('click',  { bubbles: true }));
+            input.dispatchEvent(new Event('input',  { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (err) {
+            log && log.error('ensureChecked: strategy 3 threw', err);
+        }
+        await sleep(150);
+        if (!!input.checked === target) { log && log.log(`  strategy 3 worked, checked=${input.checked}`); return true; }
+
+        log && log.warn(`ensureChecked: ALL STRATEGIES FAILED. final checked=${input.checked}, aria-checked=${input.getAttribute('aria-checked')}`);
+        // Tell the user where to look next.
+        log && log.warn('  Try inspecting the wrapper and looking for onClick / onChange handlers.');
+        return false;
     }
 
 
@@ -405,88 +462,202 @@
     // =====================================================================
     function featureAutofillInterventions() {
         const log = makeLogger('autofill');
-        log.log('module booted, version 5.0.0');
+        log.log('module booted, version 7.0.0');
 
-        // ---- Lookup data. Replace with real data once CSV is finalized. ----
-        // Keys are matched against the intervention's visible name text
-        // (e.g. "Prone Crawl", "FRS: Resisted hip flexion").
-        const interventionData = {
-            // ---- TEMPLATE EXAMPLES ----
-            "Prone Crawl": {
-                justification: "improve coordination of muscles and ROM of the hip",
-                procedureNumber: "97110"
-            },
-            "FRS: Resisted hip flexion": {
-                justification: "Patient demonstrates 3+/5 strength with decreased neuromuscular control during functional hip flexion. Resisted hip flexion exercises to improve strength and motor control for gait and stair negotiation.",
-                procedureNumber: "97110"
-            },
-            "FRS: Standing balance with perturbation": {
-                justification: "Pt presents with impaired static and dynamic standing balance, increasing fall risk. Perturbation training targets reactive postural control.",
-                procedureNumber: "97112"
-            },
-            // ---- end TEMPLATE EXAMPLES ----
+        // ============================================================
+        // Lookup data, derived from "Stuff for EMR.xlsx" + reference_interventions.txt.
+        //
+        // The xlsx has 8 "template" rows (FRS R/L, ERS R/L, MET-*); the page
+        // shows region-specific variants (FRS Left Lumbar, ERS Right Cervical,
+        // etc.). The reference file enumerates the page-visible names per
+        // template; this table fans them out so an exact name match still
+        // works.
+        //
+        // The "<    >" placeholder in the FRS/ERS Procedure_text is intentional -
+        // per the xlsx notes, you choose "sitting" or "sidelying" by hand after
+        // the auto-fill drops in the template. If you'd prefer the script
+        // substitute a default, change PLACEHOLDER_POSITION below.
+        // ============================================================
+        const PLACEHOLDER_POSITION = "<    >"; // <- swap for "sidelying" or "sitting" if you want auto-fill to commit a default
+
+        // Shared template bodies. All carry procedure 97112.
+        const FRS_TEMPLATE = {
+            justification: `Positioning in   ${PLACEHOLDER_POSITION}    with active contraction of  multifidi  to gain proprioceptive input for reciprocal inhibition and improved postural alignment. `,
+            procedureNumber: "97112"
         };
-        log.log(`interventionData has ${Object.keys(interventionData).length} entries:`, Object.keys(interventionData));
+        const ERS_TEMPLATE = {
+            justification: `Positioning in   ${PLACEHOLDER_POSITION}    with active contraction of  multifidi  to gain proprioceptive input for reciprocal inhibition and improved postural alignment. `,
+            procedureNumber: "97112"
+        };
+        const MET_TORSIONAL_BACKWARD = {
+            justification: "Positioning in  sidelying   with active contraction of  piriformis to gain proprioceptive input for reciprocal inhibition and improved postural alignment. ",
+            procedureNumber: "97112"
+        };
+        const MET_TORSIONAL_FORWARD = {
+            justification: "Positioning in  sidelying   with active contraction of  paraspinals to gain proprioceptive input for reciprocal inhibition and improved postural alignment. ",
+            procedureNumber: "97112"
+        };
+        const MET_LE = {
+            justification: "Improve rotation of L/E for improved gait",
+            procedureNumber: "97112"
+        };
+        const MET_UE = {
+            justification: "Improve rotation of U/E for improved overhead reach",
+            procedureNumber: "97112"
+        };
 
-        // Selectors derived from real Example_Chart_Note_expanded.mhtml DOM:
+        const interventionData = {
+            // ---- FRS variants (6) ----
+            "FRS Left Lumbar":     FRS_TEMPLATE,
+            "FRS Right Lumbar":    FRS_TEMPLATE,
+            "FRS Left Thoracic":   FRS_TEMPLATE,
+            "FRS Left Cervical":   FRS_TEMPLATE,
+            "FRS Right Thoracic":  FRS_TEMPLATE,
+            "FRS Right Cervical":  FRS_TEMPLATE,
+
+            // ---- ERS variants (6) ----
+            "ERS Left Lumbar":     ERS_TEMPLATE,
+            "ERS Right Lumbar":    ERS_TEMPLATE,
+            "ERS Left Thoracic":   ERS_TEMPLATE,
+            "ERS Left Cervical":   ERS_TEMPLATE,
+            "ERS Right Thoracic":  ERS_TEMPLATE,
+            "ERS Right Cervical":  ERS_TEMPLATE,
+
+            // ---- MET torsional motion (the page suffixes "(R/R correction)" etc.;
+            // the prefix-fallback below catches those without needing every variant) ----
+            "MET to restore left/right backward torsional motion":  MET_TORSIONAL_BACKWARD,
+            "MET to restore right/right forward torsional motion":  MET_TORSIONAL_FORWARD,
+            "MET to restore right/left backward torsional motion":  MET_TORSIONAL_BACKWARD,
+            "MET to restore left/left forward torsional motion":    MET_TORSIONAL_FORWARD,
+
+            // ---- MET generic L/E and U/E patterns from the xlsx.
+            // The literal "*" key would never match a real intervention name,
+            // so I'm leaving them keyed under unique sentinel strings; if you
+            // want to apply MET_LE / MET_UE to specific MET-* interventions,
+            // add explicit entries below (e.g. "MET-Tibial IR": MET_LE).
+            "MET * (L/E)": MET_LE,
+            "MET * (U/E)": MET_UE,
+        };
+        log.log(`interventionData loaded with ${Object.keys(interventionData).length} keys:`, Object.keys(interventionData));
+
+        /** Lookup with two-pass matching:
+         *    1. Exact match on the row's visible name.
+         *    2. If no exact, longest-prefix match (so e.g. the page's
+         *       "MET to restore left/right backward torsional motion (R/R correction)"
+         *       still finds the data key without the suffix).
+         */
+        function findEntry(name) {
+            if (interventionData[name]) return { entry: interventionData[name], key: name, exact: true };
+            let bestKey = null;
+            for (const k of Object.keys(interventionData)) {
+                if (name.startsWith(k) && (!bestKey || k.length > bestKey.length)) bestKey = k;
+            }
+            if (bestKey) return { entry: interventionData[bestKey], key: bestKey, exact: false };
+            return null;
+        }
+
+        // Real selectors derived from Example_Chart_Note_expanded.mhtml.
         const SEL = {
-            // MUI DataGrid root - presence indicates we're in the right area.
             grid: '.MuiDataGrid-root',
-            // A single intervention row.
             row: '.MuiDataGrid-row[data-id]',
-            // Expand toggle - first cell of each row.
             expandToggle: 'button.MuiDataGrid-detailPanelToggleCell',
-            // intervention_name cell -> the visible name span has title="<name>"
             nameSpan: '[data-field="intervention_name"] span[title]',
-            // Done checkbox (aria-label is "<Name> done state")
             doneCheckbox: 'input[type="checkbox"][aria-label$=" done state"]',
-            // Detail panel sibling that appears after the row when expanded.
             detailPanel: '.MuiDataGrid-detailPanel',
-            // Justification textarea inside the detail panel.
             justificationTextarea: 'textarea[placeholder="Add justification"]',
-            // Procedure Autocomplete input inside the detail panel.
             procedureInput: 'input[aria-label="Procedure"]',
         };
         log.log('selector map:', SEL);
 
-        // State: rows we've processed (by data-id), and the baseline that existed at boot.
+        // Internal state
         const processedIds = new Set();
-        let baselineIds = null; // null until first grid sweep
+        let baselineIds = null;          // null until baseline is locked in
+        let baselineLocked = false;
+        let dryRun = false;              // when true, the script LOGS what it would do but doesn't actually fill
 
-        /** Find the detail panel associated with a given row. MUI DataGrid renders
-         *  detail panels in a separate container, but they share the row's data-id
-         *  on the wrapper. Otherwise we fall back to "next .MuiDataGrid-detailPanel
-         *  in document order whose offsetTop is just below the row". */
+        // Expose toggles + helpers for DevTools (declared early so we can mention them in boot log).
+        window.__athelasDryRunOn  = () => { dryRun = true;  log.warn('dry-run ENABLED - subsequent fills will only LOG, not modify'); };
+        window.__athelasDryRunOff = () => { dryRun = false; log.warn('dry-run DISABLED - fills will modify the DOM'); };
+        window.__athelasResetBaseline = () => {
+            log.warn('manually resetting baseline - next sweep will treat EVERY row as new');
+            baselineIds = null;
+            baselineLocked = false;
+            processedIds.clear();
+            tryLockBaseline(true);
+        };
+        window.__athelasSweep = () => sweep();
+        window.__athelasInterventionData = interventionData;
+
+        // ---- Helper: find an intervention row by data-id ----
+        function findRow(id) {
+            const row = document.querySelector(`${SEL.row}[data-id="${id}"]`);
+            if (!row) log.warn(`findRow: no row with data-id="${id}"`);
+            return row;
+        }
+
+        // ---- Inspect helper: dump everything we can see about a row ----
+        window.__athelasInspectRow = function (id) {
+            const row = findRow(id);
+            if (!row) return;
+            console.group(`[athelas:inspect] row data-id=${id}`);
+            console.log('row element:', row);
+            console.log('row classes:', row.className);
+            console.log('row attrs:', Array.from(row.attributes).map(a => `${a.name}="${a.value}"`).join(' '));
+
+            const name = getRowName(row);
+            console.log(`getRowName -> "${name}"`);
+
+            const toggle = row.querySelector(SEL.expandToggle);
+            console.log(`expand toggle:`, toggle, toggle ? `(aria-label="${toggle.getAttribute('aria-label')}", expanded=${toggle.classList.contains('MuiDataGrid-detailPanelToggleCell--expanded')})` : '(not found)');
+
+            const done = row.querySelector(SEL.doneCheckbox);
+            console.log(`done checkbox:`, done, done ? `(checked=${done.checked}, aria-label="${done.getAttribute('aria-label')}")` : '(not found)');
+
+            const panel = findDetailPanel(row);
+            console.log(`detail panel:`, panel);
+            if (panel) {
+                console.log(`  justification textarea:`, panel.querySelector(SEL.justificationTextarea));
+                console.log(`  procedure input:`, panel.querySelector(SEL.procedureInput));
+                console.log(`  ALL inputs in panel:`);
+                panel.querySelectorAll('input, textarea').forEach((el, i) => {
+                    console.log(`    [${i}] <${el.tagName.toLowerCase()}> aria-label="${el.getAttribute('aria-label')}" placeholder="${el.placeholder || ''}" id="${el.id}" type="${el.type || ''}"`);
+                });
+            }
+
+            const dataEntry = interventionData[name];
+            console.log(`interventionData["${name}"]:`, dataEntry);
+            console.log('processedIds includes this id?', processedIds.has(id));
+            console.log('baselineIds includes this id?', baselineIds ? baselineIds.has(id) : '(baseline not locked yet)');
+            console.groupEnd();
+        };
+
+        // ---- Detail panel lookup ----
         function findDetailPanel(row) {
-            // Preferred: any descendant or sibling with same data-id
             const id = row.getAttribute('data-id');
-            const byId = document.querySelector(`.MuiDataGrid-detailPanel[data-id="${id}"]`);
-            if (byId) { log.log(`detail panel found by data-id="${id}"`, byId); return byId; }
-            // Fallback: nearest detailPanel after this row in the DOM
+            const byId = document.querySelector(`${SEL.detailPanel}[data-id="${id}"]`);
+            if (byId) return byId;
             let n = row.nextElementSibling;
             while (n) {
-                if (n.matches && n.matches(SEL.detailPanel)) { log.log('detail panel found via nextElementSibling fallback', n); return n; }
+                if (n.matches && n.matches(SEL.detailPanel)) return n;
                 n = n.nextElementSibling;
             }
-            // Final fallback: any detail panel whose top is within ~10px below row's bottom
+            // Geometry fallback
             const rect = row.getBoundingClientRect();
             const candidates = document.querySelectorAll(SEL.detailPanel);
             for (const c of candidates) {
                 const cr = c.getBoundingClientRect();
-                if (Math.abs(cr.top - rect.bottom) < 20) { log.log('detail panel found via geometry fallback', c); return c; }
+                if (Math.abs(cr.top - rect.bottom) < 20) return c;
             }
-            log.warn(`no detail panel found for row data-id="${id}"`);
             return null;
         }
 
-        /** Read the visible intervention name from a row. */
+        // ---- Name extraction ----
         function getRowName(row) {
             const span = row.querySelector(SEL.nameSpan);
             if (span) {
                 const t = (span.getAttribute('title') || span.textContent || '').trim();
                 if (t) return t;
             }
-            // Fallback: the aria-label on the wrapper "Prone Crawl name"
             const wrapper = row.querySelector('[aria-label$=" name"]');
             if (wrapper) {
                 const t = wrapper.getAttribute('aria-label').replace(/\s+name$/, '').trim();
@@ -495,188 +666,262 @@
             return null;
         }
 
-        /** Expand a row's detail panel if not already expanded. */
+        // ---- Expand a row's detail panel ----
         async function expandRow(row) {
             const toggle = row.querySelector(SEL.expandToggle);
-            if (!toggle) { log.warn('expandRow: no expand toggle found', row); return false; }
+            if (!toggle) { log.warn('  expand: no toggle button in row', row); return false; }
             const expanded = toggle.classList.contains('MuiDataGrid-detailPanelToggleCell--expanded')
                           || toggle.getAttribute('aria-label') === 'Collapse';
-            log.log(`expandRow: toggle found, currently expanded=${expanded}, aria-label="${toggle.getAttribute('aria-label')}"`);
+            log.log(`  expand: toggle aria-label="${toggle.getAttribute('aria-label')}", currently expanded=${expanded}`);
             if (!expanded) {
-                simulateClick(toggle, log);
-                // Let MUI render the detail panel
-                await sleep(400);
-            } else {
-                log.log('expandRow: already expanded, skipping click');
+                if (dryRun) {
+                    log.log('  expand: [DRY RUN] would click toggle');
+                } else {
+                    simulateClick(toggle, log);
+                }
+                await sleep(450);
             }
             return true;
         }
 
-        /** Fill the justification field. The chart note uses a regular <textarea>
-         *  with placeholder="Add justification". If a future change swaps in a
-         *  Tiptap editor here we'd branch on isContentEditable. */
+        // ---- Step 3: justification ----
         function fillJustification(detailPanel, value) {
             const ta = detailPanel.querySelector(SEL.justificationTextarea);
             if (!ta) {
-                log.warn('fillJustification: textarea not found. Looking for any textarea in panel:');
-                const all = detailPanel.querySelectorAll('textarea');
-                all.forEach((t, i) => log.log(`  textarea[${i}]: placeholder="${t.placeholder}", aria-label="${t.getAttribute('aria-label')}", id=${t.id}`));
+                log.warn('  [step 3] justification textarea not found. Listing all textareas in panel:');
+                detailPanel.querySelectorAll('textarea').forEach((t, i) => log.log(`    textarea[${i}]: placeholder="${t.placeholder}", aria-label="${t.getAttribute('aria-label')}", id=${t.id}`));
                 return false;
             }
-            log.log('fillJustification: textarea found, setting value');
+            log.log(`  [step 3] justification textarea found (id=${ta.id}, current="${ta.value.slice(0,40)}...")`);
+            if (dryRun) { log.log(`  [step 3] [DRY RUN] would set value to "${value.slice(0,60)}..."`); return true; }
             return setReactValue(ta, value, log);
         }
 
-        /** Fill the Procedure Autocomplete. */
+        // ---- Step 4: procedure ----
         async function fillProcedure(detailPanel, value) {
             const input = detailPanel.querySelector(SEL.procedureInput);
             if (!input) {
-                log.warn('fillProcedure: input not found. Listing all inputs in panel for debug:');
-                detailPanel.querySelectorAll('input').forEach((el, i) => log.log(`  input[${i}]: aria-label="${el.getAttribute('aria-label')}", role="${el.getAttribute('role')}", type="${el.type}"`));
+                log.warn('  [step 4] procedure input not found. Listing all inputs in panel:');
+                detailPanel.querySelectorAll('input').forEach((el, i) => log.log(`    input[${i}]: aria-label="${el.getAttribute('aria-label')}", role="${el.getAttribute('role')}", type="${el.type}", id="${el.id}"`));
                 return false;
             }
-            log.log(`fillProcedure: input found, current value="${input.value}", setting to "${value}"`);
+            log.log(`  [step 4] procedure input found (id=${input.id}, current="${input.value}")`);
+            if (dryRun) { log.log(`  [step 4] [DRY RUN] would set value to "${value}"`); return true; }
+
+            // Open the dropdown so MUI Autocomplete commits the choice cleanly.
+            input.focus();
+            const popupBtn = input.closest('.MuiAutocomplete-root')?.querySelector('button[aria-label="Open"]');
+            if (popupBtn) { log.log('  [step 4] clicking Open button to expand autocomplete'); simulateClick(popupBtn, log); await sleep(200); }
+
             const ok = setReactValue(input, value, log);
-            // MUI Autocomplete may need the dropdown to open + an option click to
-            // commit the selection. Try opening the popup and clicking a matching
-            // option; if there's no popup (freeSolo), just leave the typed value.
-            await sleep(200);
-            const popup = document.querySelector('.MuiAutocomplete-popper[role="presentation"], .MuiAutocomplete-popper');
+            await sleep(300);
+
+            const popup = document.querySelector('.MuiAutocomplete-popper');
             if (popup) {
-                log.log('fillProcedure: autocomplete popup detected');
                 const options = popup.querySelectorAll('li[role="option"]');
-                log.log(`fillProcedure: popup has ${options.length} options`);
-                // Find option whose visible text equals our value (procedure code)
-                const match = Array.from(options).find((o) => o.textContent.trim().startsWith(value) || o.textContent.trim().includes(value));
+                log.log(`  [step 4] autocomplete popup has ${options.length} options`);
+                const match = Array.from(options).find(o => {
+                    const t = o.textContent.trim();
+                    return t === value || t.startsWith(value + ' ') || t.startsWith(value + '—') || t.includes(value);
+                });
                 if (match) {
-                    log.log('fillProcedure: clicking matching option', match);
+                    log.log(`  [step 4] clicking matching option: "${match.textContent.trim().slice(0,60)}"`);
                     simulateClick(match, log);
                 } else {
-                    log.warn(`fillProcedure: no matching option for "${value}" - leaving typed value as freeSolo`);
+                    log.warn(`  [step 4] no popup option contains "${value}" - dispatching Enter to commit typed value`);
+                    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
                 }
             } else {
-                log.log('fillProcedure: no popup appeared (input may be freeSolo or already committed)');
+                log.log('  [step 4] no autocomplete popup appeared - dispatching Enter to commit value');
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
             }
             return ok;
         }
 
-        /** Check the Done checkbox on the row's header. */
-        function tickDone(row) {
+        // ---- Step 5: Done checkbox ----
+        async function tickDone(row) {
             const cb = row.querySelector(SEL.doneCheckbox);
-            if (!cb) { log.warn('tickDone: no done checkbox in row', row); return false; }
-            log.log(`tickDone: checkbox found, currently checked=${cb.checked}, aria-label="${cb.getAttribute('aria-label')}"`);
-            return ensureChecked(cb, true, log);
+            if (!cb) { log.warn('  [step 5] done checkbox not in row'); return false; }
+            log.log(`  [step 5] done checkbox aria-label="${cb.getAttribute('aria-label')}", currently checked=${cb.checked}`);
+            if (dryRun) { log.log(`  [step 5] [DRY RUN] would ${cb.checked ? 'skip (already checked)' : 'click to check'}`); return true; }
+            return await ensureChecked(cb, true, log);
         }
 
-        /** Run the 5-step procedure for a single row. */
+        // ---- The 5-step procedure ----
         async function processRow(row) {
             const id = row.getAttribute('data-id');
-            if (processedIds.has(id)) { log.log(`processRow: id=${id} already processed, skipping`); return; }
+            if (processedIds.has(id)) {
+                // Top-level skip log (no group) — quieter than groupCollapsed.
+                return;
+            }
             processedIds.add(id);
 
-            log.group(`processing row data-id=${id}`);
+            const name = getRowName(row);
+            if (!name) {
+                log.warn(`processRow: row data-id=${id} has no readable name yet - will retry on next sweep`);
+                processedIds.delete(id);
+                return;
+            }
+
+            const match = findEntry(name);
+
+            // ALWAYS log the top-level summary so misses are visible without expanding.
+            if (!match) {
+                log.warn(`SKIP - no data entry for "${name}" (id=${id}). Available keys:`, Object.keys(interventionData));
+                log.warn(`  -> add an entry to interventionData with key "${name}" to auto-fill this intervention.`);
+                return;
+            }
+            const entry = match.entry;
+            if (!match.exact) {
+                log.warn(`PREFIX MATCH - row name "${name}" matched data key "${match.key}" (page suffix ignored).`);
+            }
+
+            log.log(`FILL - "${name}" (id=${id})${dryRun ? ' [DRY RUN]' : ''}`);
+
+            // Now an OPEN group with the per-step detail (so it's expanded by default).
+            console.group(`[athelas:autofill] details for "${name}" (id=${id})`);
             try {
-                // Step 0: identify the row
-                const name = getRowName(row);
-                if (!name) { log.warn('processRow: could not read intervention name yet, will retry next mutation'); processedIds.delete(id); log.groupEnd(); return; }
-                log.log(`name="${name}"`);
-
-                const entry = interventionData[name];
-                if (!entry) {
-                    log.warn(`no data entry for "${name}" - skipping all 5 steps. Available keys:`, Object.keys(interventionData));
-                    log.groupEnd();
-                    return;
-                }
-                log.log(`data entry:`, entry);
-
-                // Step 1: scroll into view
                 log.log('[step 1/5] scrollIntoView');
                 row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                await sleep(300);
+                await sleep(350);
 
-                // Step 2: expand
                 log.log('[step 2/5] expand row');
                 await expandRow(row);
 
                 const panel = findDetailPanel(row);
                 if (!panel) {
-                    log.error('detail panel not found after expand - cannot fill justification/procedure');
-                    log.groupEnd();
+                    log.error('  detail panel NOT FOUND after expand - aborting remaining steps');
+                    console.groupEnd();
                     return;
                 }
+                log.log('  detail panel located:', panel);
 
-                // Step 3: justification
                 log.log('[step 3/5] fill justification');
                 const ok3 = fillJustification(panel, entry.justification);
-                log.log(`[step 3/5] result: ${ok3 ? 'OK' : 'FAILED'}`);
+                log.log(`  [step 3] result: ${ok3 ? 'OK' : 'FAILED'}`);
 
-                // Step 4: procedure
                 log.log('[step 4/5] fill procedure');
                 const ok4 = await fillProcedure(panel, entry.procedureNumber);
-                log.log(`[step 4/5] result: ${ok4 ? 'OK' : 'FAILED'}`);
+                log.log(`  [step 4] result: ${ok4 ? 'OK' : 'FAILED'}`);
 
-                // Step 5: check Done
-                log.log('[step 5/5] tick Done checkbox');
-                const ok5 = tickDone(row);
-                log.log(`[step 5/5] result: ${ok5 ? 'OK' : 'FAILED'}`);
+                log.log('[step 5/5] tick Done');
+                const ok5 = await tickDone(row);
+                log.log(`  [step 5] result: ${ok5 ? 'OK' : 'FAILED'}`);
 
-                log.log(`processRow complete for "${name}"`);
+                log.log(`done with "${name}"`);
             } catch (err) {
                 log.error('processRow threw:', err);
             } finally {
-                log.groupEnd();
+                console.groupEnd();
             }
         }
 
-        /** Sweep the grid: process any row whose data-id is not in the baseline. */
+        // ---- Baseline + sweep ----
+
+        /** Lock the baseline to whatever rows are currently in the grid. */
+        function lockBaseline() {
+            if (baselineLocked) return;
+            const grid = document.querySelector(SEL.grid);
+            if (!grid) return;
+            const rows = grid.querySelectorAll(SEL.row);
+            baselineIds = new Set(Array.from(rows).map(r => r.getAttribute('data-id')));
+            baselineLocked = true;
+            log.log(`%cBASELINE LOCKED with ${baselineIds.size} pre-existing rows:`, 'color: #2a7; font-weight: bold;', [...baselineIds]);
+            log.log('From this point on, only rows whose data-id is NOT in the baseline will be auto-filled.');
+        }
+
+        /** Wait for the grid to "settle": at least one row exists AND row count hasn't
+         *  changed for `quietMs`. If the chart note genuinely has 0 rows, wait up to
+         *  `maxWaitMs` then lock baseline at 0. */
+        function tryLockBaseline(forceImmediate = false) {
+            const quietMs = 1500;
+            const maxWaitMs = 12000;
+            const startedAt = Date.now();
+            let lastCount = -1;
+            let stableSince = null;
+
+            if (forceImmediate) { lockBaseline(); return; }
+
+            log.log(`watching grid for settle (quiet period ${quietMs}ms, hard cap ${maxWaitMs}ms)...`);
+            const interval = setInterval(() => {
+                const grid = document.querySelector(SEL.grid);
+                if (!grid) return;
+                const rows = grid.querySelectorAll(SEL.row);
+                const count = rows.length;
+
+                if (count !== lastCount) {
+                    log.log(`  grid row count: ${lastCount} -> ${count} (resetting stable clock)`);
+                    lastCount = count;
+                    stableSince = Date.now();
+                    return;
+                }
+
+                const stableFor = Date.now() - stableSince;
+                const elapsedTotal = Date.now() - startedAt;
+
+                if ((count > 0 && stableFor >= quietMs) ||
+                    (elapsedTotal >= maxWaitMs)) {
+                    clearInterval(interval);
+                    lockBaseline();
+                }
+            }, 250);
+        }
+
         function sweep() {
             const grid = document.querySelector(SEL.grid);
-            if (!grid) { log.log('sweep: no grid yet'); return; }
-            const rows = grid.querySelectorAll(SEL.row);
-            const ids = Array.from(rows).map((r) => r.getAttribute('data-id'));
+            if (!grid) { log.log('sweep: grid gone'); return; }
 
-            if (baselineIds === null) {
-                baselineIds = new Set(ids);
-                log.log(`sweep: baseline established with ${baselineIds.size} rows:`, [...baselineIds]);
-                return; // don't process the baseline rows
+            if (!baselineLocked) {
+                log.log('sweep: baseline not locked yet - skipping (waiting for grid to settle)');
+                return;
             }
 
-            const newRows = Array.from(rows).filter((r) => !baselineIds.has(r.getAttribute('data-id')));
-            if (newRows.length === 0) { log.log(`sweep: no new rows (baseline=${baselineIds.size}, current=${rows.length})`); return; }
-            log.log(`sweep: ${newRows.length} new row(s) detected`);
-            newRows.forEach((r) => processRow(r));
+            const rows = Array.from(grid.querySelectorAll(SEL.row));
+            const newRows = rows.filter(r => !baselineIds.has(r.getAttribute('data-id')) && !processedIds.has(r.getAttribute('data-id')));
+
+            if (newRows.length === 0) return;
+            log.log(`sweep: ${newRows.length} truly-new row(s) detected:`, newRows.map(r => r.getAttribute('data-id')));
+            newRows.forEach(processRow);
         }
 
-        // Boot: wait for the grid, then watch it.
+        // Boot
         (async () => {
-            log.log('waiting for MuiDataGrid to appear in DOM...');
+            log.log('waiting for MuiDataGrid to appear...');
             const grid = await waitFor(SEL.grid, { log });
-            if (!grid) { log.warn('grid never appeared - autofill disabled'); return; }
-            log.log('grid found, doing baseline sweep');
-            sweep(); // establishes baseline
+            if (!grid) { log.error('grid never appeared - autofill disabled'); return; }
+            log.log('grid found. Now waiting for it to settle before locking baseline.');
+
+            tryLockBaseline();
+
+            // Observe a STABLE ancestor of the grid, not the grid itself. The grid
+            // element can be swapped out by MUI when modals/popovers open or close,
+            // which leaves an observer bound to the grid watching a detached node.
+            // The flowsheet section wrapper persists across those re-renders.
+            const flowsheet = document.querySelector('[data-section="flowsheet"]') || document.body;
+            log.log(`MutationObserver target:`, flowsheet, '(stable ancestor of the grid)');
 
             let pending = null;
-            const obs = new MutationObserver((muts) => {
+            const obs = new MutationObserver(() => {
                 if (pending) return;
-                pending = setTimeout(() => {
-                    pending = null;
-                    log.log(`MutationObserver fired (${muts.length} mutation records), running sweep`);
-                    sweep();
-                }, 250);
+                pending = setTimeout(() => { pending = null; sweep(); }, 250);
             });
-            obs.observe(grid, { childList: true, subtree: true });
-            log.log('MutationObserver attached to grid; listening for new rows.');
-        })();
+            obs.observe(flowsheet, { childList: true, subtree: true });
+            log.log('MutationObserver attached to flowsheet section.');
 
-        // Manual triggers for DevTools:
-        window.__athelasResetBaseline = () => {
-            log.log('manually resetting baseline - next sweep will process EVERY row');
-            baselineIds = null;
-            processedIds.clear();
-        };
-        window.__athelasSweep = () => sweep();
-        window.__athelasInterventionData = interventionData;
-        log.log('exposed window.__athelasResetBaseline(), __athelasSweep(), __athelasInterventionData');
+            // Belt + suspenders: a low-frequency poll catches anything the observer
+            // ever misses (e.g. if MUI swaps the flowsheet wrapper itself, or if a
+            // popover transition interferes with mutation delivery).
+            const POLL_MS = 1500;
+            setInterval(() => sweep(), POLL_MS);
+            log.log(`backup poll: re-checking every ${POLL_MS}ms in case of observer misses`);
+
+            log.log('%cDevTools helpers exposed:', 'color: #58c; font-weight: bold;');
+            log.log('  window.__athelasResetBaseline()  - re-snapshot baseline (any row not in old baseline becomes "new" again)');
+            log.log('  window.__athelasSweep()          - manual sweep right now');
+            log.log('  window.__athelasInspectRow(id)   - dump everything we know about row data-id=<id>');
+            log.log('  window.__athelasDryRunOn() / Off - simulate fills (log-only) vs really fill');
+            log.log('  window.__athelasInterventionData - the lookup table object (mutable from DevTools)');
+        })();
     }
 
 
