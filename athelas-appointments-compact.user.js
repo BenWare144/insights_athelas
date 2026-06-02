@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      7.2.0
+// @version      7.3.0
 // @description  Compact spacing for Appointments / Calendar / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and auto-fill newly added interventions (justification, procedure, Done) from a lookup table. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
