@@ -478,23 +478,23 @@
         // the auto-fill drops in the template. If you'd prefer the script
         // substitute a default, change PLACEHOLDER_POSITION below.
         // ============================================================
-        const PLACEHOLDER_POSITION = "<    >"; // <- swap for "sidelying" or "sitting" if you want auto-fill to commit a default
+        const PLACEHOLDER_POSITION = "sitting"; // <- swap for "sidelying" or "sitting" if you want auto-fill to commit a default
 
         // Shared template bodies. All carry procedure 97112.
         const FRS_TEMPLATE = {
-            justification: `Positioning in   ${PLACEHOLDER_POSITION}    with active contraction of  multifidi  to gain proprioceptive input for reciprocal inhibition and improved postural alignment. `,
+            justification: `Positioning in ${PLACEHOLDER_POSITION} with active contraction of multifidi to gain proprioceptive input for reciprocal inhibition and improved postural alignment.`,
             procedureNumber: "97112"
         };
         const ERS_TEMPLATE = {
-            justification: `Positioning in   ${PLACEHOLDER_POSITION}    with active contraction of  multifidi  to gain proprioceptive input for reciprocal inhibition and improved postural alignment. `,
+            justification: `Positioning in ${PLACEHOLDER_POSITION} with active contraction of multifidi to gain proprioceptive input for reciprocal inhibition and improved postural alignment.`,
             procedureNumber: "97112"
         };
         const MET_TORSIONAL_BACKWARD = {
-            justification: "Positioning in  sidelying   with active contraction of  piriformis to gain proprioceptive input for reciprocal inhibition and improved postural alignment. ",
+            justification: "Positioning in sidelying with active contraction of piriformis to gain proprioceptive input for reciprocal inhibition and improved postural alignment.",
             procedureNumber: "97112"
         };
         const MET_TORSIONAL_FORWARD = {
-            justification: "Positioning in  sidelying   with active contraction of  paraspinals to gain proprioceptive input for reciprocal inhibition and improved postural alignment. ",
+            justification: "Positioning in sidelying with active contraction of paraspinals to gain proprioceptive input for reciprocal inhibition and improved postural alignment.",
             procedureNumber: "97112"
         };
         const MET_LE = {
