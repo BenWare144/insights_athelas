@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      8.1.0
+// @version      9.2.0
 // @description  Compact spacing for Appointments / Calendar / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and auto-fill newly added interventions (justification, procedure, Done) from a lookup table. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
@@ -434,14 +434,79 @@
     async function featureScrollToFlowsheet() {
         const log = makeLogger('scroll');
         log.log('module booted');
-        const flowsheet = await waitFor('[data-section="flowsheet"]', { log });
-        if (!flowsheet) { log.warn('flowsheet section never appeared - giving up'); return; }
-        await sleep(300); // let React finish painting children so offsetTop stabilizes
-        log.log('scrolling flowsheet section into view');
-        flowsheet.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        await sleep(450);
-        log.log('nudging up 64px to clear the sticky app bar');
-        window.scrollBy({ top: -64, behavior: 'smooth' });
+
+        const HEADER_OFFSET = 64;       // sticky app bar height + a bit of breathing room
+        const SETTLE_MS     = 350;      // delay between scroll attempts
+        const MAX_ATTEMPTS  = 5;
+        const ACCEPT_PX     = 24;       // accept if target is within ±N px of HEADER_OFFSET
+
+        /** Find the best scroll target, preferring the Interventions H1.
+         *  Falls back to the DataGrid or the Flowsheet section wrapper. */
+        function findTarget() {
+            // 1. The Interventions H1 (or H2/H3/H4 if MUI ever changes the heading level)
+            //    is the most-specific anchor the user actually wants to land on.
+            const flowsheet = document.querySelector('[data-section="flowsheet"]');
+            if (flowsheet) {
+                const headings = flowsheet.querySelectorAll('h1, h2, h3, h4');
+                for (const h of headings) {
+                    if (/^\s*Interventions\s*$/i.test(h.textContent || '')) return h;
+                }
+            }
+            // 2. The intervention DataGrid itself is a fine alternative - it's right
+            //    below the Interventions heading and is the actionable area.
+            const grid = document.querySelector('.MuiDataGrid-root');
+            if (grid) return grid;
+            // 3. Last resort: the flowsheet section wrapper.
+            return flowsheet;
+        }
+
+        // Wait for at least one of the candidate anchors to exist.
+        const anchor = await waitFor('[data-section="flowsheet"] h1, [data-section="flowsheet"] h2, [data-section="flowsheet"] h3, .MuiDataGrid-root, [data-section="flowsheet"]', { log });
+        if (!anchor) { log.warn('no scroll anchor ever appeared - giving up'); return; }
+        await sleep(300); // give React a tick to finish painting children
+
+        /** Returns the vertical distance between the target's top and the
+         *  intended position (HEADER_OFFSET below the viewport top). 0 = perfect. */
+        function distanceFromIdeal(target) {
+            return target.getBoundingClientRect().top - HEADER_OFFSET;
+        }
+
+        /** Multi-pass scroll: scroll, wait for layout to settle, check distance,
+         *  re-scroll if the target drifted. This handles the case where sections
+         *  ABOVE the Interventions area (Plan, Goals, etc.) render late and push
+         *  the viewport content down after our initial scroll fires. */
+        let lastDistance = Infinity;
+        for (let i = 0; i < MAX_ATTEMPTS; i++) {
+            const target = findTarget();
+            if (!target) { log.warn(`attempt ${i+1}: no target found`); break; }
+            const desc = target.tagName === 'H1' || target.tagName === 'H2' || target.tagName === 'H3'
+                ? `${target.tagName} "${(target.textContent || '').trim()}"`
+                : (target.matches('.MuiDataGrid-root') ? 'MuiDataGrid-root' : `[data-section="${target.getAttribute('data-section')}"]`);
+            log.log(`scroll attempt ${i+1}/${MAX_ATTEMPTS}: target = ${desc}`);
+
+            // First attempt smooth, subsequent ones instant so the user doesn't
+            // see a long animation race.
+            target.scrollIntoView({ behavior: i === 0 ? 'smooth' : 'auto', block: 'start' });
+            // Nudge up to clear the sticky app bar.
+            window.scrollBy({ top: -HEADER_OFFSET, behavior: 'auto' });
+            await sleep(SETTLE_MS);
+
+            const d = distanceFromIdeal(target);
+            log.log(`  result: target.top is ${Math.round(d + HEADER_OFFSET)}px from viewport top (off by ${Math.round(d)}px)`);
+
+            if (Math.abs(d) <= ACCEPT_PX) {
+                log.log(`  within ±${ACCEPT_PX}px of ideal - DONE`);
+                return;
+            }
+            if (Math.abs(d - lastDistance) < 2) {
+                // Position stable but not at ideal - probably the page is shorter
+                // than expected and we can't scroll any further. Accept.
+                log.log(`  position stable but offset persists - accepting (likely page-bottom limit)`);
+                return;
+            }
+            lastDistance = d;
+        }
+        log.warn(`scroll did not fully settle after ${MAX_ATTEMPTS} attempts (last offset ${Math.round(lastDistance)}px)`);
     }
 
 
@@ -1042,6 +1107,172 @@
 
 
     // =====================================================================
+    // MODULE 5: Mins-column helpers on the interventions DataGrid.
+    //   Feature A: when a Mins cell is activated for editing, select all the
+    //              existing text so the user can just type over it instead of
+    //              tabbing-end + backspacing.
+    //   Feature B: a "Blank out undone minutes" button below the grid that
+    //              clears the Mins value for every row whose Done checkbox
+    //              is unchecked. Uses MUI's edit-cell flow: click to activate,
+    //              setReactValue("") to clear, Enter to commit.
+    // =====================================================================
+    function featureMinsColumnHelpers() {
+        const log = makeLogger('mins');
+        log.log('module booted');
+
+        // ---- Feature A: select-all on Mins cell focus ----------------------
+        // Use focusin so we bubble all the way up from inside the cell.
+        document.addEventListener('focusin', (ev) => {
+            const input = ev.target;
+            if (!(input instanceof HTMLInputElement)) return;
+            // Must be inside an MUI DataGrid edit input cell.
+            const editCell = input.closest('.MuiDataGrid-editInputCell');
+            if (!editCell) return;
+            // Must be in the minutes column specifically.
+            const cell = input.closest('[data-field="minutes"]');
+            if (!cell) return;
+            // Defer one tick so MUI finishes wiring its own onFocus / range setup.
+            setTimeout(() => {
+                try {
+                    input.select();
+                    log.log(`select-all fired on Mins input (value="${input.value}")`);
+                } catch (err) {
+                    log.warn('select() threw', err);
+                }
+            }, 0);
+        }, true);
+        log.log('Feature A wired: focusin handler will select-all on Mins cell activation');
+
+        // ---- Feature B: "Blank out undone minutes" button ------------------
+        const BUTTON_ID = 'athelas-blank-undone-mins-btn';
+
+        /** Find every intervention row, skip ones whose Done checkbox is checked,
+         *  and clear the Mins value for the rest. */
+        async function blankUndoneMinutes() {
+            const grid = document.querySelector('.MuiDataGrid-root');
+            if (!grid) { log.warn('blankUndoneMinutes: no grid'); return; }
+
+            const rows = Array.from(grid.querySelectorAll('.MuiDataGrid-row[data-id]'));
+            log.log(`blankUndoneMinutes: scanning ${rows.length} rows`);
+
+            let cleared = 0, skippedDone = 0, skippedEmpty = 0, failed = 0;
+            for (const row of rows) {
+                const id = row.getAttribute('data-id');
+                const done = row.querySelector('input[type="checkbox"][aria-label$=" done state"]');
+                if (done && done.checked) { skippedDone++; continue; }
+
+                const cell = row.querySelector('[data-field="minutes"]');
+                if (!cell) { log.warn(`row ${id}: no minutes cell`); failed++; continue; }
+
+                // Read current displayed value. The cell shows text when not editing;
+                // we sniff the inner text to skip rows that are already empty.
+                const currentText = cell.textContent.trim();
+                if (!currentText) { skippedEmpty++; continue; }
+
+                // Activate edit mode by clicking the cell, then setting "" on the input.
+                log.log(`row ${id}: clearing minutes (was "${currentText}")`);
+                simulateClick(cell, log);
+                await sleep(120);
+
+                const input = cell.querySelector('.MuiDataGrid-editInputCell input, input[type="text"]');
+                if (!input) {
+                    log.warn(`row ${id}: edit input never appeared after click`);
+                    failed++;
+                    continue;
+                }
+                // Clear via React-aware setter; "" not "0", per user spec.
+                setReactValue(input, '', log);
+                await sleep(60);
+
+                // Commit: dispatch Enter, then blur. MUI commits on either.
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keyup',   { key: 'Enter', code: 'Enter', bubbles: true }));
+                input.blur();
+                await sleep(100);
+                cleared++;
+            }
+            log.log(`%cblankUndoneMinutes complete: cleared=${cleared}, skipped done=${skippedDone}, skipped already-empty=${skippedEmpty}, failed=${failed}`, 'color: #2a7; font-weight: bold;');
+        }
+
+        // Expose for DevTools and the button.
+        window.__athelasBlankUndoneMinutes = blankUndoneMinutes;
+
+        /** Recompute the button's horizontal position so it sits directly below
+         *  the Mins column. We get the column header's bounding rect (the header
+         *  has the same horizontal extent as the column body), translate into
+         *  the grid's coordinate space, and apply marginLeft + width. */
+        function positionButton() {
+            const btn = document.getElementById(BUTTON_ID);
+            if (!btn) return;
+            const grid = document.querySelector('.MuiDataGrid-root');
+            const minsHeader = document.querySelector('[role="columnheader"][data-field="minutes"]');
+            if (!grid || !minsHeader) return;
+            const gridRect = grid.getBoundingClientRect();
+            const colRect  = minsHeader.getBoundingClientRect();
+            const left = Math.max(0, colRect.left - gridRect.left);
+            btn.style.marginLeft = `${left}px`;
+            btn.style.width      = `${colRect.width}px`;
+        }
+
+        /** Insert the button right after the DataGrid. We re-insert if it gets
+         *  removed (e.g. MUI re-renders the grid wrapper). */
+        function ensureButton() {
+            const existing = document.getElementById(BUTTON_ID);
+            if (existing) { positionButton(); return; }
+            const grid = document.querySelector('.MuiDataGrid-root');
+            if (!grid) return;
+            const btn = document.createElement('button');
+            btn.id = BUTTON_ID;
+            btn.type = 'button';
+            btn.textContent = 'Blank out undone minutes';
+            // Solid red background, white text; narrow so it can sit under the
+            // Mins column (~113px) - positionButton() sets the exact width.
+            Object.assign(btn.style, {
+                display: 'block',
+                boxSizing: 'border-box',
+                margin: '6px 0 8px',          // marginLeft is overridden by positionButton()
+                padding: '6px 6px',
+                background: '#c33',           // red
+                border: '1px solid #a22',
+                borderRadius: '4px',
+                color: '#fff',                // white text
+                font: '500 12px/1.2 system-ui, sans-serif',
+                textAlign: 'center',
+                cursor: 'pointer',
+                whiteSpace: 'normal',         // allow text to wrap inside the narrow column width
+            });
+            // Subtle hover/active feedback
+            btn.addEventListener('mouseenter', () => { btn.style.background = '#a22'; });
+            btn.addEventListener('mouseleave', () => { btn.style.background = btn.disabled ? '#888' : '#c33'; });
+            btn.addEventListener('click', async () => {
+                btn.disabled = true;
+                btn.textContent = 'Clearing...';
+                btn.style.background = '#888';
+                try {
+                    await blankUndoneMinutes();
+                } finally {
+                    btn.textContent = 'Blank out undone minutes';
+                    btn.style.background = '#c33';
+                    btn.disabled = false;
+                }
+            });
+            grid.insertAdjacentElement('afterend', btn);
+            positionButton();
+            log.log('Feature B: "Blank out undone minutes" button inserted under Mins column');
+        }
+
+        // Try immediately, then re-check on a slow interval in case the grid is
+        // re-mounted or the button gets garbage-collected by a section re-render.
+        // The same interval also re-positions the button under the Mins column,
+        // so it stays aligned across viewport changes and grid column resizes.
+        ensureButton();
+        setInterval(ensureButton, 2000);
+        // Snappy reposition on window resize too (no need to wait for the 2s poll).
+        window.addEventListener('resize', positionButton);
+    }
+
+
+    // =====================================================================
     // Boot: run each module in turn. They're independent.
     // =====================================================================
     applyCompactCss();
@@ -1049,5 +1280,6 @@
         featureScrollToFlowsheet();
         featureAutofillInterventions();
         featureFocusInterventionsSearch();
+        featureMinsColumnHelpers();
     }
 })();
