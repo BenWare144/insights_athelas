@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      7.3.0
+// @version      8.1.0
 // @description  Compact spacing for Appointments / Calendar / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and auto-fill newly added interventions (justification, procedure, Done) from a lookup table. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
@@ -506,6 +506,16 @@
             procedureNumber: "97112"
         };
 
+        // ---- Therapeutic Activities (97530), per updated xlsx ----
+        const SIT_TO_STAND_DATA  = { justification: "Improve toilet transfers",                 procedureNumber: "97530" };
+        const SIT_TO_SUPINE_DATA = { justification: "Improved transfers on and off the bed",    procedureNumber: "97530" };
+        const STAIR_CLIMB_DATA   = { justification: "Improve stair climbing ability",           procedureNumber: "97530" };
+        const SQUAT_RECOVER_DATA = { justification: "Improve ablity to squat and recover",      procedureNumber: "97530" };
+        const FUNCTIONAL_YARD    = { justification: "Functional training for yard/house work ", procedureNumber: "97530" };
+
+        // ---- Balance / Neuromuscular Reeducation (97112), per updated xlsx ----
+        const GLUTE_MED_BALANCE  = { justification: "Verbal and tactile cues to glute med  for upright posture", procedureNumber: "97112" };
+
         const interventionData = {
             // ---- FRS variants (6) ----
             "FRS Left Lumbar":     FRS_TEMPLATE,
@@ -537,6 +547,27 @@
             // add explicit entries below (e.g. "MET-Tibial IR": MET_LE).
             "MET * (L/E)": MET_LE,
             "MET * (U/E)": MET_UE,
+
+            // ---- Therapeutic Activities (97530) ----
+            "Sit to Stand":      SIT_TO_STAND_DATA,
+            "Sit to Supine":     SIT_TO_SUPINE_DATA,
+            "Step up":           STAIR_CLIMB_DATA,
+            "Step down":         STAIR_CLIMB_DATA,
+            "Forward lunges":    SQUAT_RECOVER_DATA,
+            "Reverse lunges":    SQUAT_RECOVER_DATA,
+            "Side lunges":       SQUAT_RECOVER_DATA,
+            "Squat":             SQUAT_RECOVER_DATA,
+            "Push cable column": FUNCTIONAL_YARD,
+            "Pull cable column": FUNCTIONAL_YARD,
+
+            // ---- Balance / Single-leg / Tandem / Airex (97112) ----
+            // xlsx had "Semi Tandem " with a trailing space; prefix-match catches either form.
+            "Semi Tandem":       GLUTE_MED_BALANCE,
+            "Tandem stand":      GLUTE_MED_BALANCE,
+            "Single leg stand":  GLUTE_MED_BALANCE,
+            "Airex":             GLUTE_MED_BALANCE,
+            "Airex tandem":      GLUTE_MED_BALANCE,
+            "Airex semi-tandem": GLUTE_MED_BALANCE,
         };
         log.log(`interventionData loaded with ${Object.keys(interventionData).length} keys:`, Object.keys(interventionData));
 
@@ -893,6 +924,7 @@
 
             tryLockBaseline();
 
+
             // Observe a STABLE ancestor of the grid, not the grid itself. The grid
             // element can be swapped out by MUI when modals/popovers open or close,
             // which leaves an observer bound to the grid watching a detached node.
@@ -926,11 +958,96 @@
 
 
     // =====================================================================
+    // MODULE 4: Auto-focus the search bar when "Add Interventions" opens
+    //
+    // The dialog has two search inputs:
+    //   - placeholder="Search"           (left-panel template filter)
+    //   - placeholder="Search Treatments" (main treatment search where
+    //                                       you'd type "FRS Left Lumbar")
+    // We prefer the "Search Treatments" one; fall back to "Search" if the
+    // layout changes. On dialog mount we clear any existing text and focus.
+    // =====================================================================
+    function featureFocusInterventionsSearch() {
+        const log = makeLogger('focus-search');
+        log.log('module booted');
+
+        // Don't reprocess the same dialog instance more than once.
+        const seenDialogs = new WeakSet();
+
+        function handleDialog(dialog) {
+            if (seenDialogs.has(dialog)) return;
+            // Confirm this is the Add Interventions dialog - other MUI dialogs
+            // (Pinned Notes popover, etc.) should be ignored.
+            const title = dialog.querySelector('h2');
+            const titleText = title ? title.textContent.trim() : '';
+            if (!/Add Interventions/i.test(titleText)) {
+                log.log(`ignoring dialog with title="${titleText}" (not Add Interventions)`);
+                return;
+            }
+            seenDialogs.add(dialog);
+            log.log(`Add Interventions dialog detected, will focus + clear search`);
+
+            // Wait briefly for the dialog to finish animating in / inputs to mount.
+            setTimeout(() => {
+                // Priority: the simple "Search" input in the left rail (top of dialog
+                // content) is what the user actually wants focused for typing names like
+                // "FRS Left Lumbar". Fall back to "Search Treatments" if the left-rail
+                // input ever changes / disappears.
+                const search = dialog.querySelector('input[placeholder="Search"]')
+                            || dialog.querySelector('input[placeholder="Search Treatments"]');
+                if (!search) {
+                    log.warn('no search input found in dialog. All inputs:');
+                    dialog.querySelectorAll('input').forEach((el, i) => {
+                        log.log(`  input[${i}] placeholder="${el.placeholder}" aria-label="${el.getAttribute('aria-label')}" id="${el.id}"`);
+                    });
+                    return;
+                }
+                log.log(`found search input: placeholder="${search.placeholder}", current value="${search.value}"`, search);
+
+                // Clear if there's text (using the React-aware setter so the
+                // controlled input actually resets, not just the DOM property).
+                if (search.value) {
+                    log.log(`clearing existing text "${search.value}"`);
+                    setReactValue(search, '', log);
+                }
+
+                // Focus
+                search.focus();
+                log.log(`focused. document.activeElement matches? ${document.activeElement === search}`);
+            }, 200);
+        }
+
+        // Two strategies in parallel:
+        //   1) MutationObserver on body for dialog mounts
+        //   2) Periodic scan as a backup (cheap querySelectorAll)
+        function scan() {
+            document.querySelectorAll('[role="dialog"], .MuiDialog-paper').forEach(handleDialog);
+        }
+        scan(); // in case dialog is already open at script-start
+
+        let pending = null;
+        const obs = new MutationObserver(() => {
+            if (pending) return;
+            pending = setTimeout(() => { pending = null; scan(); }, 150);
+        });
+        // document.body may not exist at document-start; defer if needed.
+        const startObserving = () => {
+            obs.observe(document.body, { childList: true, subtree: true });
+            log.log('MutationObserver attached to body for dialog mounts');
+        };
+        if (document.body) startObserving();
+        else new MutationObserver((_, o) => { if (document.body) { o.disconnect(); startObserving(); } })
+                .observe(document.documentElement, { childList: true });
+    }
+
+
+    // =====================================================================
     // Boot: run each module in turn. They're independent.
     // =====================================================================
     applyCompactCss();
     if (isChartNote) {
         featureScrollToFlowsheet();
         featureAutofillInterventions();
+        featureFocusInterventionsSearch();
     }
 })();
