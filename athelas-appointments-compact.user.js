@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      9.2.0
+// @version      13.1.0
 // @description  Compact spacing for Appointments / Calendar / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and auto-fill newly added interventions (justification, procedure, Done) from a lookup table. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
@@ -148,6 +148,72 @@
             return false;
         }
     }
+
+    // =====================================================================
+    // Persistent row-highlight helper. Shared by featureAutofillInterventions
+    // (highlights newly-filled rows) and featureMoveToBottom (highlights
+    // already-checked rows the user queued).
+    //
+    // The highlight survives for the rest of the session: a MutationObserver
+    // re-applies the inline backgroundColor by data-id whenever MUI swaps the
+    // row element during a re-render. Identifying rows by id (not by element
+    // reference) makes the highlight outlive React reconciliation cycles.
+    // =====================================================================
+    const HIGHLIGHT_COLOR = '#ffeaa7';                 // warm yellow
+    const HIGHLIGHT_RGB   = 'rgb(255, 234, 167)';      // computed form for comparison
+    const highlightedIds = new Set();
+    let highlightObserver = null;
+    const highlightLogger = makeLogger('highlight');
+
+    function applyHighlights() {
+        for (const id of highlightedIds) {
+            const row = document.querySelector(`.MuiDataGrid-row[data-id="${id}"]`);
+            if (row && row.style.backgroundColor !== HIGHLIGHT_RGB) {
+                row.style.transition = 'background-color 0.4s ease';
+                row.style.backgroundColor = HIGHLIGHT_COLOR;
+            }
+        }
+    }
+    function startHighlightObserver() {
+        if (highlightObserver) return;
+        const grid = document.querySelector('.MuiDataGrid-root');
+        if (!grid) {
+            // Grid not in DOM yet - try again on next mutation of body.
+            const bootObs = new MutationObserver(() => {
+                if (document.querySelector('.MuiDataGrid-root')) {
+                    bootObs.disconnect();
+                    startHighlightObserver();
+                    applyHighlights();
+                }
+            });
+            if (document.body) bootObs.observe(document.body, { childList: true, subtree: true });
+            return;
+        }
+        highlightObserver = new MutationObserver(applyHighlights);
+        highlightObserver.observe(grid, { childList: true, subtree: true });
+        highlightLogger.log('persistent highlight observer attached to grid');
+    }
+    function markRowHighlighted(id, reason = '') {
+        if (!id) return;
+        if (highlightedIds.has(id)) return;
+        highlightedIds.add(id);
+        highlightLogger.log(`marked row data-id=${id} for persistent highlight${reason ? ' ('+reason+')' : ''}; total: ${highlightedIds.size}`);
+        startHighlightObserver();
+        applyHighlights();
+    }
+    function clearAllHighlights() {
+        for (const id of highlightedIds) {
+            const row = document.querySelector(`.MuiDataGrid-row[data-id="${id}"]`);
+            if (row) row.style.backgroundColor = '';
+        }
+        highlightedIds.clear();
+        if (highlightObserver) { highlightObserver.disconnect(); highlightObserver = null; }
+        highlightLogger.log('all highlights cleared');
+    }
+    // DevTools helpers
+    window.__athelasHighlight = markRowHighlighted;
+    window.__athelasClearHighlights = clearAllHighlights;
+    window.__athelasHighlightedIds = highlightedIds;
 
     /** Toggle an MUI Checkbox to a target state.
      *
@@ -399,12 +465,92 @@
             .tr-pb-20, .tr-pb-16, .tr-pb-14, .tr-pb-12 { padding-bottom: 0.5rem !important; }
             .tr-mb-20, .tr-mb-10 { margin-bottom: 0.5rem !important; }
             .tr-pt-16 { padding-top: 0.5rem !important; }
+
+            /* ============================================================
+               v10: aggressive compactness on five specific regions the
+               user called out. Each block is scoped to a stable class
+               combo from the page so we don't bleed elsewhere.
+               ============================================================ */
+
+            /* 1. Left rail: the 160/200px sub-section nav inside the chart-
+                  note content area. Drop right padding (tr-pr-6 = 24px) and
+                  collapse vertical spacing on its children. */
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] { padding-right: 4px !important; }
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] [class*="tr-py-"] { padding-top: 0 !important; padding-bottom: 0 !important; }
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] [class*="tr-mb-"],
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] [class*="tr-mt-"] { margin-top: 0 !important; margin-bottom: 0 !important; }
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] [class*="tr-gap-y-"] { row-gap: 1px !important; }
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] [class*="tr-min-h-"] { min-height: 0 !important; }
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] .MuiListItem-root,
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] .MuiListItemButton-root { padding-top: 1px !important; padding-bottom: 1px !important; min-height: 0 !important; }
+
+            /* 2. Quasar drawer aside (the left global nav with EHR / Insights
+                  expansion items). Tighten q-item rows. */
+            .q-drawer-container > aside .q-item { min-height: 28px !important; padding-top: 2px !important; padding-bottom: 2px !important; }
+            .q-drawer-container > aside .q-expansion-item__container { min-height: 0 !important; }
+            .q-drawer-container > aside [class*="tw-h-12"] { height: 28px !important; }
+            .q-drawer-container > aside [class*="tw-h-10"] { height: 24px !important; }
+            .q-drawer-container > aside [class*="tw-my-"] { margin-top: 0 !important; margin-bottom: 0 !important; }
+            .q-drawer-container > aside [class*="tw-mt-"] { margin-top: 0 !important; }
+
+            /* 3. "Surface4" sub-section banner with px-5: drop vertical breathing. */
+            .tr-bg-Surface-Neutral-Lighter-Surface4.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-px-5 { padding-top: 2px !important; padding-bottom: 2px !important; }
+            .tr-bg-Surface-Neutral-Lighter-Surface4.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-px-5 [class*="tr-py-"] { padding-top: 1px !important; padding-bottom: 1px !important; }
+            .tr-bg-Surface-Neutral-Lighter-Surface4.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-px-5 [class*="tr-min-h-"] { min-height: 0 !important; }
+
+            /* 4. Sticky page-top header bar (the action-bar row with Save / Print /
+                  etc.). Buttons set the floor, but trim the surrounding padding. */
+            .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface { padding-top: 1px !important; padding-bottom: 1px !important; }
+            .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface [class*="tr-py-"] { padding-top: 1px !important; padding-bottom: 1px !important; }
+            .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface .MuiButton-sizeMedium { padding-top: 1px !important; padding-bottom: 1px !important; min-height: 22px !important; }
+
+            /* ============================================================
+               5. DataGrid CSS DISABLED (v12.1).
+               ============================================================
+               These rules shrink the interventions DataGrid rows to 22px so
+               more rows fit on screen. They worked visually but caused
+               persistent dead space inside the grid because MUI X
+               DataGrid's virtualization JS still uses its
+               configured rowHeight prop (48px) for its internal math - it
+               renders only the rows it thinks fit in the viewport at 48px,
+               leaving ~330px+ of empty space below the rendered rows.
+
+               Many fixes were attempted in v10-v12. See the long notes
+               block on featureSimpleGridHeight in MODULE 8 (search for
+               "MODULE 8: DataGrid compact mode") for the complete history
+               of attempts and the most promising unexplored avenues.
+
+               The rules are commented out below rather than deleted so a
+               future attempt can re-enable them once a working JS-side
+               fix for MUI's virtualization is in place. Don't re-enable
+               in isolation: you'll get the dead-space problem back.
+               ============================================================ */
+            /*
+            .MuiDataGrid-root { --rowHeight: 22px !important; --DataGrid-rowHeight: 22px !important; }
+            .MuiDataGrid-row { min-height: 22px !important; max-height: 22px !important; --height: 22px !important; height: 22px !important; }
+            .MuiDataGrid-row > .MuiDataGrid-cell { min-height: 22px !important; max-height: 22px !important; height: 22px !important; line-height: 20px !important; padding: 0 4px !important; }
+            .MuiDataGrid-row [data-field="intervention_name"] svg { width: 14px !important; height: 14px !important; }
+            .MuiDataGrid-row .MuiCheckbox-root { padding: 0 !important; width: 18px !important; height: 18px !important; }
+            .MuiDataGrid-row .MuiCheckbox-root svg { width: 18px !important; height: 18px !important; }
+            .MuiDataGrid-row .MuiIconButton-sizeSmall,
+            .MuiDataGrid-row .MuiIconButton-sizeMedium { padding: 0 !important; width: 20px !important; height: 20px !important; }
+            .MuiDataGrid-row .MuiIconButton-sizeSmall svg,
+            .MuiDataGrid-row .MuiIconButton-sizeMedium svg { width: 14px !important; height: 14px !important; }
+            .MuiDataGrid-row .MuiDataGrid-detailPanelToggleCell { width: 20px !important; height: 20px !important; padding: 0 !important; }
+            .MuiDataGrid-row .MuiDataGrid-detailPanelToggleCell svg { width: 16px !important; height: 16px !important; }
+            .MuiDataGrid-virtualScrollerContent > div { padding-top: 0 !important; padding-bottom: 0 !important; }
+            .MuiDataGrid-columnHeaders, .MuiDataGrid-columnHeader { height: 28px !important; min-height: 28px !important; max-height: 28px !important; line-height: 26px !important; }
+            */
         `;
 
         let css = '';
         if (isAppointments) css = cssAppointments;
-        else if (isCalendar) css = cssCalendar;
+        // Calendar compact mode intentionally NOT applied here in v11+ -
+        // the page already ships an in-product compact toggle. cssCalendar
+        // is kept defined above for reference / re-enabling later.
         else if (isChartNote) css = cssChartNote;
+        // (intentionally skip isCalendar branch)
+        void isCalendar; // suppress "unused" lint without removing the var
 
         if (!css) { log.log('no CSS block applies for this URL'); return; }
 
@@ -904,6 +1050,12 @@
                 const ok5 = await tickDone(row);
                 log.log(`  [step 5] result: ${ok5 ? 'OK' : 'FAILED'}`);
 
+
+                // Persistent yellow highlight so the user can see at a glance
+                // which rows the script auto-filled (in addition to whatever
+                // they queued from the dialog).
+                markRowHighlighted(id, `autofilled: ${name}`);
+
                 log.log(`done with "${name}"`);
             } catch (err) {
                 log.error('processRow threw:', err);
@@ -913,8 +1065,6 @@
         }
 
         // ---- Baseline + sweep ----
-
-        /** Lock the baseline to whatever rows are currently in the grid. */
         function lockBaseline() {
             if (baselineLocked) return;
             const grid = document.querySelector(SEL.grid);
@@ -923,141 +1073,91 @@
             baselineIds = new Set(Array.from(rows).map(r => r.getAttribute('data-id')));
             baselineLocked = true;
             log.log(`%cBASELINE LOCKED with ${baselineIds.size} pre-existing rows:`, 'color: #2a7; font-weight: bold;', [...baselineIds]);
-            log.log('From this point on, only rows whose data-id is NOT in the baseline will be auto-filled.');
         }
-
-        /** Wait for the grid to "settle": at least one row exists AND row count hasn't
-         *  changed for `quietMs`. If the chart note genuinely has 0 rows, wait up to
-         *  `maxWaitMs` then lock baseline at 0. */
         function tryLockBaseline(forceImmediate = false) {
             const quietMs = 1500;
             const maxWaitMs = 12000;
             const startedAt = Date.now();
             let lastCount = -1;
             let stableSince = null;
-
             if (forceImmediate) { lockBaseline(); return; }
-
-            log.log(`watching grid for settle (quiet period ${quietMs}ms, hard cap ${maxWaitMs}ms)...`);
             const interval = setInterval(() => {
                 const grid = document.querySelector(SEL.grid);
                 if (!grid) return;
                 const rows = grid.querySelectorAll(SEL.row);
                 const count = rows.length;
-
                 if (count !== lastCount) {
                     log.log(`  grid row count: ${lastCount} -> ${count} (resetting stable clock)`);
                     lastCount = count;
                     stableSince = Date.now();
                     return;
                 }
-
                 const stableFor = Date.now() - stableSince;
                 const elapsedTotal = Date.now() - startedAt;
-
-                if ((count > 0 && stableFor >= quietMs) ||
-                    (elapsedTotal >= maxWaitMs)) {
+                if ((count > 0 && stableFor >= quietMs) || elapsedTotal >= maxWaitMs) {
                     clearInterval(interval);
+                    log.log(`grid settled: count=${count}, stable for ${stableFor}ms, total wait ${elapsedTotal}ms`);
                     lockBaseline();
                 }
             }, 250);
         }
-
         function sweep() {
             const grid = document.querySelector(SEL.grid);
-            if (!grid) { log.log('sweep: grid gone'); return; }
-
-            if (!baselineLocked) {
-                log.log('sweep: baseline not locked yet - skipping (waiting for grid to settle)');
-                return;
-            }
-
+            if (!grid) return;
+            if (!baselineLocked) return;
             const rows = Array.from(grid.querySelectorAll(SEL.row));
             const newRows = rows.filter(r => !baselineIds.has(r.getAttribute('data-id')) && !processedIds.has(r.getAttribute('data-id')));
-
             if (newRows.length === 0) return;
             log.log(`sweep: ${newRows.length} truly-new row(s) detected:`, newRows.map(r => r.getAttribute('data-id')));
             newRows.forEach(processRow);
         }
 
-        // Boot
         (async () => {
-            log.log('waiting for MuiDataGrid to appear...');
+            log.log('waiting for MuiDataGrid...');
             const grid = await waitFor(SEL.grid, { log });
             if (!grid) { log.error('grid never appeared - autofill disabled'); return; }
-            log.log('grid found. Now waiting for it to settle before locking baseline.');
-
             tryLockBaseline();
-
-
-            // Observe a STABLE ancestor of the grid, not the grid itself. The grid
-            // element can be swapped out by MUI when modals/popovers open or close,
-            // which leaves an observer bound to the grid watching a detached node.
-            // The flowsheet section wrapper persists across those re-renders.
             const flowsheet = document.querySelector('[data-section="flowsheet"]') || document.body;
-            log.log(`MutationObserver target:`, flowsheet, '(stable ancestor of the grid)');
-
             let pending = null;
             const obs = new MutationObserver(() => {
                 if (pending) return;
                 pending = setTimeout(() => { pending = null; sweep(); }, 250);
             });
             obs.observe(flowsheet, { childList: true, subtree: true });
-            log.log('MutationObserver attached to flowsheet section.');
-
-            // Belt + suspenders: a low-frequency poll catches anything the observer
-            // ever misses (e.g. if MUI swaps the flowsheet wrapper itself, or if a
-            // popover transition interferes with mutation delivery).
             const POLL_MS = 1500;
             setInterval(() => sweep(), POLL_MS);
-            log.log(`backup poll: re-checking every ${POLL_MS}ms in case of observer misses`);
-
-            log.log('%cDevTools helpers exposed:', 'color: #58c; font-weight: bold;');
-            log.log('  window.__athelasResetBaseline()  - re-snapshot baseline (any row not in old baseline becomes "new" again)');
-            log.log('  window.__athelasSweep()          - manual sweep right now');
-            log.log('  window.__athelasInspectRow(id)   - dump everything we know about row data-id=<id>');
-            log.log('  window.__athelasDryRunOn() / Off - simulate fills (log-only) vs really fill');
-            log.log('  window.__athelasInterventionData - the lookup table object (mutable from DevTools)');
+            log.log('observer + 1.5s backup poll attached');
         })();
+
+        window.__athelasResetBaseline = () => {
+            log.warn('manually resetting baseline');
+            baselineIds = null;
+            baselineLocked = false;
+            processedIds.clear();
+            tryLockBaseline(true);
+        };
+        window.__athelasSweep = () => sweep();
+        window.__athelasInterventionData = interventionData;
     }
 
 
     // =====================================================================
-    // MODULE 4: Auto-focus the search bar when "Add Interventions" opens
-    //
-    // The dialog has two search inputs:
-    //   - placeholder="Search"           (left-panel template filter)
-    //   - placeholder="Search Treatments" (main treatment search where
-    //                                       you'd type "FRS Left Lumbar")
-    // We prefer the "Search Treatments" one; fall back to "Search" if the
-    // layout changes. On dialog mount we clear any existing text and focus.
+    // MODULE 4: Focus + clear the Add Interventions search bar on dialog open.
     // =====================================================================
     function featureFocusInterventionsSearch() {
         const log = makeLogger('focus-search');
         log.log('module booted');
-
-        // Don't reprocess the same dialog instance more than once.
         const seenDialogs = new WeakSet();
 
         function handleDialog(dialog) {
             if (seenDialogs.has(dialog)) return;
-            // Confirm this is the Add Interventions dialog - other MUI dialogs
-            // (Pinned Notes popover, etc.) should be ignored.
             const title = dialog.querySelector('h2');
             const titleText = title ? title.textContent.trim() : '';
-            if (!/Add Interventions/i.test(titleText)) {
-                log.log(`ignoring dialog with title="${titleText}" (not Add Interventions)`);
-                return;
-            }
+            if (!/Add Interventions/i.test(titleText)) return;
             seenDialogs.add(dialog);
-            log.log(`Add Interventions dialog detected, will focus + clear search`);
-
-            // Wait briefly for the dialog to finish animating in / inputs to mount.
+            log.log('Add Interventions dialog detected, will focus + clear search');
             setTimeout(() => {
-                // Priority: the simple "Search" input in the left rail (top of dialog
-                // content) is what the user actually wants focused for typing names like
-                // "FRS Left Lumbar". Fall back to "Search Treatments" if the left-rail
-                // input ever changes / disappears.
+                // Prefer "Search" (left-rail filter); fall back to "Search Treatments".
                 const search = dialog.querySelector('input[placeholder="Search"]')
                             || dialog.querySelector('input[placeholder="Search Treatments"]');
                 if (!search) {
@@ -1067,38 +1167,25 @@
                     });
                     return;
                 }
-                log.log(`found search input: placeholder="${search.placeholder}", current value="${search.value}"`, search);
-
-                // Clear if there's text (using the React-aware setter so the
-                // controlled input actually resets, not just the DOM property).
-                if (search.value) {
-                    log.log(`clearing existing text "${search.value}"`);
-                    setReactValue(search, '', log);
-                }
-
-                // Focus
+                log.log(`found search input: placeholder="${search.placeholder}", current value="${search.value}"`);
+                if (search.value) setReactValue(search, '', log);
                 search.focus();
-                log.log(`focused. document.activeElement matches? ${document.activeElement === search}`);
+                log.log(`focused. activeElement matches? ${document.activeElement === search}`);
             }, 200);
         }
 
-        // Two strategies in parallel:
-        //   1) MutationObserver on body for dialog mounts
-        //   2) Periodic scan as a backup (cheap querySelectorAll)
         function scan() {
             document.querySelectorAll('[role="dialog"], .MuiDialog-paper').forEach(handleDialog);
         }
-        scan(); // in case dialog is already open at script-start
-
+        scan();
         let pending = null;
         const obs = new MutationObserver(() => {
             if (pending) return;
             pending = setTimeout(() => { pending = null; scan(); }, 150);
         });
-        // document.body may not exist at document-start; defer if needed.
         const startObserving = () => {
             obs.observe(document.body, { childList: true, subtree: true });
-            log.log('MutationObserver attached to body for dialog mounts');
+            log.log('MutationObserver attached for dialog mounts');
         };
         if (document.body) startObserving();
         else new MutationObserver((_, o) => { if (document.body) { o.disconnect(); startObserving(); } })
@@ -1107,38 +1194,23 @@
 
 
     // =====================================================================
-    // MODULE 5: Mins-column helpers on the interventions DataGrid.
-    //   Feature A: when a Mins cell is activated for editing, select all the
-    //              existing text so the user can just type over it instead of
-    //              tabbing-end + backspacing.
-    //   Feature B: a "Blank out undone minutes" button below the grid that
-    //              clears the Mins value for every row whose Done checkbox
-    //              is unchecked. Uses MUI's edit-cell flow: click to activate,
-    //              setReactValue("") to clear, Enter to commit.
+    // MODULE 5: Mins-column helpers - select-all on focus, blank-out button.
     // =====================================================================
     function featureMinsColumnHelpers() {
         const log = makeLogger('mins');
         log.log('module booted');
 
         // ---- Feature A: select-all on Mins cell focus ----------------------
-        // Use focusin so we bubble all the way up from inside the cell.
         document.addEventListener('focusin', (ev) => {
             const input = ev.target;
             if (!(input instanceof HTMLInputElement)) return;
-            // Must be inside an MUI DataGrid edit input cell.
-            const editCell = input.closest('.MuiDataGrid-editInputCell');
-            if (!editCell) return;
-            // Must be in the minutes column specifically.
-            const cell = input.closest('[data-field="minutes"]');
-            if (!cell) return;
-            // Defer one tick so MUI finishes wiring its own onFocus / range setup.
+            if (!input.closest('.MuiDataGrid-editInputCell')) return;
+            if (!input.closest('[data-field="minutes"]')) return;
             setTimeout(() => {
                 try {
                     input.select();
                     log.log(`select-all fired on Mins input (value="${input.value}")`);
-                } catch (err) {
-                    log.warn('select() threw', err);
-                }
+                } catch (err) { log.warn('select() threw', err); }
             }, 0);
         }, true);
         log.log('Feature A wired: focusin handler will select-all on Mins cell activation');
@@ -1146,61 +1218,37 @@
         // ---- Feature B: "Blank out undone minutes" button ------------------
         const BUTTON_ID = 'athelas-blank-undone-mins-btn';
 
-        /** Find every intervention row, skip ones whose Done checkbox is checked,
-         *  and clear the Mins value for the rest. */
         async function blankUndoneMinutes() {
             const grid = document.querySelector('.MuiDataGrid-root');
             if (!grid) { log.warn('blankUndoneMinutes: no grid'); return; }
-
             const rows = Array.from(grid.querySelectorAll('.MuiDataGrid-row[data-id]'));
             log.log(`blankUndoneMinutes: scanning ${rows.length} rows`);
-
             let cleared = 0, skippedDone = 0, skippedEmpty = 0, failed = 0;
             for (const row of rows) {
                 const id = row.getAttribute('data-id');
                 const done = row.querySelector('input[type="checkbox"][aria-label$=" done state"]');
                 if (done && done.checked) { skippedDone++; continue; }
-
                 const cell = row.querySelector('[data-field="minutes"]');
-                if (!cell) { log.warn(`row ${id}: no minutes cell`); failed++; continue; }
-
-                // Read current displayed value. The cell shows text when not editing;
-                // we sniff the inner text to skip rows that are already empty.
+                if (!cell) { failed++; continue; }
                 const currentText = cell.textContent.trim();
                 if (!currentText) { skippedEmpty++; continue; }
-
-                // Activate edit mode by clicking the cell, then setting "" on the input.
                 log.log(`row ${id}: clearing minutes (was "${currentText}")`);
                 simulateClick(cell, log);
                 await sleep(120);
-
                 const input = cell.querySelector('.MuiDataGrid-editInputCell input, input[type="text"]');
-                if (!input) {
-                    log.warn(`row ${id}: edit input never appeared after click`);
-                    failed++;
-                    continue;
-                }
-                // Clear via React-aware setter; "" not "0", per user spec.
+                if (!input) { failed++; continue; }
                 setReactValue(input, '', log);
                 await sleep(60);
-
-                // Commit: dispatch Enter, then blur. MUI commits on either.
                 input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
                 input.dispatchEvent(new KeyboardEvent('keyup',   { key: 'Enter', code: 'Enter', bubbles: true }));
                 input.blur();
                 await sleep(100);
                 cleared++;
             }
-            log.log(`%cblankUndoneMinutes complete: cleared=${cleared}, skipped done=${skippedDone}, skipped already-empty=${skippedEmpty}, failed=${failed}`, 'color: #2a7; font-weight: bold;');
+            log.log(`%cblankUndoneMinutes done: cleared=${cleared}, skipped done=${skippedDone}, skipped empty=${skippedEmpty}, failed=${failed}`, 'color: #2a7; font-weight: bold;');
         }
-
-        // Expose for DevTools and the button.
         window.__athelasBlankUndoneMinutes = blankUndoneMinutes;
 
-        /** Recompute the button's horizontal position so it sits directly below
-         *  the Mins column. We get the column header's bounding rect (the header
-         *  has the same horizontal extent as the column body), translate into
-         *  the grid's coordinate space, and apply marginLeft + width. */
         function positionButton() {
             const btn = document.getElementById(BUTTON_ID);
             if (!btn) return;
@@ -1214,43 +1262,48 @@
             btn.style.width      = `${colRect.width}px`;
         }
 
-        /** Insert the button right after the DataGrid. We re-insert if it gets
-         *  removed (e.g. MUI re-renders the grid wrapper). */
         function ensureButton() {
-            const existing = document.getElementById(BUTTON_ID);
-            if (existing) { positionButton(); return; }
             const grid = document.querySelector('.MuiDataGrid-root');
             if (!grid) return;
+            const existing = document.getElementById(BUTTON_ID);
+            if (existing) {
+                // Edit-mode toggle wraps the grid in a new MuiBox-root container
+                // and replaces the grid element, which leaves our button
+                // stranded ABOVE the new grid. If the button is no longer the
+                // grid's immediate next-sibling, re-anchor it.
+                if (existing.previousElementSibling !== grid) {
+                    grid.insertAdjacentElement('afterend', existing);
+                    log.log('button re-anchored below grid (grid was re-mounted, likely by edit-mode toggle)');
+                }
+                positionButton();
+                return;
+            }
             const btn = document.createElement('button');
             btn.id = BUTTON_ID;
             btn.type = 'button';
             btn.textContent = 'Blank out undone minutes';
-            // Solid red background, white text; narrow so it can sit under the
-            // Mins column (~113px) - positionButton() sets the exact width.
             Object.assign(btn.style, {
                 display: 'block',
                 boxSizing: 'border-box',
-                margin: '6px 0 8px',          // marginLeft is overridden by positionButton()
+                margin: '6px 0 8px',
                 padding: '6px 6px',
-                background: '#c33',           // red
+                background: '#c33',
                 border: '1px solid #a22',
                 borderRadius: '4px',
-                color: '#fff',                // white text
+                color: '#fff',
                 font: '500 12px/1.2 system-ui, sans-serif',
                 textAlign: 'center',
                 cursor: 'pointer',
-                whiteSpace: 'normal',         // allow text to wrap inside the narrow column width
+                whiteSpace: 'normal',
             });
-            // Subtle hover/active feedback
             btn.addEventListener('mouseenter', () => { btn.style.background = '#a22'; });
             btn.addEventListener('mouseleave', () => { btn.style.background = btn.disabled ? '#888' : '#c33'; });
             btn.addEventListener('click', async () => {
                 btn.disabled = true;
                 btn.textContent = 'Clearing...';
                 btn.style.background = '#888';
-                try {
-                    await blankUndoneMinutes();
-                } finally {
+                try { await blankUndoneMinutes(); }
+                finally {
                     btn.textContent = 'Blank out undone minutes';
                     btn.style.background = '#c33';
                     btn.disabled = false;
@@ -1258,18 +1311,592 @@
             });
             grid.insertAdjacentElement('afterend', btn);
             positionButton();
-            log.log('Feature B: "Blank out undone minutes" button inserted under Mins column');
+            log.log('Blank-out button inserted under Mins column');
         }
 
-        // Try immediately, then re-check on a slow interval in case the grid is
-        // re-mounted or the button gets garbage-collected by a section re-render.
-        // The same interval also re-positions the button under the Mins column,
-        // so it stays aligned across viewport changes and grid column resizes.
         ensureButton();
         setInterval(ensureButton, 2000);
-        // Snappy reposition on window resize too (no need to wait for the 2s poll).
         window.addEventListener('resize', positionButton);
     }
+
+
+    // =====================================================================
+    // MODULE 6: "↓ Highlight" buttons in Add Interventions dialog + persistent
+    // highlight applied when the dialog closes.
+    // =====================================================================
+    function featureMoveToBottom() {
+        const log = makeLogger('highlight-queue');
+        log.log('module booted');
+
+        const MARK_BTN_ATTR = 'data-athelas-move-btn';
+        const toMoveSet = new Set();
+        window.__athelasMoveQueue = toMoveSet;
+
+        function styleButton(btn, queued) {
+            btn.textContent = queued ? '✓ queued' : '↓ Highlight';
+            btn.title = queued
+                ? 'Will be highlighted yellow in the intervention grid when this dialog closes. Click again to un-queue.'
+                : 'Queue this intervention to be highlighted yellow in the intervention grid after this dialog closes, so you can find it.';
+            Object.assign(btn.style, {
+                position: 'absolute',
+                top: '4px',
+                right: '46px',
+                zIndex: '5',
+                padding: '2px 6px',
+                background: queued ? '#cf9' : '#fff',
+                border: '1px solid #888',
+                borderRadius: '4px',
+                color: queued ? '#262' : '#222',
+                font: '500 11px/1.1 system-ui, sans-serif',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+            });
+        }
+
+        function rowIsChecked(li) {
+            const cb = li.querySelector('input[type="checkbox"]');
+            return !!(cb && cb.checked);
+        }
+
+        function injectButtonInRow(li) {
+            if (li.getAttribute(MARK_BTN_ATTR) === '1') return;
+            if (!rowIsChecked(li)) return;
+            const name = li.getAttribute('aria-label');
+            if (!name) return;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.setAttribute(MARK_BTN_ATTR, '1');
+            styleButton(btn, toMoveSet.has(name));
+            const handler = (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (toMoveSet.has(name)) {
+                    toMoveSet.delete(name);
+                    log.log(`un-queued: "${name}"`);
+                } else {
+                    toMoveSet.add(name);
+                    log.log(`queued: "${name}"`);
+                }
+                styleButton(btn, toMoveSet.has(name));
+            };
+            btn.addEventListener('click',     handler, true);
+            btn.addEventListener('mousedown', (e) => { e.stopPropagation(); }, true);
+            const cs = getComputedStyle(li);
+            if (cs.position === 'static') li.style.position = 'relative';
+            li.appendChild(btn);
+            li.setAttribute(MARK_BTN_ATTR, '1');
+        }
+
+        function scanDialog(dialog) {
+            const rows = dialog.querySelectorAll('li[aria-label]');
+            rows.forEach((li) => {
+                if (li.getAttribute(MARK_BTN_ATTR) !== '1' && rowIsChecked(li)) injectButtonInRow(li);
+            });
+        }
+
+        function findGridRow(name) {
+            const wrapper = document.querySelector(`[aria-label="${CSS.escape(name)} name"]`);
+            if (!wrapper) return null;
+            return wrapper.closest('.MuiDataGrid-row[data-id]');
+        }
+
+        async function processQueue() {
+            if (toMoveSet.size === 0) return;
+            const names = [...toMoveSet];
+            log.log(`processQueue: highlighting ${names.length} rows:`, names);
+            await sleep(400);
+            const finds = [];
+            for (const name of names) {
+                const row = findGridRow(name);
+                if (!row) { log.warn(`no grid row for "${name}"`); continue; }
+                const id = row.dataset.id;
+                log.log(`  found "${name}" (data-id=${id}) - persistent highlight`);
+                markRowHighlighted(id, `queued from dialog: ${name}`);
+                finds.push({ name, row, id });
+            }
+            toMoveSet.clear();
+            if (finds.length === 0) return;
+            const last = finds[finds.length - 1].row;
+            last.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            log.log(`${finds.length} row(s) persistently highlighted. Call __athelasClearHighlights() to clear.`);
+        }
+
+        let activeDialog = null;
+        let innerObs = null;
+        function onDialogOpen(dialog) {
+            activeDialog = dialog;
+            log.log('Add Interventions dialog OPEN');
+            scanDialog(dialog);
+            innerObs = new MutationObserver(() => scanDialog(dialog));
+            innerObs.observe(dialog, { childList: true, subtree: true });
+        }
+        function onDialogClose() {
+            log.log('Add Interventions dialog CLOSE');
+            if (innerObs) { innerObs.disconnect(); innerObs = null; }
+            activeDialog = null;
+            processQueue();
+        }
+        function isInterventionsDialog(dialog) {
+            const title = dialog && dialog.querySelector('h2');
+            return !!(title && /Add Interventions/i.test(title.textContent || ''));
+        }
+        function checkDialogs() {
+            const dlg = document.querySelector('[role="dialog"]');
+            const isOurs = dlg && isInterventionsDialog(dlg);
+            if (isOurs && dlg !== activeDialog) {
+                if (activeDialog) onDialogClose();
+                onDialogOpen(dlg);
+            } else if (!isOurs && activeDialog) {
+                onDialogClose();
+            }
+        }
+        const obs = new MutationObserver(() => checkDialogs());
+        const startObserving = () => {
+            obs.observe(document.body, { childList: true, subtree: true });
+            checkDialogs();
+        };
+        if (document.body) startObserving();
+        else new MutationObserver((_, o) => { if (document.body) { o.disconnect(); startObserving(); } })
+                .observe(document.documentElement, { childList: true });
+        window.__athelasProcessMoveQueue = processQueue;
+    }
+
+
+    // =====================================================================
+    // MODULE 7 (v13): Force "edit mode" on the interventions grid on load.
+    //
+    // Two important things we learned the hard way (v12 broke on these):
+    //
+    //  (a) The page renders TWO Flowsheet Edit buttons - a full text
+    //      button (aria-label="Flowsheet Edit") for wide screens and an
+    //      icon-only button (aria-label="Flowsheet Edit Icon Button")
+    //      for narrow screens. Only one is interactable at any given
+    //      viewport width. We try both.
+    //
+    //  (b) The button's data-selected attribute is NOT a reliable
+    //      indicator of state - in the snapshot we have where edit mode
+    //      is provably ON, data-selected still reads "false". So we
+    //      detect edit-mode state by the presence of the columns it
+    //      reveals: [role="columnheader"][data-field="removeExerciseButton"]
+    //      (the trash-bin column) and [data-field="__dragHandle__"].
+    //
+    // Flow:
+    //  1. Wait for the grid (so we have something to check column state on).
+    //  2. Check if removeExerciseButton column is already present -> done.
+    //  3. Find an interactable edit button.
+    //  4. Click it. Wait. Re-check the column.
+    //  5. If still missing, click again (up to 3 attempts).
+    // =====================================================================
+    function featureForceEditMode() {
+        const log = makeLogger('force-edit');
+        const T0 = Date.now();
+        const ts = () => `+${Date.now() - T0}ms`;
+        log.log(`${ts()} module booted, v13`);
+
+        const REMOVE_COL_SELECTOR = '[role="columnheader"][data-field="removeExerciseButton"]';
+        const DRAG_COL_SELECTOR   = '[role="columnheader"][data-field="__dragHandle__"]';
+
+        function editModeIsOn() {
+            const removeCol = document.querySelector(REMOVE_COL_SELECTOR);
+            const dragCol   = document.querySelector(DRAG_COL_SELECTOR);
+            return !!(removeCol || dragCol);
+        }
+
+        function findEditButton() {
+            // Try both variants. Filter for ones that are actually in the
+            // viewport (not display:none) and not disabled.
+            const candidates = document.querySelectorAll(
+                'button[aria-label="Flowsheet Edit"], button[aria-label="Flowsheet Edit Icon Button"]'
+            );
+            log.log(`${ts()} findEditButton: ${candidates.length} candidate(s)`);
+            for (const btn of candidates) {
+                const label = btn.getAttribute('aria-label');
+                const sel   = btn.getAttribute('data-selected');
+                const dis   = btn.getAttribute('disabled') !== null || btn.getAttribute('aria-disabled') === 'true';
+                const rect  = btn.getBoundingClientRect();
+                const cs    = getComputedStyle(btn);
+                const visible = rect.width > 0 && rect.height > 0 &&
+                                cs.display !== 'none' && cs.visibility !== 'hidden';
+                log.log(`  candidate: aria-label="${label}", data-selected="${sel}", disabled=${dis}, rect=${Math.round(rect.width)}x${Math.round(rect.height)}, visible=${visible}`);
+                if (visible && !dis) {
+                    log.log(`  -> PICKED this one`);
+                    return btn;
+                }
+            }
+            log.warn(`${ts()} findEditButton: no interactable button found`);
+            return null;
+        }
+
+        // ---- React Fiber introspection helpers (v13.1) ----
+        // When dispatching synthetic click events isn't enough (some MUI
+        // builds check event.isTrusted, or ripple handlers consume the
+        // event before onClick can fire), we can walk into React's
+        // internals and call the onClick prop directly. This bypasses the
+        // DOM event system entirely. Fragile across React versions but
+        // works when nothing else does.
+        function findReactProps(el) {
+            const key = Object.keys(el).find((k) => k.startsWith('__reactProps$'));
+            return key ? el[key] : null;
+        }
+        function findReactFiber(el) {
+            const key = Object.keys(el).find((k) => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
+            return key ? el[key] : null;
+        }
+        function inspectButtonForReact(btn) {
+            const props = findReactProps(btn);
+            const fiber = findReactFiber(btn);
+            const lines = [];
+            lines.push(`  React props found: ${!!props}, fiber found: ${!!fiber}`);
+            if (props) {
+                const handlerKeys = Object.keys(props).filter((k) => /^on[A-Z]/.test(k));
+                lines.push(`  React on* handlers on button: [${handlerKeys.join(', ')}]`);
+            }
+            // Walk up the fiber tree looking for handlers
+            if (fiber) {
+                let f = fiber;
+                let depth = 0;
+                while (f && depth < 5) {
+                    const t = f.type ? (typeof f.type === 'function' ? (f.type.displayName || f.type.name || '?') : String(f.type).slice(0, 40)) : 'host';
+                    const p = f.memoizedProps || {};
+                    const hKeys = Object.keys(p).filter((k) => /^on[A-Z]/.test(k));
+                    lines.push(`  fiber depth ${depth} (${t}): on* = [${hKeys.join(', ')}]`);
+                    f = f.return;
+                    depth++;
+                }
+            }
+            return lines;
+        }
+
+        // Strategy 2: call the React onClick prop directly. Walks the
+        // fiber tree if the immediate props don't carry an onClick (e.g.
+        // when MUI's ButtonBase wraps the native button - the actual
+        // handler may live on the ButtonBase fiber a few levels up).
+        function clickViaReactProps(btn) {
+            // Build a "good enough" synthetic event React handlers usually
+            // tolerate. Most handlers just touch preventDefault and the
+            // target.
+            const makeEvent = () => ({
+                type: 'click',
+                target: btn,
+                currentTarget: btn,
+                nativeEvent: new MouseEvent('click', { bubbles: true, cancelable: true }),
+                preventDefault: () => {},
+                stopPropagation: () => {},
+                isDefaultPrevented: () => false,
+                isPropagationStopped: () => false,
+                isTrusted: false,
+                bubbles: true,
+                cancelable: true,
+                button: 0,
+                buttons: 0,
+                clientX: 0,
+                clientY: 0,
+                pageX: 0,
+                pageY: 0,
+            });
+
+            // Look on the element itself first.
+            const props = findReactProps(btn);
+            if (props && typeof props.onClick === 'function') {
+                log.log('  strategy 2: calling props.onClick on the button element directly');
+                try { props.onClick(makeEvent()); return true; }
+                catch (err) { log.error('  props.onClick threw:', err); return false; }
+            }
+            // Walk up the fiber to find an onClick handler.
+            const fiber = findReactFiber(btn);
+            let f = fiber;
+            let depth = 0;
+            while (f && depth < 6) {
+                const p = f.memoizedProps || {};
+                if (typeof p.onClick === 'function') {
+                    log.log(`  strategy 2: calling onClick from fiber depth ${depth}`);
+                    try { p.onClick(makeEvent()); return true; }
+                    catch (err) { log.error(`  fiber.onClick threw at depth ${depth}:`, err); return false; }
+                }
+                f = f.return;
+                depth++;
+            }
+            log.warn('  strategy 2: no onClick found on element or up 6 fiber levels');
+            return false;
+        }
+
+        // Strategy 3: keyboard activation. MUI Button responds to Enter
+        // and Space. Dispatch a full key sequence.
+        function clickViaKeyboard(btn) {
+            btn.focus();
+            const opts = { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13, which: 13 };
+            btn.dispatchEvent(new KeyboardEvent('keydown', opts));
+            btn.dispatchEvent(new KeyboardEvent('keypress', opts));
+            btn.dispatchEvent(new KeyboardEvent('keyup', opts));
+            log.log('  strategy 3: focus() + Enter keydown/keypress/keyup dispatched');
+        }
+
+        async function tryEnable(attempt) {
+            log.log(`%c${ts()} tryEnable attempt #${attempt}`, 'color: #58c; font-weight: bold;');
+            log.log(`  editModeIsOn() = ${editModeIsOn()}`);
+            log.log(`  removeExerciseButton column: ${document.querySelector(REMOVE_COL_SELECTOR) ? 'PRESENT' : 'missing'}`);
+            log.log(`  __dragHandle__ column:       ${document.querySelector(DRAG_COL_SELECTOR) ? 'PRESENT' : 'missing'}`);
+
+            if (editModeIsOn()) {
+                log.log(`${ts()} edit mode IS ALREADY ON - done`);
+                return true;
+            }
+
+            const btn = findEditButton();
+            if (!btn) {
+                log.warn(`${ts()} no edit button to click on attempt #${attempt}`);
+                return false;
+            }
+
+            // Dump React introspection ONCE on attempt 1 so we can see what
+            // handlers the button actually exposes if everything fails.
+            if (attempt === 1) {
+                log.log(`${ts()} React introspection on button:`);
+                for (const line of inspectButtonForReact(btn)) log.log(line);
+            }
+
+            // Strategy 1: regular simulateClick (native + dispatched MouseEvent).
+            log.log(`${ts()} strategy 1: simulateClick`);
+            btn.focus();
+            simulateClick(btn, log);
+            await sleep(600);
+            if (editModeIsOn()) {
+                log.log(`%c${ts()} strategy 1 worked!`, 'color: #2a7; font-weight: bold;');
+                return true;
+            }
+            log.log(`  strategy 1 did not flip state. removeExerciseButton column: ${document.querySelector(REMOVE_COL_SELECTOR) ? 'PRESENT' : 'missing'}`);
+
+            // Strategy 2: call React onClick prop directly.
+            log.log(`${ts()} strategy 2: React-prop direct call`);
+            const handled = clickViaReactProps(btn);
+            log.log(`  strategy 2 reported handled=${handled}`);
+            await sleep(600);
+            if (editModeIsOn()) {
+                log.log(`%c${ts()} strategy 2 worked!`, 'color: #2a7; font-weight: bold;');
+                return true;
+            }
+            log.log(`  strategy 2 did not flip state.`);
+
+            // Strategy 3: keyboard Enter.
+            log.log(`${ts()} strategy 3: keyboard Enter`);
+            clickViaKeyboard(btn);
+            await sleep(600);
+            if (editModeIsOn()) {
+                log.log(`%c${ts()} strategy 3 worked!`, 'color: #2a7; font-weight: bold;');
+                return true;
+            }
+
+            log.warn(`${ts()} all 3 strategies failed on attempt #${attempt}`);
+            return false;
+        }
+
+        (async () => {
+            // Wait for the grid so we have something to check column state on.
+            log.log(`${ts()} waiting for .MuiDataGrid-root`);
+            const grid = await waitFor('.MuiDataGrid-root', { log, timeoutMs: 20000 });
+            if (!grid) { log.error(`${ts()} grid never appeared - abort`); return; }
+            log.log(`${ts()} grid appeared`);
+
+            // Tiny settle so column headers exist before we measure.
+            await sleep(800);
+
+            // Up to 3 attempts. If first doesn't take, sometimes React's
+            // onClick handler hadn't fully wired up yet - retry.
+            for (let i = 1; i <= 3; i++) {
+                const ok = await tryEnable(i);
+                if (ok) {
+                    log.log(`%c${ts()} edit mode enabled on attempt ${i}`, 'color: #2a7; font-weight: bold;');
+                    return;
+                }
+                // Slightly longer backoff between attempts
+                if (i < 3) {
+                    log.warn(`${ts()} attempt ${i} failed, will retry after backoff`);
+                    await sleep(1000 + i * 500);
+                }
+            }
+            log.error(`${ts()} edit mode could not be enabled after 3 attempts`);
+            log.error(`final state: editModeIsOn=${editModeIsOn()}, edit buttons in DOM=${document.querySelectorAll('button[aria-label^="Flowsheet Edit"]').length}`);
+        })();
+
+        // Expose for manual debugging
+        window.__athelasForceEditMode = async () => {
+            log.log('manual trigger from DevTools');
+            const ok = await tryEnable('manual');
+            log.log(`manual trigger result: ${ok}`);
+            return ok;
+        };
+        window.__athelasEditModeIsOn = editModeIsOn;
+    }
+
+
+    // =====================================================================
+    // MODULE 8: DataGrid compact mode (DISABLED in v12.1).
+    //
+    // ---------------------------------------------------------------
+    // BACKGROUND - for a future AI / contributor picking this up:
+    // ---------------------------------------------------------------
+    //
+    // GOAL: shrink the interventions list (an MUI X DataGrid) so rows are
+    // ~22px tall (just enough for an 18px checkbox + ~2px padding either
+    // side) instead of MUI's configured 48px. The page can't expose enough
+    // interventions on one screen at the default 48px - therapists scroll
+    // a lot.
+    //
+    // THE CORE PROBLEM:
+    //
+    // MUI X DataGrid uses a configured `rowHeight={48}` PROP for its
+    // virtualization JS - i.e. the code that decides how many rows to
+    // render in the DOM at any moment. CSS can shrink the rows visually
+    // (and does, via .MuiDataGrid-row { min-height: 22px !important }
+    // type rules elsewhere in cssChartNote - also DISABLED in v12.1, see
+    // the other notes block below). But MUI's virtualization JS keeps
+    // using its 48px assumption, so:
+    //
+    //   - MUI reserves space as if each row were 48px tall.
+    //     With 35 rows, that's 35 * 48 = 1680px of "content area".
+    //     This gets written inline as flex-basis on
+    //     .MuiDataGrid-virtualScrollerContent.
+    //   - MUI also writes a 1680-ish px height onto
+    //     .MuiDataGrid-scrollbarContent (the dummy that drives the
+    //     scrollbar's scroll range).
+    //   - The CSS shrinks each row visually to 22px.
+    //   - Net result: 35 rows render at 22px (total 770px) but the
+    //     container reserves 1680px - leaving ~910px of dead space
+    //     below the rendered rows.
+    //   - To worsen things: MUI's virtualization only renders rows it
+    //     thinks fit in the visible viewport, computed against the 48px
+    //     assumption. So even when the data WOULD fit visually at 22px,
+    //     MUI may render only e.g. 6-20 rows of the 35 available.
+    //
+    // We can't change `rowHeight={48}` from a userscript - it's a React
+    // prop set inside the page's bundle.
+    //
+    // APPROACHES TRIED (chronologically), with notes on why each failed:
+    //
+    // v10:   CSS-only - shrink .MuiDataGrid-row to 22px via !important.
+    //        Visually rows are 22px. MUI's virtualization still uses 48.
+    //        Result: dead space below rendered rows.
+    //
+    // v10.2: CSS - also override --DataGrid-rowHeight / --rowHeight
+    //        CSS variables on the root, plus
+    //        .MuiDataGrid-virtualScrollerContent { flex-basis: auto !important }
+    //        and .MuiDataGrid-virtualScroller { min-height: 0 !important }.
+    //        BROKE virtualization entirely: scroller measured 0 viewport
+    //        height, MUI rendered 0 rows. Reverted.
+    //
+    // v11.1: JS - observe the grid, set inline flex-basis on
+    //        virtualScrollerContent to renderZone.offsetHeight (the
+    //        actual rendered total).
+    //        BUG: when virtualization is active, renderZone reflects only
+    //        the rendered window (~7 rows out of 35). Wrote 7*22=154px as
+    //        the total content height. MUI then saw a scroll mismatch and
+    //        showed a scrollbar.
+    //
+    // v11.2: Fixed v11.1: use aria-rowcount * actualRowHeight, so the
+    //        FULL data height (35 * 22 = 770px) gets written.
+    //        Reduced dead space INSIDE the content area but didn't
+    //        eliminate visible dead space below the rendered rows - MUI's
+    //        render zone still only filled with the rows it thought fit
+    //        at its assumed 48px.
+    //
+    // v11.3: Also mirror desired height onto .MuiDataGrid-scrollbarContent
+    //        (the dummy element behind the scrollbar that drives its
+    //        scroll range). Fixed scroll range but visible dead space
+    //        remained.
+    //
+    // v11.4: Added extensive debug logging. Confirmed every prior
+    //        assumption but the dead space inside the grid persisted.
+    //
+    // v11.5: JS - shrink the OUTER .MuiDataGrid-root max-height to
+    //        (header + renderZone.offsetHeight). Run once.
+    //        BROKE: at the moment of clip MUI had only rendered 6 rows,
+    //        so the grid was clamped to ~168px and never recovered.
+    //
+    // v11.6: Fixed v11.5 formula to use aria-rowcount * rowHeight, not
+    //        renderZone.offsetHeight. Computed ~828px instead of 168px.
+    //        Almost worked but the user reported it was "still resizing
+    //        constantly even for a list of the same length" - in some
+    //        cases the same dead space recurred during re-renders.
+    //
+    // v12:   Stripped all observers/polls. Simple one-shot:
+    //        max-height = dataRowCount * 22 + 100. Still didn't behave
+    //        right for the user. Disabled the feature.
+    //
+    // PROMISING UNEXPLORED AVENUES:
+    //
+    //   (1) Reach into MUI X DataGrid's apiRef via React Fiber. Walk the
+    //       internal `__reactFiber$xxx` keys on .MuiDataGrid-root up to
+    //       the component that owns the grid's apiRef, then call
+    //       apiRef.current.unstable_setRowHeight(id, 22) or whatever the
+    //       version-specific API is. This would change MUI's internal
+    //       virtualization model so it matches our CSS visual. Fragile
+    //       across MUI versions but the "right" fix. (Note: v13.1's
+    //       force-edit-mode uses similar React-fiber introspection -
+    //       see findReactProps / findReactFiber - so the pattern is
+    //       already in the codebase.)
+    //
+    //   (2) Page-wide React DevTools-style instrumentation: hook
+    //       React.createElement to intercept DataGrid creation and inject
+    //       our own rowHeight prop. Requires injecting before React loads
+    //       (document-start) and identifying the right component reliably.
+    //
+    //   (3) MutationObserver that watches for the `flex-basis: <very
+    //       large>px` write event and uses CSS scale() / transform to
+    //       visually compress the area to 22/48 of its computed size.
+    //       Would distort interactions; impractical.
+    //
+    //   (4) Negotiate with the page vendor (Athelas) to expose rowHeight
+    //       as a user-configurable setting. They've been receptive to
+    //       compact-mode feedback before per the user's earlier note.
+    //
+    // CURRENT STATE: feature DISABLED. The function below is preserved so
+    // a future attempt can re-enable + iterate. Also see the "DataGrid CSS
+    // DISABLED" block inside cssChartNote (search for it) for the related
+    // CSS rules that were commented out.
+    // =====================================================================
+    /* DISABLED in v12.1 - kept commented for future reference.
+
+    function featureSimpleGridHeight() {
+        // ---- TUNABLE CONSTANTS ----
+        const GRID_ROW_HEIGHT_PX  = 22;   // height per intervention row
+        const GRID_WIGGLE_ROOM_PX = 100;  // extra space (header, scrollbar, padding)
+        // ----------------------------
+
+        const log = makeLogger('grid-size');
+        log.log('module booted');
+
+        let didOnce = false;
+
+        function resizeOnce() {
+            if (didOnce) { log.log('already sized once - skipping'); return; }
+            const grid = document.querySelector('.MuiDataGrid-root');
+            if (!grid) { log.log('no grid yet'); return; }
+            const gridRole = grid.querySelector('[role="grid"]') || grid;
+            const totalAriaRows = parseInt(gridRole.getAttribute('aria-rowcount') || '0', 10);
+            if (totalAriaRows < 2) { log.log(`aria-rowcount=${totalAriaRows}, waiting`); return; }
+            const dataRowCount = totalAriaRows - 1;
+            const desired = (dataRowCount * GRID_ROW_HEIGHT_PX) + GRID_WIGGLE_ROOM_PX;
+            grid.style.maxHeight = `${desired}px`;
+            grid.style.height    = `${desired}px`;
+            log.log(`SIZED grid: ${dataRowCount} rows x ${GRID_ROW_HEIGHT_PX}px + ${GRID_WIGGLE_ROOM_PX}px = ${desired}px max-height. LOCKED.`);
+            didOnce = true;
+        }
+
+        (async () => {
+            const grid = await waitFor('.MuiDataGrid-root', { log });
+            if (!grid) { log.warn('grid never appeared'); return; }
+            for (const delay of [100, 500, 1500, 3000, 6000]) {
+                setTimeout(() => resizeOnce(), delay);
+            }
+        })();
+
+        window.__athelasResizeGridOnce = () => {
+            didOnce = false;
+            resizeOnce();
+        };
+    }
+
+    END DISABLED v12.1 */
 
 
     // =====================================================================
@@ -1281,5 +1908,8 @@
         featureAutofillInterventions();
         featureFocusInterventionsSearch();
         featureMinsColumnHelpers();
+        featureMoveToBottom();
+        featureForceEditMode();
+        // featureSimpleGridHeight();   // disabled in v12.1 - see "DataGrid compact mode" notes block above
     }
 })();
