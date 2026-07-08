@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      13.1.0
+// @version      14.8.0
 // @description  Compact spacing for Appointments / Calendar / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and auto-fill newly added interventions (justification, procedure, Done) from a lookup table. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
@@ -415,6 +415,18 @@
             .tr-pb-3 { padding-bottom: 0.125rem !important; }
             .tr-pb-2 { padding-bottom: 0.125rem !important; }
 
+            /* ============================================================
+               MUI input compact-mode CSS DISABLED (v14).
+
+               After the Athelas site rework, the new Mins field uses
+               .MuiInputBase-root.MuiInputBase-sizeSmall.css-ygpv1j (an
+               <input aria-label="minutes"> wrapped in an MUI OutlinedInput)
+               and these overrides break both its display and its ability
+               to accept edits. Left commented for reference and possible
+               future use if the compact form-control styling is ever
+               wanted again.
+               ============================================================ */
+            /*
             .MuiOutlinedInput-root { padding: 2px 6px !important; }
             .MuiOutlinedInput-root.MuiInputBase-sizeSmall {
                 padding-top: 2px !important;
@@ -432,6 +444,7 @@
 
             .tiptap.ProseMirror { min-height: 1.5em !important; line-height: 1.3 !important; padding: 2px 6px !important; }
             .tiptap.ProseMirror p { margin: 1px 0 !important; }
+            */
 
             .MuiListItem-root.MuiListItem-gutters { padding-top: 0 !important; padding-bottom: 0 !important; min-height: 0 !important; }
             .MuiFormControlLabel-root { margin-top: 0 !important; margin-bottom: 0 !important; min-height: 0 !important; }
@@ -1900,16 +1913,499 @@
 
 
     // =====================================================================
+    // MODULE 9 (v14.2): "Fix MET" button next to the Flowsheet section header.
+    //
+    // The AI scribe misclassifies Muscle Energy Techniques (MET) under
+    // CPT 97140 (Manual Therapy) when they belong under 97112
+    // (Neuromuscular Reeducation). We add ONE button in the flowsheet
+    // section header row - on the right side, in line with the h3
+    // "Flowsheet" heading. Clicking it scans every MET item under 97140
+    // and moves them all to the top of the 97112 card.
+    //
+    // Scribe preview cards live in `data-section="flowsheet"` (each is a
+    // `div.tr-rounded-lg.tr-border...` with a header span containing the
+    // 5-digit CPT code and a body container of item blocks). Items are
+    // NOT wired to react-beautiful-dnd, so we just insertBefore the DOM
+    // node. Persistence still requires clicking Apply Scribe afterwards.
+    //
+    // Per user note: the button is placed as a child of the flowsheet
+    // section's grid header row (grid-cols-[1fr_auto]), NOT inline on
+    // the h3 element itself.
+    // =====================================================================
+    function featureFixMisplacedMET() {
+        const log = makeLogger('fix-met');
+        log.log('module booted, v14.8 (scoped to flowsheet section)');
+
+        const HEADER_BTN_ID = 'athelas-fix-met-header-btn';
+        const SOURCE_CODE = '97140';
+        const TARGET_CODE = '97112';
+
+        function isMETText(text) {
+            const t = (text || '').trim();
+            return /\bMET\b/i.test(t) || /muscle\s+energy/i.test(t);
+        }
+
+        // ---- React fiber onClick fallback (v14.5) ----
+        // For buttons whose React onClick handler doesn't fire on synthetic
+        // events. Walks the element's Fiber internals (React 16+ keys are
+        // `__reactFiber$xxx` / `__reactProps$xxx`) up to 6 levels looking
+        // for an onClick prop, then calls it with a synthetic-event-like
+        // object. Bypasses the DOM event system entirely.
+        function findReactProps(el) {
+            const key = Object.keys(el).find((k) => k.startsWith('__reactProps$'));
+            return key ? el[key] : null;
+        }
+        function findReactFiber(el) {
+            const key = Object.keys(el).find((k) => k.startsWith('__reactFiber$') || k.startsWith('__reactInternalInstance$'));
+            return key ? el[key] : null;
+        }
+        function clickViaReactFiber(btn, logger) {
+            const makeEvent = () => ({
+                type: 'click', target: btn, currentTarget: btn,
+                nativeEvent: new MouseEvent('click', { bubbles: true, cancelable: true }),
+                preventDefault: () => {}, stopPropagation: () => {},
+                isDefaultPrevented: () => false, isPropagationStopped: () => false,
+                isTrusted: false, bubbles: true, cancelable: true,
+                button: 0, buttons: 0, clientX: 0, clientY: 0, pageX: 0, pageY: 0,
+            });
+            const propsOnEl = findReactProps(btn);
+            if (propsOnEl && typeof propsOnEl.onClick === 'function') {
+                logger.log('  fiber: calling onClick on the button element directly');
+                try { propsOnEl.onClick(makeEvent()); return true; }
+                catch (err) { logger.error('  onClick on element threw:', err); return false; }
+            }
+            const fiber = findReactFiber(btn);
+            let f = fiber, depth = 0;
+            while (f && depth < 6) {
+                const p = f.memoizedProps || {};
+                if (typeof p.onClick === 'function') {
+                    logger.log(`  fiber: calling onClick at depth ${depth}`);
+                    try { p.onClick(makeEvent()); return true; }
+                    catch (err) { logger.error(`  fiber onClick at depth ${depth} threw:`, err); return false; }
+                }
+                f = f.return;
+                depth++;
+            }
+            logger.warn('  fiber: no onClick handler found on element or up 6 levels');
+            return false;
+        }
+
+        /** Return all procedure-code cards on the page. Cards can be in one
+         *  of TWO different DOM formats depending on page mode:
+         *
+         *  Format A - "PREVIEW": rounded-lg bordered card with
+         *    <span class="Body.Small.SemiBold">97140</span> header and
+         *    items in <div class="tr-flex tr-flex-col tr-gap-2 tr-px-3 tr-py-2">.
+         *    Items themselves are <div class="tr-flex tr-flex-col tr-gap-0.5">
+         *    with a Body.Small.SemiBold name span.
+         *
+         *  Format B - "EDIT" (post +CPT click, or when user enters edit mode):
+         *    autocomplete <input aria-label="replace procedure"
+         *    value="97140 - Manual Therapy"> for the code header, items in
+         *    <ul aria-label="X intervention list"> with items as
+         *    <li aria-label="Intervention"> having an <input aria-label="Intervention name">.
+         *
+         *  We check both. Returns {code, card, itemsContainer, format,
+         *  itemSelector, itemNameGetter}.
+         */
+        function getAllProcedureCards() {
+            const results = [];
+
+            // v14.8: scope everything to the FLOWSHEET section so we don't
+            // accidentally pick up cards in the scribe-preview section
+            // ("data-section=services") - those have their own 97140 in
+            // preview format and would mislead the search.
+            const scope = document.querySelector('[data-section="flowsheet"]');
+            if (!scope) return results;
+
+            // --- Format A: preview cards (still used inside flowsheet if the
+            // page ever renders one there) ---
+            const rounded = scope.querySelectorAll(
+                'div.tr-rounded-lg.tr-border.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface'
+            );
+            for (const card of rounded) {
+                let code = null;
+                for (const s of card.querySelectorAll(':scope > div span, :scope > div > div span')) {
+                    const t = (s.textContent || '').trim();
+                    if (/^\d{5}$/.test(t)) { code = t; break; }
+                }
+                if (!code) continue;
+                const itemsContainer = card.querySelector('div.tr-flex.tr-flex-col.tr-gap-2.tr-px-3.tr-py-2');
+                results.push({
+                    code,
+                    card,
+                    itemsContainer,
+                    format: 'A-preview',
+                    itemSelector: ':scope > div.tr-flex.tr-flex-col',
+                    itemNameGetter: (item) => {
+                        const s = item.querySelector('span');
+                        return (s && s.textContent) || '';
+                    },
+                });
+            }
+
+            // --- Format B: edit-mode cards ---
+            const replaceInputs = scope.querySelectorAll('input[aria-label="replace procedure"]');
+            for (const input of replaceInputs) {
+                const val = input.value || input.getAttribute('value') || '';
+                const m = val.match(/^(\d{5})\b/);
+                if (!m) continue;
+                const code = m[1];
+                // Walk up looking for the ancestor that contains the sibling
+                // items list (aria-label="X interventions"). This is the "card".
+                let el = input.parentElement;
+                let itemsWrapper = null;
+                let card = null;
+                for (let d = 0; d < 12 && el && el !== document.body; d++, el = el.parentElement) {
+                    itemsWrapper = el.querySelector(':scope [aria-label$=" interventions"]');
+                    if (itemsWrapper) { card = el; break; }
+                }
+                // The <ul aria-label="X intervention list"> is inside itemsWrapper.
+                // It may or may not exist yet (empty sections have no ul).
+                const ul = itemsWrapper && itemsWrapper.querySelector('ul[aria-label$=" intervention list"]');
+                results.push({
+                    code,
+                    card,
+                    itemsContainer: ul || itemsWrapper,   // fall back to the wrapper if no ul yet
+                    format: 'B-edit',
+                    itemSelector: ':scope > li[aria-label="Intervention"]',
+                    itemNameGetter: (item) => {
+                        const inp = item.querySelector('input[aria-label="Intervention name"]');
+                        return (inp && (inp.value || inp.getAttribute('value'))) || '';
+                    },
+                });
+            }
+            return results;
+        }
+
+        /** How many cards on the page have the given code? Used to detect
+         *  runaway duplicate-add. Sums across both formats. */
+        function countCardsByCode(code) {
+            let n = 0;
+            for (const rec of getAllProcedureCards()) {
+                if (rec.code === code) n++;
+            }
+            return n;
+        }
+
+        function findCardByCode(code) {
+            for (const rec of getAllProcedureCards()) {
+                if (rec.code === code) return rec;
+            }
+            return null;
+        }
+
+        /** Find the Flowsheet section's header grid row. Anchored to
+         *  [data-section="flowsheet"] so it doesn't pick up any of the
+         *  other h3 headings on the page (there are 13). */
+        function findFlowsheetHeaderRow() {
+            const section = document.querySelector('[data-section="flowsheet"]');
+            if (!section) return null;
+            // The header row is a direct-child grid row. Search 2 levels
+            // deep in case there's an intermediate wrapper.
+            const row = section.querySelector(
+                ':scope > div.tr-grid.tr-w-full.tr-py-2, :scope > div > div.tr-grid.tr-w-full.tr-py-2'
+            );
+            return row;
+        }
+
+        /** Open the +CPT dialog, tick 97112, click "Add 1 CPT code". */
+        async function ensureTargetCard() {
+            if (findCardByCode(TARGET_CODE)) return true;
+
+            // v14.4: the button's jf-ext-button-ct value is literally
+            // "add\ncpt" (a newline separator, because the button text
+            // wraps across two source lines). Using an exact-match
+            // selector [jf-ext-button-ct="add cpt"] misses this. Use
+            // ends-with instead, which also excludes the bottom
+            // "add 0 cpt codes" button (ends with "codes"). Fall back to
+            // finding a button whose visible text is "CPT" if the attribute
+            // ever changes.
+            let addCptBtn = document.querySelector('button[jf-ext-button-ct$="cpt"]');
+            if (!addCptBtn) {
+                // Fallback: find a button whose trimmed textContent equals "CPT"
+                for (const b of document.querySelectorAll('button')) {
+                    if ((b.textContent || '').trim() === 'CPT') { addCptBtn = b; break; }
+                }
+            }
+            if (!addCptBtn) { log.warn('no +CPT button on the page (tried [jf-ext-button-ct$="cpt"] and text="CPT")'); return false; }
+            log.log(`clicking +CPT button to open the dialog (jf-ext-button-ct=${JSON.stringify(addCptBtn.getAttribute('jf-ext-button-ct'))})`);
+            simulateClick(addCptBtn, log);
+
+            // v14.5: some MUI buttons ignore synthetic click events (React's
+            // onClick handler is wired via delegation and sometimes filters
+            // on event.isTrusted). If the dialog doesn't appear quickly,
+            // fall back to calling the button's React onClick prop directly
+            // by walking its Fiber. Same technique as the disabled v13.1
+            // force-edit-mode module.
+            let dialog = await waitFor('[role="dialog"]', { log, timeoutMs: 500 });
+            if (!dialog) {
+                log.warn('dialog did not appear after synthetic click; trying React-fiber onClick fallback');
+                const handled = clickViaReactFiber(addCptBtn, log);
+                log.log(`React-fiber click handled=${handled}`);
+                dialog = await waitFor('[role="dialog"]', { log, timeoutMs: 2500 });
+            }
+            if (!dialog) { log.warn('CPT dialog never appeared even after fallback'); return false; }
+
+            // Give the option list a beat to render inside the dialog
+            await sleep(200);
+
+            // Find the 97112 option by its label text. Options are <li role="option">
+            // with a label div containing "97112 · Neuromuscular Reeducation".
+            const options = dialog.querySelectorAll('li[role="option"]');
+            let targetOption = null;
+            for (const opt of options) {
+                if ((opt.textContent || '').includes(TARGET_CODE)) {
+                    targetOption = opt;
+                    break;
+                }
+            }
+            if (!targetOption) {
+                log.warn(`no ${TARGET_CODE} option in dialog (found ${options.length} options)`);
+                return false;
+            }
+            const wasSelected = targetOption.getAttribute('aria-selected') === 'true';
+            if (!wasSelected) {
+                log.log(`clicking ${TARGET_CODE} option to tick its checkbox`);
+                simulateClick(targetOption, log);
+                await sleep(300);
+                // If aria-selected didn't flip, fall back to React fiber onClick.
+                if (targetOption.getAttribute('aria-selected') !== 'true') {
+                    log.warn('option didn\'t tick after synthetic click; trying React-fiber onClick');
+                    clickViaReactFiber(targetOption, log);
+                    await sleep(300);
+                }
+            } else {
+                log.log(`${TARGET_CODE} option was already selected`);
+            }
+
+            // Click the "Add N CPT code(s)" button (now enabled after tick).
+            // The jf-ext-button-ct is "add 0 cpt codes" initially, "add 1 cpt code"
+            // after selecting one. Match on the "cpt code" substring.
+            const addCodesBtn = dialog.querySelector('button[jf-ext-button-ct*="cpt code"]');
+            if (!addCodesBtn) { log.warn('no "Add N CPT code" button in dialog'); return false; }
+            if (addCodesBtn.disabled) {
+                log.warn(`Add CPT button still disabled (jf-ext-button-ct="${addCodesBtn.getAttribute('jf-ext-button-ct')}") - option may not have been ticked`);
+                return false;
+            }
+            const preAddCount = countCardsByCode(TARGET_CODE);
+            log.log(`clicking bottom button: "${addCodesBtn.textContent.trim()}" (${TARGET_CODE} card count BEFORE = ${preAddCount})`);
+            simulateClick(addCodesBtn, log);
+
+            // v14.6: strict duplicate-prevention. simulateClick fires both
+            // native .click() AND a dispatched MouseEvent, which for the
+            // Add button (which DOES respond to synthetic clicks) adds
+            // TWO cards. Then the React-fiber fallback fires a 3rd. To
+            // prevent this, poll for the card count to change and abort
+            // the fallback immediately if any card was added.
+            let addedByFirstClick = false;
+            for (let i = 0; i < 10; i++) {
+                await sleep(100);
+                const count = countCardsByCode(TARGET_CODE);
+                if (count > preAddCount) {
+                    addedByFirstClick = true;
+                    log.log(`  synthetic click added ${count - preAddCount} ${TARGET_CODE} card(s) after ${(i+1)*100}ms - skipping fiber fallback`);
+                    break;
+                }
+            }
+            if (!addedByFirstClick) {
+                log.warn(`Add synthetic click didn't add a card in 1000ms; trying React-fiber onClick`);
+                clickViaReactFiber(addCodesBtn, log);
+                // Poll again for card appearance
+                for (let i = 0; i < 15; i++) {
+                    await sleep(200);
+                    if (countCardsByCode(TARGET_CODE) > preAddCount) break;
+                }
+            }
+            const finalCount = countCardsByCode(TARGET_CODE);
+            log.log(`  post-Add: ${TARGET_CODE} card count = ${finalCount} (was ${preAddCount})`);
+            if (finalCount > preAddCount) {
+                if (finalCount - preAddCount > 1) {
+                    log.warn(`DUPLICATE CARDS: ${finalCount - preAddCount} ${TARGET_CODE} cards were added. You may want to remove the extras manually.`);
+                }
+                return true;
+            }
+            log.warn(`${TARGET_CODE} card did not appear after clicking Add`);
+            return false;
+        }
+
+        /** Full flow: verify MET items exist, ensure 97112 exists (create if
+         *  needed), then move all MET items to the top of 97112. */
+        async function performFix() {
+            log.log('%c=== performFix START ===', 'color: #58c; font-weight: bold;');
+            const scope = document.querySelector('[data-section="flowsheet"]');
+            log.log(`scope: [data-section="flowsheet"] found=${!!scope}`);
+            // Also count the cards OUTSIDE the flowsheet scope for context
+            const previewCards = document.querySelectorAll('[data-section="services"] div.tr-rounded-lg.tr-border.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface').length;
+            if (previewCards > 0) log.log(`  (ignoring ${previewCards} card(s) in the scribe-preview / services section)`);
+            const initialCards = getAllProcedureCards();
+            log.log(`procedure cards inside flowsheet: ${initialCards.length}`);
+            for (const rec of initialCards) {
+                const itemCount = rec.itemsContainer
+                    ? rec.itemsContainer.querySelectorAll(rec.itemSelector).length
+                    : 0;
+                log.log(`  card code=${rec.code}, format=${rec.format}, has itemsContainer=${!!rec.itemsContainer}, itemCount=${itemCount}`);
+            }
+
+            const source = findCardByCode(SOURCE_CODE);
+            if (!source || !source.itemsContainer) {
+                log.warn(`no ${SOURCE_CODE} section - aborting`);
+                return { moved: 0, reason: 'no 97140 section' };
+            }
+            log.log(`${SOURCE_CODE} card found (format=${source.format}); scanning items with selector "${source.itemSelector}"`);
+            const allItems = Array.from(source.itemsContainer.querySelectorAll(source.itemSelector));
+            const metItems = allItems.filter((it) => isMETText(source.itemNameGetter(it)));
+            log.log(`  items under ${SOURCE_CODE}: ${allItems.length} total, ${metItems.length} match MET`);
+            for (const item of metItems) {
+                log.log(`    MET item: "${source.itemNameGetter(item).trim()}"`);
+            }
+            if (metItems.length === 0) {
+                return { moved: 0, reason: 'no MET items under 97140' };
+            }
+
+            const preCount = countCardsByCode(TARGET_CODE);
+            log.log(`${TARGET_CODE} card count BEFORE ensureTargetCard: ${preCount}`);
+            if (preCount === 0) {
+                log.log(`no ${TARGET_CODE} section yet - opening +CPT dialog to add it`);
+                const ok = await ensureTargetCard();
+                log.log(`ensureTargetCard returned: ${ok}`);
+                if (!ok) return { moved: 0, reason: 'could not add 97112 section' };
+                // Give React a beat to finish mounting the new card
+                await sleep(300);
+            } else {
+                log.log(`${TARGET_CODE} already exists (${preCount} card(s)), skipping dialog dance`);
+            }
+
+            const postCount = countCardsByCode(TARGET_CODE);
+            log.log(`${TARGET_CODE} card count AFTER ensureTargetCard: ${postCount}`);
+
+            const target = findCardByCode(TARGET_CODE);
+            if (!target || !target.itemsContainer) {
+                log.warn(`no ${TARGET_CODE} items container after add - can't move`);
+                log.warn(`  target found: ${!!target}, itemsContainer: ${!!(target && target.itemsContainer)}, format: ${target && target.format}`);
+                return { moved: 0, reason: 'no 97112 items container after add' };
+            }
+            log.log(`will move ${metItems.length} MET item(s) into target (format=${target.format}, container tag=${target.itemsContainer.tagName})`);
+
+            let moved = 0;
+            // Reverse iteration so the FIRST MET item under 97140 ends up
+            // at the TOP of 97112 (insertBefore always goes to the front).
+            for (const item of metItems.reverse()) {
+                const name = source.itemNameGetter(item).trim() || '(unnamed)';
+                try {
+                    target.itemsContainer.insertBefore(item, target.itemsContainer.firstChild);
+                    log.log(`  moved "${name}" -> top of ${TARGET_CODE}`);
+                    moved++;
+                } catch (err) {
+                    log.error(`  failed to move "${name}":`, err);
+                }
+            }
+            log.log('%c=== performFix END: ' + moved + ' moved ===', 'color: #2a7; font-weight: bold;');
+            return { moved, reason: 'ok' };
+        }
+
+        function injectHeaderButton() {
+            if (document.getElementById(HEADER_BTN_ID)) return;
+            const row = findFlowsheetHeaderRow();
+            if (!row) return;
+            const btn = document.createElement('button');
+            btn.id = HEADER_BTN_ID;
+            btn.type = 'button';
+            btn.textContent = 'Fix MET → 97112';
+            btn.title = 'Move all Muscle Energy Technique (MET) items from 97140 (Manual Therapy) to the start of 97112 (Neuromuscular Reeducation). Click "Apply Scribe" afterwards to persist.';
+            Object.assign(btn.style, {
+                justifySelf: 'end',
+                alignSelf: 'center',
+                marginRight: '12px',
+                padding: '4px 10px',
+                background: '#c33',
+                color: '#fff',
+                border: '1px solid #a22',
+                borderRadius: '4px',
+                font: '500 12px/1.2 system-ui, sans-serif',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+            });
+            btn.addEventListener('mouseenter', () => { btn.style.background = '#a22'; });
+            btn.addEventListener('mouseleave', () => { btn.style.background = '#c33'; });
+            btn.addEventListener('click', async (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                const original = 'Fix MET → 97112';
+                btn.disabled = true;
+                btn.textContent = 'Working...';
+                btn.style.background = '#888';
+                try {
+                    const result = await performFix();
+                    if (result.moved > 0) {
+                        btn.textContent = `Moved ${result.moved}`;
+                        btn.style.background = '#2a7';
+                    } else {
+                        btn.textContent = result.reason;
+                        btn.style.background = '#888';
+                    }
+                } catch (err) {
+                    log.error('performFix threw:', err);
+                    btn.textContent = 'error';
+                    btn.style.background = '#888';
+                } finally {
+                    setTimeout(() => {
+                        btn.textContent = original;
+                        btn.style.background = '#c33';
+                        btn.disabled = false;
+                    }, 3000);
+                }
+            });
+            row.appendChild(btn);
+            log.log('injected Fix MET header button next to Flowsheet heading');
+        }
+
+        injectHeaderButton();
+        let pending = null;
+        const obs = new MutationObserver(() => {
+            if (pending) return;
+            pending = setTimeout(() => { pending = null; injectHeaderButton(); }, 250);
+        });
+        const startObs = () => {
+            obs.observe(document.body, { childList: true, subtree: true });
+            log.log('MutationObserver attached; will re-inject button if flowsheet section re-mounts');
+        };
+        if (document.body) startObs();
+        else new MutationObserver((_, o) => { if (document.body) { o.disconnect(); startObs(); } })
+                .observe(document.documentElement, { childList: true });
+
+        window.__athelasFixMET = performFix;
+        window.__athelasListProcedureCards = () => {
+            const rows = getAllProcedureCards().map(r => ({
+                code: r.code,
+                format: r.format,
+                hasItemsContainer: !!r.itemsContainer,
+                itemsContainerTag: r.itemsContainer ? r.itemsContainer.tagName : '-',
+                itemCount: r.itemsContainer
+                    ? r.itemsContainer.querySelectorAll(r.itemSelector).length
+                    : 0,
+            }));
+            console.table(rows);
+            return rows;
+        };
+    }
+
+
+    // =====================================================================
     // Boot: run each module in turn. They're independent.
     // =====================================================================
     applyCompactCss();
     if (isChartNote) {
         featureScrollToFlowsheet();
-        featureAutofillInterventions();
-        featureFocusInterventionsSearch();
-        featureMinsColumnHelpers();
-        featureMoveToBottom();
-        featureForceEditMode();
+        // featureFixMisplacedMET();
+        // v14 (site rework): the following five modules targeted selectors
+        // that no longer exist or behave differently after the Athelas UI
+        // update. Kept defined above for reference; disabled in the boot.
+        // featureAutofillInterventions();
+        // featureFocusInterventionsSearch();
+        // featureMinsColumnHelpers();
+        // featureMoveToBottom();
+        // featureForceEditMode();
         // featureSimpleGridHeight();   // disabled in v12.1 - see "DataGrid compact mode" notes block above
     }
 })();
