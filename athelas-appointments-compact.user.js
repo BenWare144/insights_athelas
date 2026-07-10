@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      14.11.0
+// @version      14.14.0
 // @description  Compact spacing for Appointments / Calendar / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and auto-fill newly added interventions (justification, procedure, Done) from a lookup table. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
@@ -731,7 +731,7 @@
         const log = makeLogger('fix-met');
         const T0 = performance.now();
         const ts = () => `+${(performance.now() - T0).toFixed(0)}ms`;
-        log.log(`${ts()} module booted, v14.11 (pointer-drag primary + keyboard fallback; lands at top of 97112)`);
+        log.log(`${ts()} module booted, v14.14 (justify via Tiptap editor API - true replace, no revert/newline)`);
 
         const HEADER_BTN_ID = 'athelas-fix-met-header-btn';
         const TARGET_CODE = '97112';   // Neuromuscular Reeducation - where MET belongs
@@ -823,9 +823,10 @@
         // dispatched on the handle. Once dragging, dnd-kit listens on `document`
         // and the move/drop handlers do NOT check target, so ArrowDown/Space are
         // dispatched on `document` (survives focus loss across React re-renders).
-        const KEYCODES = { Space: 32, ArrowDown: 40, ArrowUp: 38, Escape: 27, Enter: 13 };
-        function dispatchKey(el, type, code, key) {
-            const ev = new KeyboardEvent(type, { key, code, bubbles: true, cancelable: true });
+        const KEYCODES = { Space: 32, ArrowDown: 40, ArrowUp: 38, Escape: 27, Enter: 13, KeyA: 65 };
+        function dispatchKey(el, type, code, key, mods) {
+            mods = mods || {};
+            const ev = new KeyboardEvent(type, { key, code, bubbles: true, cancelable: true, ctrlKey: !!mods.ctrlKey, metaKey: !!mods.metaKey, shiftKey: !!mods.shiftKey, altKey: !!mods.altKey });
             const kc = KEYCODES[code] || 0;
             try { Object.defineProperty(ev, 'keyCode', { get: () => kc }); } catch (e) {}
             try { Object.defineProperty(ev, 'which', { get: () => kc }); } catch (e) {}
@@ -1098,6 +1099,95 @@
             return out;
         }
 
+        // ---- Justification text (v14.12) -----------------------------------
+        // Names shaped "MET - X" get X spliced into the sentence; anything else
+        // (e.g. a bare "MET") gets the generic form.
+        function metJustification(name) {
+            const m = (name || '').trim().match(/^MET\s*-\s*(.+)$/i);
+            const tail = 'with tactile and vc to help facilitate proper proprioception and posture.';
+            return m
+                ? `Muscle energy technique applied to ${m[1].trim()}, ${tail}`
+                : `Muscle energy technique applied, ${tail}`;
+        }
+        // ---- Set a Tiptap/ProseMirror field reliably (v14.14) ---------------
+        // The old approach (set DOM selection + execCommand insertText) did NOT work:
+        // ProseMirror ignores an externally-set DOM selection, so the text was
+        // inserted at the caret (prepended) rather than replacing, and the Enter we
+        // sent to "commit" only added blank paragraphs. Instead we drive Tiptap's own
+        // Editor instance, located by walking the React fiber up from the
+        // contenteditable node. selectAll()+insertContent() replaces the whole field
+        // in one real transaction that persists (fires the app's onUpdate) with no
+        // stray Enter/newline.
+        function findTiptapEditor(el) {
+            const k = Object.keys(el).find((x) => x.startsWith('__reactFiber$') || x.startsWith('__reactInternalInstance$'));
+            let f = k ? el[k] : null, depth = 0;
+            while (f && depth < 30) {
+                const p = f.memoizedProps;
+                if (p && p.editor && typeof p.editor.chain === 'function') return p.editor;
+                const sn = f.stateNode;
+                if (sn && sn.editor && typeof sn.editor.chain === 'function') return sn.editor;
+                f = f.return; depth++;
+            }
+            return null;
+        }
+        function setViaTiptap(el, value) {
+            const editor = findTiptapEditor(el);
+            if (!editor) { log.log(`${ts()}   setViaTiptap: no editor on fiber`); return false; }
+            try { editor.chain().focus().selectAll().insertContent(value).run(); return true; }
+            catch (e) { log.error(`${ts()}   setViaTiptap threw`, e); return false; }
+        }
+        // Fallback: select-all through ProseMirror's own keymap (Ctrl+A), delete, then
+        // insert. Verifies the field actually emptied first, so a failed select can
+        // never duplicate content.
+        async function setViaExecCommand(el, value) {
+            el.focus();
+            for (const t of ['mousedown', 'mouseup', 'click']) el.dispatchEvent(new MouseEvent(t, { bubbles: true }));
+            await sleep(30);
+            dispatchKey(el, 'keydown', 'KeyA', 'a', { ctrlKey: true });
+            dispatchKey(el, 'keyup', 'KeyA', 'a', { ctrlKey: true });
+            await sleep(20);
+            document.execCommand('delete', false);
+            await sleep(20);
+            if ((el.textContent || '').trim() !== '') {
+                log.warn(`${ts()}   setViaExecCommand: Ctrl+A+delete did not clear ("${(el.textContent || '').trim().slice(0, 30)}") - aborting to avoid duplication`);
+                return false;
+            }
+            const ok = document.execCommand('insertText', false, value);
+            await sleep(20);
+            return ok;
+        }
+        // Rewrite the "Intervention details" field for EVERY MET item now in 97112.
+        // Verifies the field ends up EXACTLY equal to the target text and retries if a
+        // controlled re-render reverts it. Idempotent.
+        async function applyMETJustifications() {
+            const target = getCards().find((c) => c.code === TARGET_CODE);
+            if (!target) { log.warn(`${ts()} applyMETJustifications: no ${TARGET_CODE} card`); return 0; }
+            const metItems = cardItems(target).filter((li) => isMETText(itemName(li)));
+            log.log(`${ts()} applyMETJustifications: ${metItems.length} MET item(s) in ${TARGET_CODE}`);
+            let edited = 0;
+            for (const li of metItems) {
+                const nm = itemName(li).trim();
+                const details = li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
+                if (!details) { log.warn(`${ts()} no "Intervention details" field for "${nm}"`); continue; }
+                const just = metJustification(nm);
+                if ((details.textContent || '').trim() === just) { log.log(`${ts()} justification "${nm}": already set, skip`); continue; }
+                let done = false;
+                for (let attempt = 1; attempt <= 3 && !done; attempt++) {
+                    const before = (details.textContent || '').trim();
+                    const usedTiptap = setViaTiptap(details, just);
+                    if (!usedTiptap) await setViaExecCommand(details, just);
+                    await sleep(150);
+                    let now = (details.textContent || '').trim();
+                    if (now === just) { await sleep(150); now = (details.textContent || '').trim(); } // catch a fast revert
+                    log.log(`${ts()} justification "${nm}" attempt ${attempt} (${usedTiptap ? 'tiptap' : 'execCommand'}): "${before.slice(0, 30)}" -> "${now.slice(0, 70)}"`);
+                    if (now === just) done = true;
+                }
+                if (done) edited++;
+                else log.warn(`${ts()} justification "${nm}" did NOT stick after 3 attempts`);
+            }
+            return edited;
+        }
+
         async function performFix() {
             log.log(`${ts()} ================= performFix START =================`);
             const scope = getScope();
@@ -1105,49 +1195,62 @@
             dumpState('performFix-start');
 
             const initial = listMisplacedMET();
-            log.log(`${ts()} misplaced MET items (any card except ${TARGET_CODE}): ${initial.length} -> ${JSON.stringify(initial)}`);
-            if (!initial.length) { log.log(`${ts()} nothing to do (no MET outside ${TARGET_CODE})`); return { moved: 0, reason: 'no-misplaced-MET' }; }
+            const tgt0 = getCards().find((c) => c.code === TARGET_CODE);
+            const metInTarget0 = tgt0 ? cardItems(tgt0).filter((li) => isMETText(itemName(li))).length : 0;
+            log.log(`${ts()} misplaced MET (outside ${TARGET_CODE}): ${initial.length} -> ${JSON.stringify(initial)}; MET already in ${TARGET_CODE}: ${metInTarget0}`);
+            if (!initial.length && metInTarget0 === 0) {
+                log.log(`${ts()} no MET items anywhere - nothing to do`);
+                return { moved: 0, justified: 0, reason: 'no-MET' };
+            }
 
             let target = getCards().find((c) => c.code === TARGET_CODE);
             if (!target) {
                 log.log(`${ts()} no ${TARGET_CODE} card - creating via +CPT`);
                 const ok = await ensureTargetCard();
-                if (!ok) return { moved: 0, reason: 'could-not-add-97112' };
+                if (!ok) return { moved: 0, justified: 0, reason: 'could-not-add-97112' };
                 await sleep(400);
                 target = getCards().find((c) => c.code === TARGET_CODE);
             }
-            if (!target) { log.warn(`${ts()} still no ${TARGET_CODE} after ensure`); return { moved: 0, reason: 'no-97112-after-ensure' }; }
+            if (!target) { log.warn(`${ts()} still no ${TARGET_CODE} after ensure`); return { moved: 0, justified: 0, reason: 'no-97112-after-ensure' }; }
             const targetName = target.name;
             log.log(`${ts()} target "${targetName}" region=${!!target.region}`);
 
+            // ---- move any misplaced MET into 97112 ----
             let moved = 0;
-            let usePointer = true;   // pointer path is fast + lands at top; falls back to keyboard on any miss
-            const maxPasses = initial.length + 2;   // safety against an infinite loop
-            for (let pass = 0; pass < maxPasses; pass++) {
-                const next = findNextMisplacedMET();
-                if (!next) { log.log(`${ts()} no more misplaced MET - done`); break; }
-                log.log(`${ts()} --- MET pass ${pass + 1}: moving "${next.name}" from ${next.code} -> ${TARGET_CODE} (mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
-                let res;
-                if (usePointer) {
-                    res = await pointerDragToTop(next.li, targetName, {});
-                    if (!res.ok) {
-                        // Pointer cancelled cleanly (item back home) - drop to keyboard for
-                        // this item AND the rest (don't keep paying for pointer misses).
-                        log.warn(`${ts()} pointer path failed (${res.reason || 'no-target'}); switching to keyboard for the remainder.`);
-                        usePointer = false;
-                        await sleep(150);
-                        const again = findNextMisplacedMET();
-                        if (again) res = await keyboardDrag(again.li, targetName, {});
+            if (initial.length) {
+                let usePointer = true;   // pointer path is fast + lands at top; falls back to keyboard on any miss
+                const maxPasses = initial.length + 2;   // safety against an infinite loop
+                for (let pass = 0; pass < maxPasses; pass++) {
+                    const next = findNextMisplacedMET();
+                    if (!next) { log.log(`${ts()} no more misplaced MET - done moving`); break; }
+                    log.log(`${ts()} --- MET pass ${pass + 1}: moving "${next.name}" from ${next.code} -> ${TARGET_CODE} (mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
+                    let res;
+                    if (usePointer) {
+                        res = await pointerDragToTop(next.li, targetName, {});
+                        if (!res.ok) {
+                            // Pointer cancelled cleanly (item back home) - drop to keyboard for
+                            // this item AND the rest (don't keep paying for pointer misses).
+                            log.warn(`${ts()} pointer path failed (${res.reason || 'no-target'}); switching to keyboard for the remainder.`);
+                            usePointer = false;
+                            await sleep(150);
+                            const again = findNextMisplacedMET();
+                            if (again) res = await keyboardDrag(again.li, targetName, {});
+                        }
+                    } else {
+                        res = await keyboardDrag(next.li, targetName, {});
                     }
-                } else {
-                    res = await keyboardDrag(next.li, targetName, {});
+                    if (res && res.ok) { moved++; }
+                    else { log.warn(`${ts()} drag of "${next.name}" failed (${(res && res.reason) || 'not-in-target'}); stopping to avoid a mess.`); break; }
+                    await sleep(200);
                 }
-                if (res && res.ok) { moved++; }
-                else { log.warn(`${ts()} drag of "${next.name}" failed (${(res && res.reason) || 'not-in-target'}); stopping to avoid a mess.`); break; }
-                await sleep(200);
+            } else {
+                log.log(`${ts()} no misplaced MET to move; justification-only run`);
             }
-            log.log(`${ts()} ================= performFix END: moved=${moved} =================`);
-            return { moved, reason: 'ok' };
+
+            // ---- standardize the justification of EVERY MET item now in 97112 ----
+            const justified = await applyMETJustifications();
+            log.log(`${ts()} ================= performFix END: moved=${moved}, justified=${justified} =================`);
+            return { moved, justified, reason: 'ok' };
         }
 
         // ---- Subtask 1: header button --------------------------------------
@@ -1180,8 +1283,12 @@
                 btn.disabled = true; btn.textContent = 'Working…'; btn.style.background = '#888';
                 try {
                     const result = await performFix();
-                    btn.textContent = result.moved > 0 ? `Moved ${result.moved}` : result.reason;
-                    btn.style.background = result.moved > 0 ? '#2a7' : '#888';
+                    const parts = [];
+                    if (result.moved) parts.push(`moved ${result.moved}`);
+                    if (result.justified) parts.push(`just. ${result.justified}`);
+                    const didSomething = result.moved || result.justified;
+                    btn.textContent = didSomething ? parts.join(', ') : (result.reason || 'no-op');
+                    btn.style.background = didSomething ? '#2a7' : '#888';
                 } catch (err) {
                     log.error(`${ts()} performFix threw:`, err);
                     btn.textContent = 'error'; btn.style.background = '#888';
@@ -1210,6 +1317,9 @@
         window.__athelasFixMET = performFix;
         window.__athelasDbgFlowsheet = () => { dumpState('manual'); return getCards().map((c) => ({ code: c.code, name: c.name, region: !!c.region, ul: !!c.ul, items: cardItems(c).map((li) => itemName(li).trim()) })); };
         window.__athelasListProcedureCards = () => { const r = getCards().map((c) => ({ code: c.code, name: c.name, items: cardItems(c).length })); console.table(r); return r; };
+        // Apply the standardized justification to every MET item in 97112 (same as
+        // what the button does after moving) - handy to test the field edit alone.
+        window.__athelasApplyJustifications = async () => applyMETJustifications();
         window.__athelasKbdDragFirstMET = async () => {
             const next = findNextMisplacedMET();
             if (!next) { log.warn('no misplaced MET item (nothing outside 97112)'); return; }
@@ -1226,7 +1336,7 @@
             log.log(`pointer-drag test: "${next.name}" from ${next.code} -> ${TARGET_CODE}`);
             return pointerDragToTop(next.li, tgt.name, {});
         };
-        log.log(`${ts()} hooks ready: __athelasFixMET, __athelasKbdDragFirstMET, __athelasPointerDragFirstMET, __athelasDbgFlowsheet, __athelasListProcedureCards`);
+        log.log(`${ts()} hooks ready: __athelasFixMET, __athelasApplyJustifications, __athelasKbdDragFirstMET, __athelasPointerDragFirstMET, __athelasDbgFlowsheet, __athelasListProcedureCards`);
     }
 
     // =====================================================================
