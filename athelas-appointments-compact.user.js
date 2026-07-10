@@ -1,11 +1,10 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      14.14.0
-// @description  Compact spacing for Appointments / Calendar / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and auto-fill newly added interventions (justification, procedure, Done) from a lookup table. Verbose logging.
+// @version      14.15.0
+// @description  Compact spacing for Appointments / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and Fix MET (move Muscle Energy Technique items to 97112). Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
-// @match        https://insights.athelas.com/ehr/calendar*
 // @match        https://insights.athelas.com/ehr/v2/patients/*/appointments/*
 // @run-at       document-start
 // @grant        GM_addStyle
@@ -16,8 +15,9 @@
 
     const path = location.pathname;
     const isAppointments = path.startsWith('/v3/appointments');
-    const isCalendar     = path.startsWith('/ehr/calendar');
     const isChartNote    = /^\/ehr\/v2\/patients\/[^/]+\/appointments\//.test(path);
+    // v14.15: calendar support removed entirely (dead since v11 - the page
+    // ships its own in-product compact toggle, so the script did nothing there).
 
     // =====================================================================
     // Shared logging helpers
@@ -312,40 +312,11 @@
             .v2-advanced-table .q-table__bottom { padding: 0 !important; min-height: 0 !important; }
         `;
 
-        const cssCalendar = `
-            .fc .fc-timegrid-slot,
-            .fc .fc-timegrid-slot-minor { height: 0.875rem !important; }
-
-            .fc .fc-timegrid-axis-cushion,
-            .fc .fc-timegrid-slot-label-cushion {
-                padding: 0 4px !important;
-                font-size: 11px !important;
-                line-height: 1.1 !important;
-            }
-
-            .fc-timegrid-event .fc-event-main { padding: 1px 2px 0 !important; }
-            .fc-timegrid-event .fc-event-time,
-            .fc-timegrid-event .fc-event-title {
-                font-size: 11px !important;
-                line-height: 1.15 !important;
-            }
-
-            .fc .fc-col-header-cell-cushion { padding: 2px 4px !important; }
-
-            .fc .fc-daygrid-day-events { padding: 1px !important; }
-            .fc .fc-daygrid-block-event .fc-event-time,
-            .fc .fc-daygrid-block-event .fc-event-title { padding: 0 1px !important; }
-
-            .MuiPickersDay-root { width: 30px !important; height: 30px !important; margin: 0 !important; }
-            .MuiDayCalendar-weekContainer { margin: 0 !important; }
-        `;
-
         const cssChartNote = `
+            /* v14.15: pruned every tr-* utility override whose class no longer
+               appears anywhere in the post-rework chart-note DOM (verified
+               against 5 captures incl. open dialogs). */
             .tr-gap-y-8 { row-gap: 0.375rem !important; }
-            .tr-gap-y-6 { row-gap: 0.375rem !important; }
-            .tr-gap-y-5 { row-gap: 0.25rem  !important; }
-            .tr-gap-y-4 { row-gap: 0.25rem  !important; }
-            .tr-gap-y-3 { row-gap: 0.25rem  !important; }
             .tr-gap-y-2 { row-gap: 0.125rem !important; }
 
             .tr-gap-8 { gap: 0.5rem !important; }
@@ -355,61 +326,32 @@
             .tr-gap-3 { gap: 0.25rem !important; }
             .tr-gap-2 { gap: 0.25rem !important; }
 
-            .tr-py-8 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
-            .tr-py-6 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
-            .tr-py-5 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
             .tr-py-4 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
             .tr-py-3 { padding-top: 0.125rem !important; padding-bottom: 0.125rem !important; }
             .tr-py-2 { padding-top: 0.125rem !important; padding-bottom: 0.125rem !important; }
-            .tr-py-2\\.5 { padding-top: 0.125rem !important; padding-bottom: 0.125rem !important; }
-            .tr-py-1\\.5 { padding-top: 0.0625rem !important; padding-bottom: 0.0625rem !important; }
             .tr-py-1 { padding-top: 0.0625rem !important; padding-bottom: 0.0625rem !important; }
 
-            .tr-mb-8 { margin-bottom: 0.5rem !important; }
-            .tr-mb-7 { margin-bottom: 0.5rem !important; }
-            .tr-mb-6 { margin-bottom: 0.375rem !important; }
             .tr-mb-5 { margin-bottom: 0.25rem !important; }
             .tr-mb-4 { margin-bottom: 0.25rem !important; }
             .tr-mb-3 { margin-bottom: 0.125rem !important; }
             .tr-mb-2 { margin-bottom: 0.125rem !important; }
-            .tr-mb-2\\.5 { margin-bottom: 0.125rem !important; }
-            .tr-mb-1\\.5 { margin-bottom: 0 !important; }
-            .tr-mb-1 { margin-bottom: 0 !important; }
 
-            .tr-mt-8 { margin-top: 0.5rem !important; }
             .tr-mt-7 { margin-top: 0.5rem !important; }
-            .tr-mt-6 { margin-top: 0.375rem !important; }
-            .tr-mt-5 { margin-top: 0.25rem !important; }
-            .tr-mt-4 { margin-top: 0.25rem !important; }
             .tr-mt-3 { margin-top: 0.125rem !important; }
             .tr-mt-2 { margin-top: 0.125rem !important; }
-            .tr-mt-1\\.5 { margin-top: 0 !important; }
-            .tr-mt-1 { margin-top: 0 !important; }
 
-            .tr-space-y-8 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.5rem !important; }
-            .tr-space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.375rem !important; }
-            .tr-space-y-4 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.25rem !important; }
-            .tr-space-y-3 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.125rem !important; }
             .tr-space-y-2 > :not([hidden]) ~ :not([hidden]) { margin-top: 0.125rem !important; }
-            .tr-space-y-1 > :not([hidden]) ~ :not([hidden]) { margin-top: 0 !important; }
 
-            .tr-min-h-12 { min-height: 1.5rem !important; }
-            .tr-min-h-10 { min-height: 1.5rem !important; }
-            .tr-min-h-9  { min-height: 1.25rem !important; }
             .tr-min-h-7  { min-height: 0 !important; }
-            .tr-min-h-6  { min-height: 0 !important; }
 
             .tr-p-6 { padding: 0.25rem !important; }
-            .tr-p-5 { padding: 0.25rem !important; }
             .tr-p-4 { padding: 0.25rem !important; }
             .tr-p-3 { padding: 0.25rem !important; }
             .tr-p-2 { padding: 0.125rem !important; }
-            .tr-pt-6 { padding-top: 0.25rem !important; }
             .tr-pt-5 { padding-top: 0.25rem !important; }
             .tr-pt-4 { padding-top: 0.25rem !important; }
             .tr-pt-3 { padding-top: 0.125rem !important; }
             .tr-pt-2 { padding-top: 0.125rem !important; }
-            .tr-pb-6 { padding-bottom: 0.25rem !important; }
             .tr-pb-5 { padding-bottom: 0.25rem !important; }
             .tr-pb-4 { padding-bottom: 0.25rem !important; }
             .tr-pb-3 { padding-bottom: 0.125rem !important; }
@@ -446,9 +388,8 @@
             .tiptap.ProseMirror p { margin: 1px 0 !important; }
             */
 
-            .MuiListItem-root.MuiListItem-gutters { padding-top: 0 !important; padding-bottom: 0 !important; min-height: 0 !important; }
             .MuiFormControlLabel-root { margin-top: 0 !important; margin-bottom: 0 !important; min-height: 0 !important; }
-            .MuiCheckbox-root, .MuiRadio-root { padding: 2px !important; }
+            .MuiCheckbox-root { padding: 2px !important; }
 
             .MuiCollapse-wrapperInner { padding-top: 0 !important; padding-bottom: 0 !important; }
 
@@ -456,28 +397,18 @@
             .MuiIconButton-sizeMedium { padding: 4px !important; }
             .MuiButton-sizeMedium { padding: 2px 8px !important; min-height: 0 !important; }
 
-            .MuiToggleButton-root { padding: 1px 6px !important; min-height: 0 !important; }
-
-            .MuiDataGrid-cell { padding: 0 6px !important; }
-
             .MuiTypography-Body\\.Normal\\.Regular,
             .MuiTypography-Body\\.Normal\\.Medium,
             .MuiTypography-Body\\.Small\\.Regular,
             .MuiTypography-Body\\.Small\\.Medium,
             .MuiTypography-Body\\.Small\\.SemiBold,
-            .MuiTypography-Body\\.Large\\.Regular,
             .MuiTypography-Body\\.Large\\.SemiBold {
                 line-height: 1.25 !important;
             }
 
-            header.MuiAppBar-root { min-height: 0 !important; }
-            header.MuiAppBar-root .MuiToolbar-root { min-height: 0 !important; padding-top: 2px !important; padding-bottom: 2px !important; }
-
             [data-section] > .tr-grid { padding-top: 1px !important; padding-bottom: 1px !important; }
 
-            .tr-pb-20, .tr-pb-16, .tr-pb-14, .tr-pb-12 { padding-bottom: 0.5rem !important; }
-            .tr-mb-20, .tr-mb-10 { margin-bottom: 0.5rem !important; }
-            .tr-pt-16 { padding-top: 0.5rem !important; }
+            .tr-pb-16, .tr-pb-12 { padding-bottom: 0.5rem !important; }
 
             /* ============================================================
                v10: aggressive compactness on five specific regions the
@@ -517,53 +448,16 @@
             .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface [class*="tr-py-"] { padding-top: 1px !important; padding-bottom: 1px !important; }
             .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface .MuiButton-sizeMedium { padding-top: 1px !important; padding-bottom: 1px !important; min-height: 22px !important; }
 
-            /* ============================================================
-               5. DataGrid CSS DISABLED (v12.1).
-               ============================================================
-               These rules shrink the interventions DataGrid rows to 22px so
-               more rows fit on screen. They worked visually but caused
-               persistent dead space inside the grid because MUI X
-               DataGrid's virtualization JS still uses its
-               configured rowHeight prop (48px) for its internal math - it
-               renders only the rows it thinks fit in the viewport at 48px,
-               leaving ~330px+ of empty space below the rendered rows.
-
-               Many fixes were attempted in v10-v12. See the long notes
-               block on featureSimpleGridHeight in MODULE 8 (search for
-               "MODULE 8: DataGrid compact mode") for the complete history
-               of attempts and the most promising unexplored avenues.
-
-               The rules are commented out below rather than deleted so a
-               future attempt can re-enable them once a working JS-side
-               fix for MUI's virtualization is in place. Don't re-enable
-               in isolation: you'll get the dead-space problem back.
-               ============================================================ */
-            /*
-            .MuiDataGrid-root { --rowHeight: 22px !important; --DataGrid-rowHeight: 22px !important; }
-            .MuiDataGrid-row { min-height: 22px !important; max-height: 22px !important; --height: 22px !important; height: 22px !important; }
-            .MuiDataGrid-row > .MuiDataGrid-cell { min-height: 22px !important; max-height: 22px !important; height: 22px !important; line-height: 20px !important; padding: 0 4px !important; }
-            .MuiDataGrid-row [data-field="intervention_name"] svg { width: 14px !important; height: 14px !important; }
-            .MuiDataGrid-row .MuiCheckbox-root { padding: 0 !important; width: 18px !important; height: 18px !important; }
-            .MuiDataGrid-row .MuiCheckbox-root svg { width: 18px !important; height: 18px !important; }
-            .MuiDataGrid-row .MuiIconButton-sizeSmall,
-            .MuiDataGrid-row .MuiIconButton-sizeMedium { padding: 0 !important; width: 20px !important; height: 20px !important; }
-            .MuiDataGrid-row .MuiIconButton-sizeSmall svg,
-            .MuiDataGrid-row .MuiIconButton-sizeMedium svg { width: 14px !important; height: 14px !important; }
-            .MuiDataGrid-row .MuiDataGrid-detailPanelToggleCell { width: 20px !important; height: 20px !important; padding: 0 !important; }
-            .MuiDataGrid-row .MuiDataGrid-detailPanelToggleCell svg { width: 16px !important; height: 16px !important; }
-            .MuiDataGrid-virtualScrollerContent > div { padding-top: 0 !important; padding-bottom: 0 !important; }
-            .MuiDataGrid-columnHeaders, .MuiDataGrid-columnHeader { height: 28px !important; min-height: 28px !important; max-height: 28px !important; line-height: 26px !important; }
-            */
+            /* v14.15: the long-disabled MUI DataGrid compact block was deleted.
+               The v14 site rework replaced the interventions DataGrid with
+               dnd-kit sortable cards - no .MuiDataGrid-* elements exist on the
+               page anymore. Historical notes live in
+               athelas-appointments-compact.archive.js (featureSimpleGridHeight). */
         `;
 
         let css = '';
         if (isAppointments) css = cssAppointments;
-        // Calendar compact mode intentionally NOT applied here in v11+ -
-        // the page already ships an in-product compact toggle. cssCalendar
-        // is kept defined above for reference / re-enabling later.
         else if (isChartNote) css = cssChartNote;
-        // (intentionally skip isCalendar branch)
-        void isCalendar; // suppress "unused" lint without removing the var
 
         if (!css) { log.log('no CSS block applies for this URL'); return; }
 
@@ -583,6 +477,7 @@
                 if (document.head) { inject(); obs.disconnect(); }
             }).observe(document.documentElement, { childList: true });
         }
+
     }
 
 
@@ -600,7 +495,9 @@
         const ACCEPT_PX     = 24;       // accept if target is within ±N px of HEADER_OFFSET
 
         /** Find the best scroll target, preferring the Interventions H1.
-         *  Falls back to the DataGrid or the Flowsheet section wrapper. */
+         *  Falls back to the Flowsheet section wrapper.
+         *  (v14.15: dropped the .MuiDataGrid-root fallback - the grid was
+         *  replaced by dnd-kit cards in the v14 site rework.) */
         function findTarget() {
             // 1. The Interventions H1 (or H2/H3/H4 if MUI ever changes the heading level)
             //    is the most-specific anchor the user actually wants to land on.
@@ -611,16 +508,12 @@
                     if (/^\s*Interventions\s*$/i.test(h.textContent || '')) return h;
                 }
             }
-            // 2. The intervention DataGrid itself is a fine alternative - it's right
-            //    below the Interventions heading and is the actionable area.
-            const grid = document.querySelector('.MuiDataGrid-root');
-            if (grid) return grid;
-            // 3. Last resort: the flowsheet section wrapper.
+            // 2. Last resort: the flowsheet section wrapper.
             return flowsheet;
         }
 
         // Wait for at least one of the candidate anchors to exist.
-        const anchor = await waitFor('[data-section="flowsheet"] h1, [data-section="flowsheet"] h2, [data-section="flowsheet"] h3, .MuiDataGrid-root, [data-section="flowsheet"]', { log });
+        const anchor = await waitFor('[data-section="flowsheet"] h1, [data-section="flowsheet"] h2, [data-section="flowsheet"] h3, [data-section="flowsheet"]', { log });
         if (!anchor) { log.warn('no scroll anchor ever appeared - giving up'); return; }
         await sleep(300); // give React a tick to finish painting children
 
@@ -640,7 +533,7 @@
             if (!target) { log.warn(`attempt ${i+1}: no target found`); break; }
             const desc = target.tagName === 'H1' || target.tagName === 'H2' || target.tagName === 'H3'
                 ? `${target.tagName} "${(target.textContent || '').trim()}"`
-                : (target.matches('.MuiDataGrid-root') ? 'MuiDataGrid-root' : `[data-section="${target.getAttribute('data-section')}"]`);
+                : `[data-section="${target.getAttribute('data-section')}"]`;
             log.log(`scroll attempt ${i+1}/${MAX_ATTEMPTS}: target = ${desc}`);
 
             // First attempt smooth, subsequent ones instant so the user doesn't
@@ -1346,14 +1239,7 @@
     if (isChartNote) {
         featureScrollToFlowsheet();
         featureFixMisplacedMET();
-        // v14 (site rework): the following five modules targeted selectors
-        // that no longer exist or behave differently after the Athelas UI
-        // update. Kept defined above for reference; disabled in the boot.
-        // featureAutofillInterventions();
-        // featureFocusInterventionsSearch();
-        // featureMinsColumnHelpers();
-        // featureMoveToBottom();
-        // featureForceEditMode();
-        // featureSimpleGridHeight();   // disabled in v12.1 - see "DataGrid compact mode" notes block above
+        // Legacy modules disabled in the v14 site rework live in
+        // athelas-appointments-compact.archive.js (see note above MODULE 9).
     }
 })();
