@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      15.1.0
+// @version      15.2.0
 // @description  Compact spacing for Appointments / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and Fix MET (move Muscle Energy Technique items to 97112). Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
@@ -572,6 +572,83 @@
             .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface [class*="tr-gap-"] { gap: 2px !important; }
             .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface [class*="tr-pt-"] { padding-top: 2px !important; }
             .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface [class*="tr-pb-"] { padding-bottom: 2px !important; }
+
+            /* ============================================================
+               v15 Phase 3: density inside the note content, especially
+               [data-section="flowsheet"]. Nothing hidden, drag handles keep
+               their full hit area, no MuiInputBase/MuiOutlinedInput padding
+               anywhere, no Small/ExtraSmall font shrinking.
+               ============================================================ */
+
+            /* 1. Section H1s (Subjective / Objective / Interventions / ... -
+                  9 per note, confirmed identical in both DOM captures, none
+                  of them shared with any dialog). LARGE font - shrink freely. */
+            h1.MuiTypography-root.MuiTypography-Heading\\.H1 {
+                font-size: 18px !important;
+                line-height: 1.2 !important;
+                margin: 0 !important;
+            }
+
+            /* 2. Flowsheet intervention rows. The row's real height floor is
+                  the "Intervention name" MuiInputBase-sizeSmall input
+                  (present in every row, ~40px per MUI's own small-outlined
+                  metrics) - untouchable per the MuiInputBase ban, so this is
+                  as tight as the outer li can get without that ban. The drag
+                  handle (tr-w-5 = 20px wide) is unaffected by this padding
+                  change and is centered within the ~40px input-driven row
+                  height, well above the 20px hit-area floor. */
+            li[aria-label="Intervention"] {
+                padding: 1px 0 1px 4px !important;
+            }
+
+            /* 3. Procedure-card header row (drag handle + replace-procedure +
+                  Mod + mins/units + therapist + HEP/Done). Its two widest
+                  fields (replace-procedure, Mod) are MEDIUM-size MUI
+                  Autocompletes, not sizeSmall - they set this row's own
+                  height floor and are never touched. Only the row's own
+                  wrapper gap and the card li's right padding are trimmed;
+                  the intervention-list indent beneath each card is also
+                  trimmed for horizontal density (same wrapper-padding
+                  spirit, reuses MODULE 9's own region selector pattern). */
+            [data-section="flowsheet"] ul[aria-label="procedures"] > li {
+                padding-right: 8px !important;
+            }
+            [data-section="flowsheet"] .tr-flex.tr-flex-wrap.tr-items-center.tr-gap-y-1 {
+                gap: 2px !important;
+            }
+            [data-section="flowsheet"] [role="region"][aria-label$=" interventions"] {
+                padding-left: 12px !important;
+            }
+
+            /* 4. Blue summary bar (Treatment Time / Timed / Untimed / Total
+                  Units / Time in Clinic). Text inside is Body.Small.* -
+                  untouched; only the container's own padding is trimmed,
+                  identified via its data-tour attribute (stable, non-hash). */
+            [data-tour="flowsheet-v2-summary-bar"] {
+                padding: 4px !important;
+            }
+
+            /* 5. Notes/justification tiptap editors inside rows. The
+                  surrounding wrapper divs are MuiBox-root with only
+                  hash-generated classes (no stable non-hash hook to trim
+                  their margins independently), so the only safe lever is the
+                  editor itself - line-height and its <p> margins only, no
+                  padding, per the v14 Mins-field lesson. */
+            [data-section="flowsheet"] .tiptap.ProseMirror {
+                line-height: 1.3 !important;
+            }
+            [data-section="flowsheet"] .tiptap.ProseMirror p {
+                margin: 1px 0 !important;
+            }
+
+            /* 6. Checkboxes / icon buttons in rows (Add-to-HEP, Done, row
+                  "more" menu): each sits in an already-fixed tr-h-7 (28px)
+                  container, and the existing global rules
+                  (.MuiIconButton-sizeSmall / .MuiCheckbox-root padding: 2px)
+                  already keep the controls themselves within that 28px -
+                  well under the ~40px input-driven row height from block 2
+                  above. Not the row-height driver anywhere in the flowsheet;
+                  no flowsheet-scoped tweak needed here. */
         `;
 
         let css = '';
