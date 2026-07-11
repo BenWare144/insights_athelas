@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      14.15.0
+// @version      15.1.0
 // @description  Compact spacing for Appointments / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and Fix MET (move Muscle Energy Technique items to 97112). Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
@@ -453,6 +453,125 @@
                dnd-kit sortable cards - no .MuiDataGrid-* elements exist on the
                page anymore. Historical notes live in
                athelas-appointments-compact.archive.js (featureSimpleGridHeight). */
+
+            /* ============================================================
+               v15 Phase 1: horizontal space reclaim. CSS only - nothing is
+               hidden, nothing new is injected; icons and (truncated) labels
+               stay visible and clickable everywhere.
+               ============================================================ */
+
+            /* 1. Global Quasar drawer: 250px -> 150px. The drawer width and
+                  the page-container's left offset are both set via INLINE
+                  style on the page (DOM-FACTS lesson #2), so !important is
+                  required to win. The existing v10 drawer rules above
+                  (q-item min-height 28/24px etc.) still apply on top of this. */
+            aside.q-drawer { width: 150px !important; }
+            .q-page-container { padding-left: 150px !important; }
+
+            /* Ellipsize the section-header label row (EHR / Insights / Daily
+               Operations / Utilities / Settings) so a narrower rail never
+               wraps or clips mid-word. The individual nav links beneath each
+               section already truncate via the site's own tw-truncate class. */
+            .q-drawer-container > aside .q-item [class*="tw-flex-1"] {
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                white-space: nowrap !important;
+                min-width: 0 !important;
+            }
+            .q-drawer-container > aside [class*="tw-px-4"] { padding-left: 8px !important; padding-right: 8px !important; }
+
+            /* 2. Section sub-nav rail: 160px -> 112px. Ellipsize the item
+                  label spans (font-size untouched - ExtraSmall stays small).
+                  The existing v10 rail-compaction rules above still apply. */
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] {
+                width: 112px !important;
+                min-width: 112px !important;
+                max-width: 112px !important;
+            }
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] [class*="MuiTypography-Body.ExtraSmall"] {
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                white-space: nowrap !important;
+                min-width: 0 !important;
+            }
+
+            /* 3. Content side margins: drop the note scroller's 16px
+                  tr-mx-4 gutters, and shrink the tr-px-6 rows inside the
+                  sticky header (breadcrumb / title / info-strip rows) to
+                  8px - scoped to that header container only. */
+            .tr-mx-4.tr-h-full.tr-w-full.tr-overflow-x-auto { margin-left: 0 !important; margin-right: 0 !important; }
+            .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface [class*="tr-px-6"] { padding-left: 8px !important; padding-right: 8px !important; }
+
+            /* ============================================================
+               v15 Phase 2: compact the bars above the note content (patient
+               banner, patient-level tabs, breadcrumb/title/info sticky
+               header, sticky in-note tabs). Nothing hidden, no font-size
+               changes on Small/ExtraSmall text, no MuiInputBase/
+               MuiOutlinedInput padding touched.
+               ============================================================ */
+
+            /* 1. Breadcrumb strip (sticky header row 1, tr-px-6 tr-py-2):
+                  already thinned to 1px top/bottom by the existing v10 rule
+                  above (".tr-sticky...Surface [class*=\"tr-py-\"]") - that
+                  rule's attribute-contains match already covers tr-py-2.
+                  No new rule needed here; fonts are untouched either way. */
+
+            /* 2. Patient banner (avatar + name + MRN + icon buttons + Book
+                  Appointment): its row uses tr-my-2 (margin, not padding -
+                  not covered by the existing Surface4 tr-py-/tr-min-h- rules
+                  below), confirmed via the "(MRN:" text in both DOM captures.
+                  Scoped to the same unique Surface4 sub-section container
+                  the v10 rules already use. */
+            .tr-bg-Surface-Neutral-Lighter-Surface4.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-px-5 [class*="tr-my-"] {
+                margin-top: 2px !important;
+                margin-bottom: 2px !important;
+            }
+
+            /* 3. Tabs: patient-level (Demographics/Appointments/Attachments/
+                  Tasks/Orders, inside the same Surface4 banner container)
+                  and the sticky z-20 tabs inside the note (Scribe Notes /
+                  Transcription & Context, plus the adjacent section-shortcut
+                  tabs in the same sticky container). Tab label text is
+                  Body.Small.SemiBold - untouched. Sticky positioning and the
+                  z-20 element's tr-mx-[-20px] negative margin are untouched -
+                  only min-height/padding on the tabs themselves change. */
+            .tr-bg-Surface-Neutral-Lighter-Surface4.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-px-5 .MuiTabs-root,
+            .tr-sticky.tr-top-0.tr-z-20 .MuiTabs-root {
+                min-height: 26px !important;
+            }
+            .tr-bg-Surface-Neutral-Lighter-Surface4.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-px-5 .MuiTab-root,
+            .tr-sticky.tr-top-0.tr-z-20 .MuiTab-root {
+                min-height: 26px !important;
+                padding: 2px 10px !important;
+            }
+
+            /* 4. Title row (sticky header row 2): the visit title H4 is a
+                  LARGE font, safe to shrink - scoped to the sticky header so
+                  the unrelated H4s elsewhere (an "AI Summary" card title, a
+                  few dialog titles) are not touched. Row padding (tr-pt-3)
+                  is already 2px via the existing generic .tr-pt-3 rule
+                  above; the two selects (Appointment Type / Clinical Note
+                  Type) are MuiInputBase-sizeSmall autocompletes - their
+                  wrapper row's gap is tightened in block 5 below, but the
+                  input itself is never touched. */
+            .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface h4.MuiTypography-Heading\\.H4 {
+                font-size: 15px !important;
+                line-height: 1.2 !important;
+            }
+
+            /* 5. Info strip (Plan of Care End Date / Pending Visits / Prior
+                  Auth / Insurance / ... + the "Expand" toggle's revealed
+                  rows): tighten the remaining gap/padding utilities within
+                  the sticky header that the existing tr-py- rule doesn't
+                  cover (tr-pt-/tr-pb- are separate Tailwind utilities from
+                  tr-py-, and the info-strip grid's tr-gap-4 wasn't scoped
+                  down before). This also nudges row 2's title/select gap and
+                  row 1's breadcrumb gap a little tighter as a side effect -
+                  harmless, wrapper-only. The Expand toggle itself is a
+                  button, unaffected by spacing tweaks; it keeps working. */
+            .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface [class*="tr-gap-"] { gap: 2px !important; }
+            .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface [class*="tr-pt-"] { padding-top: 2px !important; }
+            .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface [class*="tr-pb-"] { padding-bottom: 2px !important; }
         `;
 
         let css = '';
@@ -489,7 +608,17 @@
         const log = makeLogger('scroll');
         log.log('module booted');
 
-        const HEADER_OFFSET = 64;       // sticky app bar height + a bit of breathing room
+        // v15 Phase 2: nudged down slightly. The patient-banner/tabs region
+        // above this sticky header shrank a lot (my-2 margins, tab heights)
+        // but that region isn't sticky, so it doesn't count toward this
+        // offset. Within the sticky header itself, row 2's height is floor-
+        // limited by the untouched MuiInputBase-sizeSmall selects (~40px),
+        // so the only real reduction here comes from tightening row 3's
+        // (info-strip) gap/padding. This is an ESTIMATE, not a live
+        // measurement (no authenticated browser session available while
+        // writing this CSS) - re-check with Claude in Chrome per
+        // redesign/PLAN.md and nudge again if jump-to-flowsheet lands off.
+        const HEADER_OFFSET = 60;       // sticky app bar height + a bit of breathing room
         const SETTLE_MS     = 350;      // delay between scroll attempts
         const MAX_ATTEMPTS  = 5;
         const ACCEPT_PX     = 24;       // accept if target is within ±N px of HEADER_OFFSET
