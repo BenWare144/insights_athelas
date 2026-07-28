@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      15.9.0
+// @version      15.10.0
 // @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -599,15 +599,24 @@
             }
             .q-drawer-container > aside [class*="tw-px-4"] { padding-left: 8px !important; padding-right: 8px !important; }
 
-            /* 2. Section sub-nav rail: 160px -> 112px. Ellipsize the item
-                  label spans (font-size untouched - ExtraSmall stays small).
-                  The existing v10 rail-compaction rules above still apply. */
+            /* 2. Section sub-nav rail: narrow it, but CLIP it so item highlights
+                  and labels can never paint out over the note content (v15.10 fix),
+                  reduce the big 20px item indent, and ellipsize long labels.
+                  148px fits the common labels ("Functional Outcomes" etc.); anything
+                  longer truncates with an ellipsis instead of overflowing. font-size
+                  untouched - ExtraSmall stays small. overflow-x:clip (not hidden) so
+                  the nav's sticky positioning is unaffected. */
             .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] {
-                width: 112px !important;
-                min-width: 112px !important;
-                max-width: 112px !important;
+                width: 148px !important;
+                min-width: 148px !important;
+                max-width: 148px !important;
+                overflow-x: clip !important;
             }
+            /* let the inner box/flex chain shrink so labels ellipsize in-place */
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] div { min-width: 0 !important; }
             .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] [class*="MuiTypography-Body.ExtraSmall"] {
+                display: block !important;
+                padding-left: 8px !important;      /* was tr-pl-5 = 20px */
                 overflow: hidden !important;
                 text-overflow: ellipsis !important;
                 white-space: nowrap !important;
@@ -2180,15 +2189,25 @@
     featureFixPrivatePay();
     featureProcedureMatchPreview();
 
+    // Jump to the flowsheet only when we ENTER a new chart note (its patient +
+    // appointment id changes) - NOT on same-note section clicks, which also change
+    // the SPA URL and were making the page jump back down to the flowsheet (v15.10).
+    function chartNoteKey() {
+        const m = location.pathname.match(/^\/ehr\/v2\/patients\/([^/]+)\/appointments\/([^/]+)/);
+        return m ? m[1] + '/' + m[2] : null;
+    }
+    let lastChartKey = null;
     let scrolling = false;
-    async function jumpIfChartNote() {
-        if (!pageType().isChartNote || scrolling) return;
+    async function jumpOnNewChartNote() {
+        const key = chartNoteKey();
+        if (!key || key === lastChartKey || scrolling) return;   // not a note, same note, or busy
+        lastChartKey = key;
         scrolling = true;
         try { await featureScrollToFlowsheet(); } finally { scrolling = false; }
     }
-    jumpIfChartNote();
+    jumpOnNewChartNote();
     onUrlChange(() => {
-        applyCompactCss();     // inject the now-relevant CSS block (if not already)
-        jumpIfChartNote();     // re-jump when the user navigates into a chart note
+        applyCompactCss();        // inject the now-relevant CSS block (if not already)
+        jumpOnNewChartNote();     // only re-jump when switching to a DIFFERENT note
     });
 })();

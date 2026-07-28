@@ -1,5 +1,10 @@
 # Changelog
 
+## 15.10.0 — 2026-07-28
+
+- Fix jump-to-Flowsheet over-firing: after v15.9 made the script re-evaluate on every SPA URL change, clicking a section in the note's left nav (which changes the URL) made the page jump back down to the flowsheet. It now only auto-jumps when entering a *different* chart note (patient + appointment id changes), not on same-note section clicks.
+- Fix the section sub-nav rail overflowing into the note: the compact rule narrowed the rail but didn't clip it, so item highlights and labels painted over the note content. The rail is now clipped (`overflow-x: clip`), the 20px item indent is reduced to 8px, long labels ellipsize, and the width is relaxed 112px → 148px so common labels fit.
+
 ## 15.9.0 — 2026-07-28
 
 - **Single-page-app fix.** The script sometimes never ran on a chart note (Tampermonkey showed a red ✕ / "this script hasn't run yet"): Athelas is an SPA, so if a tab first loaded on a non-matching URL and then client-side-navigated to a patient note, the old two-URL `@match` never injected. Now `@match https://insights.athelas.com/*` (whole domain) and the script decides what to do from the current path, re-evaluating on every SPA navigation (History API hooks + `window.onurlchange` + popstate + a poll). CSS and jump-to-Flowsheet re-apply on navigation; the Fix Procedures / Fix Private Pay buttons self-heal via their existing observers. Non-matching pages (calendar, dashboard) just no-op instead of leaving the ✕.
