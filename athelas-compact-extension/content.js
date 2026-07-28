@@ -1,14 +1,11 @@
-// ==UserScript==
-// @name         Athelas Insights - Compact Mode + Chart Note Helpers
-// @namespace    https://insights.athelas.com/
-// @version      15.7.0
-// @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
-// @author       Ben
-// @match        https://insights.athelas.com/v3/appointments*
-// @match        https://insights.athelas.com/ehr/v2/patients/*/appointments/*
-// @run-at       document-start
-// @grant        GM_addStyle
-// ==/UserScript==
+// Athelas Insights - Compact Mode + Chart Note Helpers (Chrome extension build)
+// v15.7.0 - ported verbatim from athelas-appointments-compact.user.js (the
+// userscript remains the source of truth; see AGENTS.md "Dual artifacts").
+// Runs in the MAIN world (see manifest.json) so the Fix-MET module can reach
+// the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
+// GM_addStyle is undefined here, so applyCompactCss() takes its <style>
+// injection fallback path - intentional, no shim needed.
+
 
 (function () {
     'use strict';

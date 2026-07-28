@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Athelas Insights - Compact Mode + Chart Note Helpers",
+  "version": "15.7.0",
+  "description": "Compact spacing for Athelas Insights Appointments / Chart Note pages, jump-to-Flowsheet on load, one-click Fix Procedures (move interventions to their correct CPT code), and Fix Private Pay.",
+  "minimum_chrome_version": "111",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://insights.athelas.com/v3/appointments*",
+        "https://insights.athelas.com/ehr/v2/patients/*/appointments/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}
