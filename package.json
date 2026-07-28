@@ -1,6 +1,6 @@
 {
   "name": "athelas-compact",
-  "version": "15.8.1",
+  "version": "15.9.0",
   "private": true,
   "description": "Compact mode + chart-note helpers for Athelas Insights (userscript + Chrome extension)",
   "type": "commonjs",

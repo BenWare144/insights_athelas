@@ -1,5 +1,5 @@
 // Athelas Insights - Compact Mode + Chart Note Helpers (Chrome extension build)
-// v15.8.1 - ported verbatim from athelas-appointments-compact.user.js (the
+// v15.9.0 - ported verbatim from athelas-appointments-compact.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the Fix-MET module can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -10,9 +10,37 @@
 (function () {
     'use strict';
 
-    const path = location.pathname;
-    const isAppointments = path.startsWith('/v3/appointments');
-    const isChartNote    = /^\/ehr\/v2\/patients\/[^/]+\/appointments\//.test(path);
+    // v15.9: Athelas is a single-page app. Rather than @match only the two
+    // deep URLs (which meant the script never injected when the tab first
+    // loaded on a non-matching URL and then client-side-navigated in), we now
+    // @match the whole domain and decide what to do per-navigation from the
+    // CURRENT pathname. pageType() is re-evaluated on every route change.
+    function pageType() {
+        const p = location.pathname;
+        return {
+            isAppointments: p.startsWith('/v3/appointments'),
+            isChartNote: /^\/ehr\/v2\/patients\/[^/]+\/appointments\//.test(p),
+        };
+    }
+    // Fire `cb` whenever the SPA changes the URL without a full reload. Combines
+    // Tampermonkey's native window.onurlchange (when granted), History API hooks
+    // (pushState/replaceState), popstate (back/forward), and a slow poll as a
+    // catch-all. Works identically under the Chrome-extension MAIN-world build.
+    function onUrlChange(cb) {
+        let last = location.href;
+        const fire = () => { if (location.href !== last) { last = location.href; try { cb(); } catch (e) {} } };
+        try { window.addEventListener('urlchange', fire); } catch (e) {}   // TM native (no-op if unsupported)
+        for (const m of ['pushState', 'replaceState']) {
+            const orig = history[m];
+            if (typeof orig === 'function' && !orig.__athelasPatched) {
+                const patched = function () { const r = orig.apply(this, arguments); fire(); return r; };
+                patched.__athelasPatched = true;
+                try { history[m] = patched; } catch (e) {}
+            }
+        }
+        window.addEventListener('popstate', fire);
+        setInterval(fire, 600);   // safety net for SPAs that stash the original History refs
+    }
     // v14.15: calendar support removed entirely (dead since v11 - the page
     // ships its own in-product compact toggle, so the script did nothing there).
 
@@ -739,29 +767,39 @@
                   no flowsheet-scoped tweak needed here. */
         `;
 
-        let css = '';
-        if (isAppointments) css = cssAppointments;
-        else if (isChartNote) css = cssChartNote;
+        // Inject the block that matches the CURRENT page, at most once per block.
+        // Called at boot AND on every SPA navigation, so the right CSS lands even
+        // when the tab first loaded on some other (non-matching) URL. Calendar and
+        // other pages get nothing (both blocks stay un-injected there).
+        const { isAppointments, isChartNote } = pageType();
+        const wanted = [];
+        if (isAppointments) wanted.push(['app', cssAppointments]);
+        if (isChartNote) wanted.push(['chart', cssChartNote]);
+        if (!wanted.length) { log.log('no CSS block applies for this URL'); return; }
 
-        if (!css) { log.log('no CSS block applies for this URL'); return; }
-
-        if (typeof GM_addStyle === 'function') {
-            GM_addStyle(css);
-            log.log(`applied via GM_addStyle (${css.length} chars)`);
-        } else {
-            const inject = () => {
-                const style = document.createElement('style');
-                style.id = 'athelas-compact-mode';
-                style.textContent = css;
-                (document.head || document.documentElement).appendChild(style);
-                log.log(`applied via <style> injection (${css.length} chars)`);
-            };
-            if (document.head) inject();
-            else new MutationObserver((_, obs) => {
-                if (document.head) { inject(); obs.disconnect(); }
-            }).observe(document.documentElement, { childList: true });
+        applyCompactCss._done = applyCompactCss._done || {};
+        for (const [key, css] of wanted) {
+            if (applyCompactCss._done[key]) continue;   // already injected this block
+            applyCompactCss._done[key] = true;
+            const styleId = 'athelas-compact-' + key;
+            if (typeof GM_addStyle === 'function') {
+                GM_addStyle(css);
+                log.log(`applied ${key} via GM_addStyle (${css.length} chars)`);
+            } else {
+                const inject = () => {
+                    if (document.getElementById(styleId)) return;
+                    const style = document.createElement('style');
+                    style.id = styleId;
+                    style.textContent = css;
+                    (document.head || document.documentElement).appendChild(style);
+                    log.log(`applied ${key} via <style> injection (${css.length} chars)`);
+                };
+                if (document.head) inject();
+                else new MutationObserver((_, obs) => {
+                    if (document.head) { inject(); obs.disconnect(); }
+                }).observe(document.documentElement, { childList: true });
+            }
         }
-
     }
 
 
@@ -2125,14 +2163,29 @@
 
     // =====================================================================
     // Boot: run each module in turn. They're independent.
+    //
+    // The button/preview features are observer-driven and self-heal, so we
+    // initialize them ONCE regardless of the entry page - their MutationObservers
+    // inject the buttons whenever a flowsheet / private-pay section appears, which
+    // is exactly what makes them survive SPA navigation into a chart note. CSS and
+    // jump-to-flowsheet are (re)applied per-navigation via onUrlChange.
+    // Legacy modules disabled in the v14 site rework live in
+    // athelas-appointments-compact.archive.js (see note above MODULE 9).
     // =====================================================================
     applyCompactCss();
-    if (isChartNote) {
-        featureScrollToFlowsheet();
-        featureFixMisplacedMET();
-        featureFixPrivatePay();
-        featureProcedureMatchPreview();
-        // Legacy modules disabled in the v14 site rework live in
-        // athelas-appointments-compact.archive.js (see note above MODULE 9).
+    featureFixMisplacedMET();
+    featureFixPrivatePay();
+    featureProcedureMatchPreview();
+
+    let scrolling = false;
+    async function jumpIfChartNote() {
+        if (!pageType().isChartNote || scrolling) return;
+        scrolling = true;
+        try { await featureScrollToFlowsheet(); } finally { scrolling = false; }
     }
+    jumpIfChartNote();
+    onUrlChange(() => {
+        applyCompactCss();     // inject the now-relevant CSS block (if not already)
+        jumpIfChartNote();     // re-jump when the user navigates into a chart note
+    });
 })();
