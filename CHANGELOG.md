@@ -1,5 +1,11 @@
 # Changelog
 
+## 15.12.0 — 2026-07-28
+
+- **Faster, more robust drag ("jump" drag).** Rewrote the mover: instead of riding dnd-kit's slow auto-scroll and creeping the cursor toward the target (which timed out on far targets, was slow, and "vibrated" between the last two slots at the end), it now programmatically scrolls the target's drop point on-screen and moves the pointer straight to a spot just below the last item, releasing the instant the item is confirmed last. Cost is independent of distance and of zoom/resolution (all geometry from `getBoundingClientRect`). Applies to both Fix Procedures and Fix Private Pay; keyboard drag remains the fallback.
+- **Confirmation dialog.** Clicking Fix Procedures now opens a review modal listing every pending change before anything moves, with two independent checkboxes per row (the move, and the justification/rename), a "Procedure → Section" movement column, and a red-old → green-new justification column. Only checked changes run. Fix Private Pay shows a moves-only review dialog.
+- **Progress toast.** A small, non-interactive, auto-fading bubble in the lower-right shows what's moving (e.g. `Moving "Cranial Manual Therapy" → PPVISIT Visit-Private Pay`) while the mover runs.
+
 ## 15.11.0 — 2026-07-28
 
 - Compact mode: dropped the two horizontal width-forces that caused the breakage, kept the (safe, valuable) vertical density. The section sub-nav rail returns to its native width — forcing it to 112px overflowed the item highlights/labels over the note. The far-left drawer goes to 200px (from the broken 150px, still narrower than the native 250px) with `overflow-x: hidden` so no horizontal scrollbar appears. Everything else keeps the 15.2.0 vertical compaction. No feature changes (Fix Procedures, Fix Private Pay, jump-to-Flowsheet, SPA injection all intact). See `redesign/COMPACT-MODE-POSTMORTEM.md`.
