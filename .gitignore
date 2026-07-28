@@ -25,6 +25,7 @@
 !redesign/procedure-matching-QUESTIONS.md
 !redesign/procedure-audit.md
 !redesign/BRIDGES-review.md
+!redesign/COMPACT-MODE-POSTMORTEM.md
 # NOT whitelisted: redesign/dom-*.html (real chart-note DOM dumps -> PHI)
 
 # never these, even inside whitelisted dirs
