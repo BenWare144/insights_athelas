@@ -1,5 +1,5 @@
 // Athelas Insights - Compact Mode + Chart Note Helpers (Chrome extension build)
-// v15.11.0 - ported verbatim from athelas-appointments-compact.user.js (the
+// v15.12.0 - ported verbatim from athelas-appointments-compact.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the Fix-MET module can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -388,6 +388,170 @@
         };
         return { normProc, resolveProcedure, metJustification, isJunkMET, RULES, J };
     })();
+
+
+    // =====================================================================
+    // SHARED UI: progress toast + move-confirmation dialog (v15.12).
+    // Pure DOM, no dependencies. Used by the Fix Procedures / Fix Private Pay
+    // movers so a therapist can review every change before it runs and watch
+    // what's happening while it runs.
+    // =====================================================================
+    function athEnsureToastHost() {
+        let host = document.getElementById('athelas-toast-host');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'athelas-toast-host';
+            Object.assign(host.style, {
+                position: 'fixed', right: '16px', bottom: '16px', zIndex: '2147483647',
+                display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end',
+                pointerEvents: 'none', maxWidth: '380px',
+            });
+            (document.body || document.documentElement).appendChild(host);
+        }
+        return host;
+    }
+    // Fading, non-interactive bubble in the lower-right. Returns {update, done}.
+    function athToast(text, opts) {
+        opts = opts || {};
+        const b = document.createElement('div');
+        b.textContent = text;
+        Object.assign(b.style, {
+            background: 'rgba(28,28,38,0.92)', color: '#fff',
+            font: '500 12.5px/1.35 system-ui, sans-serif', padding: '8px 12px',
+            borderRadius: '8px', boxShadow: '0 4px 14px rgba(0,0,0,0.28)',
+            opacity: '0', transform: 'translateY(6px)',
+            transition: 'opacity .18s ease, transform .18s ease',
+            pointerEvents: 'none', whiteSpace: 'normal', wordBreak: 'break-word',
+        });
+        athEnsureToastHost().appendChild(b);
+        requestAnimationFrame(() => { b.style.opacity = '1'; b.style.transform = 'translateY(0)'; });
+        let timer = null;
+        const fade = () => { b.style.opacity = '0'; b.style.transform = 'translateY(6px)'; setTimeout(() => b.remove(), 240); };
+        const arm = (ms) => { if (timer) clearTimeout(timer); if (ms > 0) timer = setTimeout(fade, ms); };
+        if (opts.ttl !== 0) arm(opts.ttl || 2600);
+        return {
+            update: (t) => { b.textContent = t; if (opts.ttl !== 0) arm(opts.ttl || 2600); },
+            done: (ms) => { arm(ms == null ? 900 : ms); },
+        };
+    }
+
+    // Modal listing every pending change with two checkboxes per row (move,
+    // justification). Resolves to { confirmed, decisions:[{...row, moveChecked,
+    // justChecked}] }. rows: { name, fromLabel, toLabel, willMove, willJust,
+    // oldJust, newJust, renameTo }.
+    function athConfirmMoves(title, rows) {
+        return new Promise((resolve) => {
+            const stop = (fn) => (ev) => { ev.preventDefault(); ev.stopPropagation(); fn(); };
+            const overlay = document.createElement('div');
+            Object.assign(overlay.style, {
+                position: 'fixed', inset: '0', zIndex: '2147483646', background: 'rgba(0,0,0,0.45)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
+            });
+            const modal = document.createElement('div');
+            Object.assign(modal.style, {
+                background: '#fff', color: '#1a1a1a', borderRadius: '10px', maxWidth: '920px',
+                width: '100%', maxHeight: '84vh', display: 'flex', flexDirection: 'column',
+                overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.35)', font: '13px/1.4 system-ui, sans-serif',
+            });
+            const head = document.createElement('div');
+            Object.assign(head.style, { padding: '14px 18px', borderBottom: '1px solid #e5e5e5' });
+            const h = document.createElement('div'); h.textContent = title;
+            Object.assign(h.style, { font: '600 15px system-ui, sans-serif' });
+            const sub = document.createElement('div');
+            sub.textContent = rows.length + ' change' + (rows.length === 1 ? '' : 's') + ' to review. Uncheck anything you do not want, then Apply.';
+            Object.assign(sub.style, { marginTop: '3px', color: '#666', fontSize: '12px' });
+            head.appendChild(h); head.appendChild(sub);
+
+            const body = document.createElement('div');
+            Object.assign(body.style, { overflow: 'auto', padding: '2px 8px 6px' });
+            const table = document.createElement('table');
+            Object.assign(table.style, { width: '100%', borderCollapse: 'collapse' });
+            const thr = document.createElement('tr');
+            [['', '32px'], ['Movement', 'auto'], ['', '32px'], ['Justification', '46%']].forEach(([t, w]) => {
+                const th = document.createElement('th'); th.textContent = t; th.style.width = w;
+                Object.assign(th.style, { textAlign: 'left', padding: '7px 10px', position: 'sticky', top: '0', background: '#fafafa', borderBottom: '1px solid #e5e5e5', fontSize: '11px', color: '#888', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '.03em' });
+                thr.appendChild(th);
+            });
+            table.appendChild(thr);
+
+            const state = [];
+            rows.forEach((r) => {
+                const tr = document.createElement('tr'); tr.style.borderBottom = '1px solid #f0f0f0';
+                const mkCell = () => { const td = document.createElement('td'); td.style.padding = '7px 10px'; td.style.verticalAlign = 'top'; return td; };
+                const c1 = mkCell();
+                const mv = document.createElement('input'); mv.type = 'checkbox'; mv.checked = !!r.willMove; mv.disabled = !r.willMove; c1.appendChild(mv);
+                const c2 = mkCell();
+                const nm = document.createElement('span'); nm.textContent = '“' + r.name + '”'; nm.style.fontWeight = '600'; c2.appendChild(nm);
+                if (r.willMove) {
+                    c2.appendChild(document.createTextNode('  →  '));
+                    const to = document.createElement('span'); to.textContent = r.toLabel; to.style.color = '#0a1e8f'; c2.appendChild(to);
+                } else {
+                    const stay = document.createElement('span'); stay.textContent = '  (stays in ' + r.fromLabel + ')'; stay.style.color = '#999'; c2.appendChild(stay);
+                }
+                const c3 = mkCell();
+                const jv = document.createElement('input'); jv.type = 'checkbox'; jv.checked = !!r.willJust; jv.disabled = !r.willJust; c3.appendChild(jv);
+                const c4 = mkCell(); c4.style.fontSize = '12px';
+                if (r.willJust) {
+                    if (r.renameTo) {
+                        const rn = document.createElement('div'); rn.appendChild(document.createTextNode('rename → '));
+                        const g = document.createElement('span'); g.textContent = '“' + r.renameTo + '”'; g.style.color = '#127a2e'; g.style.fontWeight = '600'; rn.appendChild(g); c4.appendChild(rn);
+                    }
+                    if (r.newJust) {
+                        if (r.oldJust) {
+                            const od = document.createElement('div'); const o = document.createElement('span');
+                            o.textContent = r.oldJust; o.style.color = '#b3261e'; o.style.textDecoration = 'line-through'; od.appendChild(o); c4.appendChild(od);
+                        }
+                        const nd = document.createElement('div'); const n = document.createElement('span');
+                        n.textContent = r.newJust; n.style.color = '#127a2e'; nd.appendChild(n); c4.appendChild(nd);
+                    }
+                } else {
+                    const none = document.createElement('span'); none.textContent = 'no change'; none.style.color = '#999'; c4.appendChild(none);
+                }
+                tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(c3); tr.appendChild(c4);
+                table.appendChild(tr);
+                state.push({ row: r, mv, jv });
+            });
+            body.appendChild(table);
+
+            const foot = document.createElement('div');
+            Object.assign(foot.style, { padding: '12px 18px', borderTop: '1px solid #e5e5e5', display: 'flex', justifyContent: 'flex-end', gap: '10px' });
+            const cancel = document.createElement('button'); cancel.textContent = 'Cancel';
+            Object.assign(cancel.style, { padding: '7px 16px', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer', font: '500 13px system-ui' });
+            const apply = document.createElement('button'); apply.textContent = 'Apply checked';
+            Object.assign(apply.style, { padding: '7px 16px', borderRadius: '6px', border: '1px solid #1746c9', background: '#1746c9', color: '#fff', cursor: 'pointer', font: '600 13px system-ui' });
+            foot.appendChild(cancel); foot.appendChild(apply);
+
+            modal.appendChild(head); modal.appendChild(body); modal.appendChild(foot);
+            overlay.appendChild(modal);
+            (document.body || document.documentElement).appendChild(overlay);
+
+            const close = (confirmed) => {
+                const decisions = state.map((s) => Object.assign({}, s.row, {
+                    moveChecked: s.mv.checked && !s.mv.disabled,
+                    justChecked: s.jv.checked && !s.jv.disabled,
+                }));
+                overlay.remove();
+                document.removeEventListener('keydown', onKey, true);
+                resolve({ confirmed, decisions });
+            };
+            const onKey = (ev) => { if (ev.key === 'Escape') stop(() => close(false))(ev); };
+            cancel.addEventListener('click', stop(() => close(false)));
+            apply.addEventListener('click', stop(() => close(true)));
+            overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(false); });
+            document.addEventListener('keydown', onKey, true);
+        });
+    }
+
+    // Nearest scrollable ancestor (for programmatic scroll during a drag).
+    function athFindScrollParent(el) {
+        let n = el && el.parentElement;
+        while (n && n !== document.body && n !== document.documentElement) {
+            const s = getComputedStyle(n);
+            if (/(auto|scroll|overlay)/.test(s.overflowY) && n.scrollHeight > n.clientHeight + 4) return n;
+            n = n.parentElement;
+        }
+        return document.scrollingElement || document.documentElement;
+    }
 
 
     // =====================================================================
@@ -1197,9 +1361,16 @@
         // and only settle once the moved item is confirmed to be the last entry. If
         // we can't confirm the item is over the target we CANCEL (Escape) so nothing
         // is ever dropped in the wrong place - the caller then falls back to keyboard.
-        const PTR_STEP_PX = 64;      // pointer move increment per iteration
-        const PTR_MAX_ITERS = 120;   // safety cap (bottom placement needs a few more)
-        const PTR_MOVE_DELAY = 28;   // ms between pointer moves (autoscroll needs a beat)
+        // v15.12 JUMP DRAG. Instead of riding dnd-kit's slow auto-scroll and
+        // creeping the cursor 64px/frame (which timed out on far targets and
+        // "vibrated" at the end), we: pick the item up, PROGRAMMATICALLY scroll the
+        // target's drop point on-screen in one shot, then move the pointer straight
+        // to a spot just BELOW the last item (clear of the last/2nd-last midpoint,
+        // so no oscillation) and release the moment it's confirmed last. Cost is
+        // O(1) in distance and independent of zoom/resolution (all geometry from
+        // getBoundingClientRect). Keyboard drag stays as the fallback.
+        const MAX_JUMPS = 26;        // safety cap on scroll+jump iterations
+        const PTR_SETTLE_MS = 95;    // wait after a jump for dnd-kit to reorder
         function dispatchPointer(type, x, y, el) {
             const up = type === 'pointerup' || type === 'pointercancel';
             const down = type === 'pointerdown';
@@ -1218,87 +1389,86 @@
             opts = opts || {};
             const name = itemName(li).trim();
             const handle = itemHandle(li);
-            log.log(`${ts()} ===== pointerDragToBottom "${name}" -> "${targetName}" =====`);
+            log.log(`${ts()} ===== pointerDragToBottom(jump) "${name}" -> "${targetName}" =====`);
             if (!handle) { log.warn(`${ts()} no handle`); return { ok: false, reason: 'no-handle' }; }
             const targetCode = codeForName(targetName);
 
-            // Bring the source item to the middle of the viewport first so the grab
-            // coordinate is on-screen (an off-screen handle can't ride auto-scroll)
-            // and there's room above/below to drag either way. 'instant' avoids the
-            // page's smooth-scroll (Chrome).
+            // ---- pick up ----
             try { li.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch (e) { li.scrollIntoView({ block: 'center' }); }
-            await sleep(70);
+            await sleep(55);
             const hr = handle.getBoundingClientRect();
             const px = Math.round(hr.left + hr.width / 2);
-            let py = Math.round(hr.top + hr.height / 2);
-            log.log(`${ts()} grab handle @(${px},${py}) targetCode=${targetCode}`);
+            const py = Math.round(hr.top + hr.height / 2);
             handle.focus();
             const liveStart = liveRegionText();
             dispatchPointer('pointerdown', px, py, handle);
             await sleep(30);
-            py += 10;
-            dispatchPointer('pointermove', px, py, document);   // exceed activation distance
-            await sleep(50);
-            const pressed = handle.getAttribute('aria-pressed');
-            const pickedUp = pressed === 'true' || liveRegionText() !== liveStart;
-            log.log(`${ts()} pointer pickup: aria-pressed=${pressed} pickedUp=${pickedUp} live="${liveRegionText()}"`);
+            dispatchPointer('pointermove', px, py + 8, document);   // exceed activation distance
+            await sleep(45);
+            const pickedUp = handle.getAttribute('aria-pressed') === 'true' || liveRegionText() !== liveStart;
+            log.log(`${ts()} pickup: pickedUp=${pickedUp}`);
             if (!pickedUp) {
-                dispatchPointer('pointerup', px, py, document);
+                dispatchPointer('pointerup', px, py + 8, document);
                 log.warn(`${ts()} pointer PICKUP FAILED`);
                 return { ok: false, reason: 'pointer-pickup-failed' };
             }
 
-            const vh = viewportH();
-            let curY = py, iters = 0, inTarget = false, settledAtBottom = false;
-            for (let i = 0; i < PTR_MAX_ITERS; i++) {
-                iters++;
-                const region = findRegionByName(getScope(), targetName);
-                const rr = region ? region.getBoundingClientRect() : null;
-                // Aim just BELOW the last item so the insert lands at the end. While
-                // the dragged item is still climbing in, "last" is a real anchor; once
-                // it IS the last, its own bottom is the aim (stable => we settle).
-                const ulEl = ulOfCard(targetCode);
-                const last = lastItemOfCard(targetCode);
-                const aimRaw = last ? (last.getBoundingClientRect().bottom + 6)
-                                    : (ulEl ? ulEl.getBoundingClientRect().bottom - 6
-                                    : (rr ? rr.bottom - 12 : vh / 2));
-                const aimY = Math.max(10, Math.min(vh - 10, Math.round(aimRaw)));
-                let goalY;
-                if (rr && rr.top > vh - 28) goalY = vh - 18;         // target below viewport -> autoscroll down
-                else if (rr && rr.bottom < 28) goalY = 18;           // target above viewport -> autoscroll up
-                else goalY = aimY;                                   // in view -> aim below the last item
-                if (curY < goalY) curY = Math.min(goalY, curY + PTR_STEP_PX);
-                else if (curY > goalY) curY = Math.max(goalY, curY - PTR_STEP_PX);
-                dispatchPointer('pointermove', px, curY, document);
-                await sleep(PTR_MOVE_DELAY);
-                inTarget = regionsContainingName(name).some((h) => h.name === targetName);
-                const aiming = (goalY === aimY);
-                const atBottom = inTarget && isAtBottomOfCard(targetCode, name);
-                if (i % 4 === 0 || inTarget) {
-                    log.log(`${ts()} ptr ${iters}: curY=${curY} goalY=${goalY} aimY=${aimY} rBot=${rr ? Math.round(rr.bottom) : 'n/a'} inTarget=${inTarget} atBottom=${atBottom} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
+            // Drop anchor = the target's current last item (or its list / region).
+            const dropAnchor = () => lastItemOfCard(targetCode) || ulOfCard(targetCode) || findRegionByName(getScope(), targetName);
+            // Programmatically bring the drop anchor to ~60% of the viewport so the
+            // spot below it is comfortably on-screen (no reliance on auto-scroll).
+            function scrollTargetIntoView() {
+                const a = dropAnchor(); if (!a) return;
+                const sp = athFindScrollParent(a);
+                const vh = viewportH();
+                const delta = Math.round(a.getBoundingClientRect().bottom - vh * 0.6);
+                if (Math.abs(delta) > 8) {
+                    if (sp === document.scrollingElement || sp === document.documentElement) window.scrollBy(0, delta);
+                    else sp.scrollTop += delta;
                 }
-                if (atBottom && aiming && Math.abs(curY - aimY) <= PTR_STEP_PX) {
-                    dispatchPointer('pointermove', px, aimY, document);
+            }
+            // Y just below the last item's bottom -> inserts AFTER it (bottom slot),
+            // clear of the midpoint that caused the flip-flop.
+            function dropY() {
+                const a = dropAnchor();
+                const vh = viewportH();
+                if (!a) return Math.round(vh / 2);
+                return Math.max(16, Math.min(vh - 16, Math.round(a.getBoundingClientRect().bottom + 12)));
+            }
+
+            // ---- jump loop ----
+            let curY = py, inTarget = false, atBottom = false, jumps = 0;
+            for (let i = 0; i < MAX_JUMPS; i++) {
+                jumps++;
+                scrollTargetIntoView();
+                await sleep(30);
+                curY = dropY();
+                dispatchPointer('pointermove', px, curY, document);
+                await sleep(PTR_SETTLE_MS);
+                inTarget = regionsContainingName(name).some((h) => h.name === targetName);
+                atBottom = inTarget && isAtBottomOfCard(targetCode, name);
+                log.log(`${ts()} jump ${jumps}: curY=${curY} inTarget=${inTarget} atBottom=${atBottom} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
+                if (atBottom) {
+                    // confirm stable: nudge to the same spot once more, re-verify last.
+                    dispatchPointer('pointermove', px, dropY(), document);
                     await sleep(70);
-                    settledAtBottom = true;
-                    log.log(`${ts()} settled at target BOTTOM (aimY=${aimY}) after ${iters} iters`);
-                    break;
+                    if (isAtBottomOfCard(targetCode, name)) break;
                 }
             }
 
             if (regionsContainingName(name).some((h) => h.name === targetName)) {
                 dispatchPointer('pointerup', px, curY, document);
-                await sleep(180);
+                await sleep(150);
                 const stillIn = regionsContainingName(name).some((h) => h.name === targetName);
                 const idx = indexOfNameInCard(targetCode, name);
-                const atBottom = isAtBottomOfCard(targetCode, name);
-                log.log(`${ts()} pointerDrag DROP settledAtBottom=${settledAtBottom} inTarget=${stillIn} finalIdx=${idx}/${itemCountInCard(targetCode)} atBottom=${atBottom} iters=${iters}`);
-                return { ok: stillIn, finalIdx: idx, atBottom, iters };
+                const finalBottom = isAtBottomOfCard(targetCode, name);
+                log.log(`${ts()} DROP inTarget=${stillIn} finalIdx=${idx}/${itemCountInCard(targetCode)} atBottom=${finalBottom} jumps=${jumps}`);
+                return { ok: stillIn, finalIdx: idx, atBottom: finalBottom, jumps };
             }
-            log.warn(`${ts()} pointer never reached target after ${iters} iters - CANCEL (item returns home), will fall back to keyboard`);
+            log.warn(`${ts()} never reached target after ${jumps} jumps - CANCEL, fall back to keyboard`);
             pressKey(document, 'Escape', 'Escape');
             dispatchPointer('pointercancel', px, curY, document);
-            await sleep(140);
+            await sleep(120);
             return { ok: false, reason: 'pointer-no-target' };
         }
 
@@ -1499,81 +1669,107 @@
             return cardItems(c).find((li) => itemName(li).trim() === name) || null;
         }
 
+        // ---- display helpers for the confirmation dialog --------------------
+        const CODE_NAMES = { '97110': 'Therapeutic Exercise', '97112': 'Neuromuscular Reeducation', '97530': 'Therapeutic Activity' };
+        function cardLabel(code) {
+            const c = getCards().find((x) => x.code === code);
+            const nm = c ? c.name : (CODE_NAMES[code] || '');
+            return nm ? (code + ' ' + nm) : code;
+        }
+        function currentDetailsText(li) {
+            const d = li && li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
+            return d ? (d.textContent || '').trim() : '';
+        }
+        // What the details field WILL say after applyItemFix (for the before/after preview).
+        function computeNewJust(fix, cur) {
+            if (fix.justMode === 'none' || !fix.justification) return '';
+            if (fix.justMode === 'replace') return fix.justification;
+            if (cur.includes(fix.justification)) return cur;             // append: already present
+            return cur ? (cur.replace(/\s+$/, '') + ' ' + fix.justification) : fix.justification;
+        }
+
         async function performFix() {
             log.log(`${ts()} ================= performFix START =================`);
             const scope = getScope();
-            if (!scope) { log.warn(`${ts()} no [data-section="flowsheet"]`); return { moved: 0, renamed: 0, justified: 0, reason: 'no-flowsheet' }; }
+            if (!scope) { log.warn(`${ts()} no [data-section="flowsheet"]`); return { reason: 'no-flowsheet', moved: 0, renamed: 0, justified: 0 }; }
             dumpState('performFix-start');
 
-            const initial = listFixes();
-            log.log(`${ts()} items needing a fix: ${initial.length} -> ${JSON.stringify(initial.map((f) => ({ name: f.name, from: f.from, to: f.to, rename: f.rename || undefined })))}`);
-            if (!initial.length) { log.log(`${ts()} everything already in its canonical CPT - nothing to do`); return { moved: 0, renamed: 0, justified: 0, reason: 'nothing-to-fix' }; }
+            const fixes = listFixes();
+            log.log(`${ts()} items needing a fix: ${fixes.length}`);
+            if (!fixes.length) { return { reason: 'nothing-to-fix', moved: 0, renamed: 0, justified: 0 }; }
 
-            let moved = 0, renamed = 0, justified = 0;
-            let usePointer = true;                      // pointer path is fast + lands at top; falls back to keyboard on any miss
-            const maxPasses = initial.length * 2 + 2;   // safety against an infinite loop
+            // ---- build review rows (read the current details for a real before/after) ----
+            const rows = fixes.map((f) => {
+                const li = findItemInCardByName(f.from, f.name);
+                const cur = li ? currentDetailsText(li) : '';
+                const curName = li ? itemName(li).trim() : f.name;
+                const newJust = computeNewJust(f, cur);
+                const renameChange = !!f.rename && curName !== f.rename;
+                const justChange = f.justMode !== 'none' && !!f.justification && newJust !== cur;
+                return {
+                    name: f.name, fromLabel: cardLabel(f.from), toLabel: cardLabel(f.to),
+                    willMove: f.needsMove, willJust: renameChange || justChange,
+                    oldJust: justChange ? cur : '', newJust: justChange ? newJust : '',
+                    renameTo: renameChange ? f.rename : '',
+                };
+            });
 
-            for (let pass = 0; pass < maxPasses; pass++) {
-                const next = findNextFix();
-                if (!next) { log.log(`${ts()} no more items to fix - done`); break; }
-                const fix = next.fix;
+            // ---- confirmation dialog ----
+            const { confirmed, decisions } = await athConfirmMoves('Fix Procedures — review changes', rows);
+            if (!confirmed) { log.log(`${ts()} user cancelled`); return { reason: 'cancelled', moved: 0, renamed: 0, justified: 0 }; }
+            const byName = {};
+            decisions.forEach((d) => { byName[d.name] = d; });
+            const toDo = fixes.filter((f) => { const d = byName[f.name]; return d && ((d.moveChecked && f.needsMove) || d.justChecked); });
+            if (!toDo.length) { log.log(`${ts()} nothing checked`); return { reason: 'nothing-checked', moved: 0, renamed: 0, justified: 0 }; }
 
-                // ---- rename-only (already in the right card, just needs renaming) ----
-                if (!fix.needsMove) {
-                    log.log(`${ts()} --- pass ${pass + 1}: in-place fix "${fix.name}" in ${fix.from} (rule=${fix.label}${fix.rename ? ', rename->"' + fix.rename + '"' : ''}) ---`);
-                    const r = await applyItemFix(next.li, fix);
-                    if (r.renamed) renamed++;
-                    if (r.justified) justified++;
-                    await sleep(150);
-                    continue;
-                }
+            // ---- execute the approved changes (with a live progress toast) ----
+            const prog = athToast('Fixing procedures…', { ttl: 0 });
+            let moved = 0, renamed = 0, justified = 0, usePointer = true;
 
-                // ---- move to the correct CPT card ----
-                log.log(`${ts()} --- pass ${pass + 1}: moving "${fix.name}" ${fix.from} -> ${fix.to} (rule=${fix.label}, mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
-                let target = getCards().find((c) => c.code === fix.to);
-                if (!target) {
-                    log.log(`${ts()} no ${fix.to} card - creating via +CPT`);
-                    const ok = await ensureCard(fix.to);
-                    if (!ok) { log.warn(`${ts()} could not add ${fix.to} card; skipping "${fix.name}"`); break; }
-                    await sleep(400);
-                    target = getCards().find((c) => c.code === fix.to);
-                }
-                if (!target) { log.warn(`${ts()} still no ${fix.to} card after ensure; stopping`); break; }
-                const targetName = target.name;
+            for (const f of toDo) {
+                const d = byName[f.name];
+                const doMove = d.moveChecked && f.needsMove;
+                const doJust = d.justChecked;
 
-                // Re-find the source li (the DOM re-rendered if we created a card).
-                const srcLi = findItemInCardByName(fix.from, fix.name) || next.li;
-                let res;
-                if (usePointer) {
-                    res = await pointerDragToBottom(srcLi, targetName, {});
-                    if (!res.ok) {
-                        log.warn(`${ts()} pointer path failed (${res.reason || 'no-target'}); switching to keyboard for the remainder.`);
-                        usePointer = false;
-                        await sleep(150);
-                        const again = findItemInCardByName(fix.from, fix.name);
+                if (doMove) {
+                    prog.update('Moving “' + f.name + '” → ' + cardLabel(f.to));
+                    log.log(`${ts()} --- move "${f.name}" ${f.from} -> ${f.to} ---`);
+                    let target = getCards().find((c) => c.code === f.to);
+                    if (!target) {
+                        const ok = await ensureCard(f.to);
+                        if (!ok) { log.warn(`${ts()} could not add ${f.to}; skip`); continue; }
+                        await sleep(400); target = getCards().find((c) => c.code === f.to);
+                    }
+                    if (!target) { log.warn(`${ts()} still no ${f.to}; skip`); continue; }
+                    const targetName = target.name;
+                    const srcLi = findItemInCardByName(f.from, f.name);
+                    if (!srcLi) { log.warn(`${ts()} "${f.name}" not found in ${f.from}; skip`); continue; }
+                    let res = usePointer ? await pointerDragToBottom(srcLi, targetName, {}) : await keyboardDrag(srcLi, targetName, {});
+                    if (usePointer && (!res || !res.ok)) {
+                        log.warn(`${ts()} pointer failed; keyboard for the remainder`);
+                        usePointer = false; await sleep(150);
+                        const again = findItemInCardByName(f.from, f.name);
                         if (again) res = await keyboardDrag(again, targetName, {});
                     }
-                } else {
-                    res = await keyboardDrag(srcLi, targetName, {});
+                    if (!res || !res.ok) { log.warn(`${ts()} move of "${f.name}" failed; skipping it`); athToast('Could not move “' + f.name + '”', { ttl: 3200 }); continue; }
+                    moved++; await sleep(170);
+                    if (doJust) {
+                        const movedLi = findItemInCardByName(f.to, f.name);
+                        if (movedLi) { const r = await applyItemFix(movedLi, f); if (r.renamed) renamed++; if (r.justified) justified++; }
+                    }
+                } else if (doJust) {
+                    prog.update('Updating “' + f.name + '”');
+                    const li = findItemInCardByName(f.from, f.name);
+                    if (li) { const r = await applyItemFix(li, f); if (r.renamed) renamed++; if (r.justified) justified++; }
                 }
-                if (!res || !res.ok) { log.warn(`${ts()} drag of "${fix.name}" failed (${(res && res.reason) || 'not-in-target'}); stopping to avoid a mess.`); break; }
-                moved++;
-                await sleep(200);
-
-                // ---- after the move, apply rename + justification in the target card ----
-                const movedLi = findItemInCardByName(fix.to, fix.name);
-                if (movedLi) {
-                    const r = await applyItemFix(movedLi, fix);
-                    if (r.renamed) renamed++;
-                    if (r.justified) justified++;
-                } else {
-                    log.warn(`${ts()} could not re-find "${fix.name}" in ${fix.to} to apply justification/rename`);
-                }
-                await sleep(150);
+                await sleep(110);
             }
 
-            log.log(`${ts()} ================= performFix END: moved=${moved}, renamed=${renamed}, justified=${justified} =================`);
-            return { moved, renamed, justified, reason: 'ok' };
+            prog.done(300);
+            const summary = [moved ? 'moved ' + moved : '', renamed ? 'renamed ' + renamed : '', justified ? 'justified ' + justified : ''].filter(Boolean).join(', ') || 'no changes';
+            athToast('Done: ' + summary + '. Click Apply Scribe to save.', { ttl: 4200 });
+            log.log(`${ts()} ================= performFix END: ${summary} =================`);
+            return { reason: 'ok', moved, renamed, justified };
         }
 
         // ---- Subtask 1: header button --------------------------------------
@@ -1871,8 +2067,9 @@
             return { ok: inTarget, crossed, steps, finalIdx };
         }
 
-        // ---- POINTER DRAG (primary: one gesture, drops at the BOTTOM) ------
-        const PTR_STEP_PX = 64, PTR_MAX_ITERS = 120, PTR_MOVE_DELAY = 28;
+        // ---- POINTER DRAG (v15.12 JUMP: scroll target on-screen + single jump to
+        //      the bottom slot; O(1) in distance, no end-vibration; see MODULE 9). --
+        const MAX_JUMPS = 26, PTR_SETTLE_MS = 95;
         function dispatchPointer(type, x, y, el) {
             const up = type === 'pointerup' || type === 'pointercancel';
             const down = type === 'pointerdown';
@@ -1890,69 +2087,71 @@
             opts = opts || {};
             const name = itemName(li).trim();
             const handle = itemHandle(li);
-            log.log(`${ts()} ===== pointerDragToBottom "${name}" -> "${targetName}" =====`);
+            log.log(`${ts()} ===== pointerDragToBottom(jump) "${name}" -> "${targetName}" =====`);
             if (!handle) { log.warn(`${ts()} no handle`); return { ok: false, reason: 'no-handle' }; }
             const targetCode = codeForName(targetName);
 
             try { li.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch (e) { li.scrollIntoView({ block: 'center' }); }
-            await sleep(70);
+            await sleep(55);
             const hr = handle.getBoundingClientRect();
             const px = Math.round(hr.left + hr.width / 2);
-            let py = Math.round(hr.top + hr.height / 2);
+            const py = Math.round(hr.top + hr.height / 2);
             handle.focus();
             const liveStart = liveRegionText();
             dispatchPointer('pointerdown', px, py, handle);
             await sleep(30);
-            py += 10;
-            dispatchPointer('pointermove', px, py, document);
-            await sleep(50);
+            dispatchPointer('pointermove', px, py + 8, document);
+            await sleep(45);
             const pickedUp = handle.getAttribute('aria-pressed') === 'true' || liveRegionText() !== liveStart;
-            if (!pickedUp) { dispatchPointer('pointerup', px, py, document); log.warn(`${ts()} pointer PICKUP FAILED`); return { ok: false, reason: 'pointer-pickup-failed' }; }
+            if (!pickedUp) { dispatchPointer('pointerup', px, py + 8, document); log.warn(`${ts()} pointer PICKUP FAILED`); return { ok: false, reason: 'pointer-pickup-failed' }; }
 
-            const vh = viewportH();
-            let curY = py, iters = 0, inTarget = false, settledAtBottom = false;
-            for (let i = 0; i < PTR_MAX_ITERS; i++) {
-                iters++;
-                const region = findRegionByName(getScope(), targetName);
-                const rr = region ? region.getBoundingClientRect() : null;
-                // Aim just BELOW the last item so the insert lands at the end.
-                const ulEl = ulOfCard(targetCode);
-                const last = lastItemOfCard(targetCode);
-                const aimRaw = last ? (last.getBoundingClientRect().bottom + 6)
-                                    : (ulEl ? ulEl.getBoundingClientRect().bottom - 6
-                                    : (rr ? rr.bottom - 12 : vh / 2));
-                const aimY = Math.max(10, Math.min(vh - 10, Math.round(aimRaw)));
-                let goalY;
-                if (rr && rr.top > vh - 28) goalY = vh - 18;
-                else if (rr && rr.bottom < 28) goalY = 18;
-                else goalY = aimY;
-                if (curY < goalY) curY = Math.min(goalY, curY + PTR_STEP_PX);
-                else if (curY > goalY) curY = Math.max(goalY, curY - PTR_STEP_PX);
+            const dropAnchor = () => lastItemOfCard(targetCode) || ulOfCard(targetCode) || findRegionByName(getScope(), targetName);
+            function scrollTargetIntoView() {
+                const a = dropAnchor(); if (!a) return;
+                const sp = athFindScrollParent(a);
+                const vh = viewportH();
+                const delta = Math.round(a.getBoundingClientRect().bottom - vh * 0.6);
+                if (Math.abs(delta) > 8) {
+                    if (sp === document.scrollingElement || sp === document.documentElement) window.scrollBy(0, delta);
+                    else sp.scrollTop += delta;
+                }
+            }
+            function dropY() {
+                const a = dropAnchor();
+                const vh = viewportH();
+                if (!a) return Math.round(vh / 2);
+                return Math.max(16, Math.min(vh - 16, Math.round(a.getBoundingClientRect().bottom + 12)));
+            }
+
+            let curY = py, atBottom = false, jumps = 0;
+            for (let i = 0; i < MAX_JUMPS; i++) {
+                jumps++;
+                scrollTargetIntoView();
+                await sleep(30);
+                curY = dropY();
                 dispatchPointer('pointermove', px, curY, document);
-                await sleep(PTR_MOVE_DELAY);
-                inTarget = regionsContainingName(name).some((h) => h.name === targetName);
-                const aiming = (goalY === aimY);
-                const atBottom = inTarget && isAtBottomOfCard(targetCode, name);
-                if (atBottom && aiming && Math.abs(curY - aimY) <= PTR_STEP_PX) {
-                    dispatchPointer('pointermove', px, aimY, document);
+                await sleep(PTR_SETTLE_MS);
+                atBottom = regionsContainingName(name).some((h) => h.name === targetName) && isAtBottomOfCard(targetCode, name);
+                log.log(`${ts()} jump ${jumps}: curY=${curY} atBottom=${atBottom} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
+                if (atBottom) {
+                    dispatchPointer('pointermove', px, dropY(), document);
                     await sleep(70);
-                    settledAtBottom = true;
-                    break;
+                    if (isAtBottomOfCard(targetCode, name)) break;
                 }
             }
             if (regionsContainingName(name).some((h) => h.name === targetName)) {
                 dispatchPointer('pointerup', px, curY, document);
-                await sleep(180);
+                await sleep(150);
                 const stillIn = regionsContainingName(name).some((h) => h.name === targetName);
                 const idx = indexOfNameInCard(targetCode, name);
-                const atBottom = isAtBottomOfCard(targetCode, name);
-                log.log(`${ts()} pointerDrag DROP settledAtBottom=${settledAtBottom} inTarget=${stillIn} finalIdx=${idx}/${itemCountInCard(targetCode)} atBottom=${atBottom} iters=${iters}`);
-                return { ok: stillIn, finalIdx: idx, atBottom, iters };
+                const finalBottom = isAtBottomOfCard(targetCode, name);
+                log.log(`${ts()} DROP inTarget=${stillIn} finalIdx=${idx}/${itemCountInCard(targetCode)} atBottom=${finalBottom} jumps=${jumps}`);
+                return { ok: stillIn, finalIdx: idx, atBottom: finalBottom, jumps };
             }
-            log.warn(`${ts()} pointer never reached target after ${iters} iters - CANCEL (item returns home), fall back to keyboard`);
+            log.warn(`${ts()} never reached target after ${jumps} jumps - CANCEL, fall back to keyboard`);
             pressKey(document, 'Escape', 'Escape');
             dispatchPointer('pointercancel', px, curY, document);
-            await sleep(140);
+            await sleep(120);
             return { ok: false, reason: 'pointer-no-target' };
         }
 
@@ -1981,6 +2180,27 @@
             return out;
         }
 
+        function cardLabelPP(code) {
+            const c = getCards().find((x) => x.code === code);
+            return c ? (c.code + ' ' + c.name) : code;
+        }
+        // First Done item (outside the private-pay card) whose name is approved and
+        // not yet processed - lets the therapist skip some in the review dialog
+        // without the scan looping forever on an un-approved item.
+        function findNextDoneApproved(approved, done) {
+            const t = targetCard(); const tn = t ? t.name : null;
+            for (const card of getCards()) {
+                if (tn && card.name === tn) continue;
+                for (const li of cardItems(card)) {
+                    if (isDone(li)) {
+                        const nm = itemName(li).trim();
+                        if (approved.has(nm) && !done.has(nm)) return { card, li, name: nm };
+                    }
+                }
+            }
+            return null;
+        }
+
         async function performFix() {
             log.log(`${ts()} ================= performFix START =================`);
             const scope = getScope();
@@ -1991,32 +2211,49 @@
             const targetName = tgt.name;
 
             const initial = listDone();
-            log.log(`${ts()} target "${targetName}"; Done items to move: ${initial.length} -> ${JSON.stringify(initial)}`);
+            log.log(`${ts()} target "${targetName}"; Done items to move: ${initial.length}`);
             if (!initial.length) { log.log(`${ts()} nothing marked Done outside private pay`); return { moved: 0, reason: 'no-done-items' }; }
 
+            // ---- review dialog (moves only; no justification changes here) ----
+            const toLabel = cardLabelPP(tgt.code);
+            const rows = initial.map((it) => ({
+                name: it.name, fromLabel: cardLabelPP(it.code), toLabel: toLabel,
+                willMove: true, willJust: false, oldJust: '', newJust: '', renameTo: '',
+            }));
+            const { confirmed, decisions } = await athConfirmMoves('Fix Private Pay — review moves', rows);
+            if (!confirmed) { log.log(`${ts()} user cancelled`); return { moved: 0, reason: 'cancelled' }; }
+            const approved = new Set(decisions.filter((d) => d.moveChecked).map((d) => d.name));
+            if (!approved.size) { log.log(`${ts()} nothing checked`); return { moved: 0, reason: 'nothing-checked' }; }
+
+            // ---- execute (with a live progress toast) ----
+            const prog = athToast('Moving to private pay…', { ttl: 0 });
             let moved = 0, usePointer = true;
-            const maxPasses = initial.length + 2;   // safety against an infinite loop
+            const done = new Set();
+            const maxPasses = approved.size + 4;   // safety against an infinite loop
             for (let pass = 0; pass < maxPasses; pass++) {
-                const next = findNextDone();
-                if (!next) { log.log(`${ts()} no more Done items outside private pay - done`); break; }
-                log.log(`${ts()} --- pass ${pass + 1}: moving Done "${next.name}" from ${next.code} -> private pay (mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
+                const next = findNextDoneApproved(approved, done);
+                if (!next) { log.log(`${ts()} no more approved Done items - done`); break; }
+                prog.update('Moving “' + next.name + '” → ' + toLabel);
+                log.log(`${ts()} --- moving Done "${next.name}" from ${next.code} -> private pay (mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
                 let res;
                 if (usePointer) {
                     res = await pointerDragToBottom(next.li, targetName, {});
                     if (!res.ok) {
-                        log.warn(`${ts()} pointer path failed (${res.reason || 'no-target'}); switching to keyboard for the remainder.`);
-                        usePointer = false;
-                        await sleep(150);
-                        const again = findNextDone();
+                        log.warn(`${ts()} pointer path failed; switching to keyboard for the remainder.`);
+                        usePointer = false; await sleep(150);
+                        const again = findNextDoneApproved(approved, done);
                         if (again) res = await keyboardDrag(again.li, targetName, {});
                     }
                 } else {
                     res = await keyboardDrag(next.li, targetName, {});
                 }
+                done.add(next.name);
                 if (res && res.ok) { moved++; }
-                else { log.warn(`${ts()} drag of "${next.name}" failed (${(res && res.reason) || 'not-in-target'}); stopping to avoid a mess.`); break; }
-                await sleep(200);
+                else { log.warn(`${ts()} drag of "${next.name}" failed; skipping it`); athToast('Could not move “' + next.name + '”', { ttl: 3200 }); }
+                await sleep(170);
             }
+            prog.done(300);
+            athToast('Done: moved ' + moved + '. Click Apply Scribe to save.', { ttl: 4200 });
             log.log(`${ts()} ================= performFix END: moved=${moved} =================`);
             return { moved, reason: 'ok' };
         }
