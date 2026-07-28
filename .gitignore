@@ -1,6 +1,35 @@
-# Ignore everything in this folder by default...
+# Ignore everything by default: this folder accumulates .mhtml page captures
+# and console logs that contain real patient names (PHI). Only explicitly
+# whitelisted files may enter git.
 *
 
-# ...except the script and this .gitignore itself.
+# --- whitelisted ---
 !.gitignore
 !athelas-appointments-compact.user.js
+!AGENTS.md
+!CHANGELOG.md
+!DEPLOYMENT.md
+!package.json
+
+!athelas-compact-extension/
+!athelas-compact-extension/**
+
+!tests/
+!tests/**
+
+!redesign/
+!redesign/PLAN.md
+!redesign/DOM-FACTS.md
+!redesign/procedure-matching.js
+!redesign/procedure-matching.test.js
+!redesign/procedure-matching-QUESTIONS.md
+!redesign/procedure-audit.md
+!redesign/BRIDGES-review.md
+# NOT whitelisted: redesign/dom-*.html (real chart-note DOM dumps -> PHI)
+
+# never these, even inside whitelisted dirs
+node_modules/
+*.log
+*.mhtml
+*.zip
+*.new

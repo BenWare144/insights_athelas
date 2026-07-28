@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      15.2.0
-// @description  Compact spacing for Appointments / Chart Note, plus two Chart Note features: jump-to-Flowsheet on load, and Fix MET (move Muscle Energy Technique items to 97112). Verbose logging.
+// @version      15.7.0
+// @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
 // @match        https://insights.athelas.com/ehr/v2/patients/*/appointments/*
@@ -272,6 +272,97 @@
         log && log.warn('  Try inspecting the wrapper and looking for onClick / onChange handlers.');
         return false;
     }
+
+
+    // =====================================================================
+    // SHARED: Procedure-matching engine.
+    // The therapist's canonical rules from "Stuff for EMR.xlsx" + markup.
+    // Used by BOTH the Fix Procedures button (MODULE 9) and the read-only
+    // preview (MODULE 10). This is the single source of truth in the script;
+    // keep it in sync with redesign/procedure-matching.js.
+    //
+    // Proc.resolveProcedure(name) -> null            (no rule; leave alone)
+    //   | { label, exclude:true }                    (matched an "leave alone" rule)
+    //   | { label, code, justification, justMode, rename }
+    //     code       target CPT ('97110'|'97112'|'97530')
+    //     justMode   'replace' (MET) | 'append' (canonical text) | 'none' (move only)
+    //     rename     new name to set first (e.g. Rib -> "MET - Rib"), else null
+    // First matching rule wins; order is deliberate.
+    // =====================================================================
+    const Proc = (function () {
+        const normProc = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+        const _has = (n, ...toks) => toks.every((t) => n.includes(t));
+        const _word = (n, w) => new RegExp('\\b' + w + '\\b').test(n);
+        const J = {
+            toilet: 'Improve toilet transfers',
+            bedxfer: 'Improved transfers on and off the bed',
+            stairs: 'Improve stair climbing ability',
+            squatrec: 'Improve ablity to squat and recover',
+            yardwork: 'Functional training for yard/house work',
+            extremity: 'To restore normal function of extremity',
+            bedcore: 'To assist with bed mobility and assist with core stabilty during functional tasks',
+            gluteMed: 'Verbal and tactile cues to glute med for upright posture',
+            rom: 'To assist with pain free range of motion and restore normal function',
+        };
+        const metDescriptor = (name) => {
+            let x = (name || '').trim();
+            x = x.replace(/^\s*muscle\s*energy\s*technique\s*(\(met\))?\s*[:\-]?\s*/i, '');   // spelled-out prefix (+ optional "(MET)")
+            x = x.replace(/^\s*met\b[\s:\-]*/i, '');                                          // abbreviated prefix
+            x = x.replace(/^[\s\-:()]+|[\s\-:()]+$/g, '').trim();                              // trim stray wrapping punctuation
+            return x;
+        };
+        const isJunkMET = (name) => { const x = metDescriptor(name); if (!x) return false; if (/\s/.test(x)) return false; return /\d/.test(x) || !/[aeiou]/i.test(x); };
+        const metJustification = (name) => {
+            const tail = 'with tactile and vc to help facilitate proper proprioception and posture.';
+            const rest = metDescriptor(name);
+            if (!rest) return 'Muscle energy technique applied, ' + tail;
+            const hasConn = /^(to|for|at|of|on|in|with|toward|towards)\b/i.test(rest);
+            return 'Muscle energy technique applied ' + (hasConn ? rest : 'to ' + rest) + ', ' + tail;
+        };
+        const RULES = [
+            { label: 'Cable column', code: '97530', just: J.yardwork, justMode: 'append', test: (n) => _has(n, 'cable column') },
+            { label: 'TKE (leave alone)', exclude: true, test: (n) => _word(n, 'tke') || _has(n, 'terminal knee extension') },
+            { label: 'Bridges (under review — left alone)', exclude: true, test: (n) => _word(n, 'bridge') || _word(n, 'bridges') },
+            { label: 'Curtsey step → balance (leave alone)', exclude: true, test: (n) => _has(n, 'curtsey') && _has(n, 'step') && _has(n, 'single leg balance') },
+            { label: 'Anterior step → balance (97530)', code: '97530', justMode: 'none', test: (n) => _has(n, 'anterior') && _has(n, 'step') && _has(n, 'single leg balance') },
+            { label: 'Rib -> MET - Rib', code: '97112', justMode: 'replace', met: true, rename: 'MET - Rib', test: (n) => _has(n, 'rib mobilization') && !_has(n, 'first rib') },
+            { label: 'MET', code: '97112', justMode: 'replace', met: true, test: (n) => (_word(n, 'met') || _has(n, 'muscle energy')) },
+            { label: 'Balance', code: '97112', just: J.gluteMed, justMode: 'append', test: (n) => _has(n, 'tandem') || _has(n, 'airex') || _has(n, 'bosu') || _has(n, 'balance') },
+            { label: 'Lunge Hip Flexion Stretch', code: '97110', justMode: 'none', test: (n) => _has(n, 'lunge') && _has(n, 'hip flexion stretch') },
+            { label: 'Lunge', code: '97530', just: J.squatrec, justMode: 'append', test: (n) => _has(n, 'lunge') },
+            { label: 'Squat', code: '97530', just: J.squatrec, justMode: 'append', test: (n) => _has(n, 'squat') || _has(n, 'wall sit') },
+            { label: 'Step up', code: '97530', just: J.stairs, justMode: 'append', test: (n) => _has(n, 'step up') },
+            { label: 'Step down', code: '97530', just: J.stairs, justMode: 'append', test: (n) => _has(n, 'step down') },
+            { label: 'Sit to Stand', code: '97530', just: J.toilet, justMode: 'append', test: (n) => _has(n, 'sit to stand') },
+            { label: 'Sit to Supine', code: '97530', just: J.bedxfer, justMode: 'append', test: (n) => _has(n, 'sit to supine') },
+            { label: 'Matrix', code: '97530', just: J.extremity, justMode: 'append', test: (n) => _word(n, 'matrix') },
+            { label: 'Curl', code: '97110', justMode: 'none', test: (n) => _has(n, 'curl') },
+            { label: 'PROM', code: '97110', just: J.rom, justMode: 'append', test: (n) => _word(n, 'prom') || (_has(n, 'passive') && _has(n, 'range') && _has(n, 'motion')) },
+            { label: 'Long Arc Quad', code: '97110', justMode: 'none', test: (n) => _has(n, 'long arc quad') || _word(n, 'laq') },
+            { label: 'Short Arc Quad', code: '97110', justMode: 'none', test: (n) => _has(n, 'short arc quad') || _word(n, 'saq') },
+            { label: 'Genu Articularis', code: '97110', justMode: 'none', test: (n) => _has(n, 'genu articularis') },
+            { label: 'Scapular Retraction', code: '97110', justMode: 'none', test: (n) => _has(n, 'scapular retraction') },
+            { label: 'Straight Leg Raise', code: '97110', justMode: 'none', test: (n) => _has(n, 'straight leg raise') || _word(n, 'slr') },
+            { label: 'Shoulder Abduction', code: '97110', justMode: 'none', test: (n) => _has(n, 'shoulder abduction') },
+            { label: 'Shoulder Extension', code: '97110', justMode: 'none', test: (n) => _has(n, 'shoulder extension') && !_has(n, 'd2') && !_has(n, 'split squat') && !_has(n, 'step up') && !_has(n, 'posterior sling') && !_has(n, 'plank') },
+            { label: 'Stretch', code: '97110', justMode: 'none', test: (n) => _has(n, 'stretch') && !_has(n, 'hip shifting') },
+        ];
+        const resolveProcedure = (name) => {
+            const n = normProc(name);
+            for (const r of RULES) {
+                if (!r.test(n)) continue;
+                if (r.exclude) return { label: r.label, exclude: true };
+                if (r.met && isJunkMET(name)) return null;
+                // For MET (and Rib->"MET - Rib"), the justification is spliced from the
+                // FINAL name (after any rename). Otherwise use the canonical text.
+                const finalName = r.rename || name;
+                const justification = r.met ? metJustification(finalName) : (r.just || null);
+                return { label: r.label, code: r.code, justification, justMode: r.justMode, rename: r.rename || null };
+            }
+            return null;
+        };
+        return { normProc, resolveProcedure, metJustification, isJunkMET, RULES, J };
+    })();
 
 
     // =====================================================================
@@ -830,12 +921,12 @@
         const log = makeLogger('fix-met');
         const T0 = performance.now();
         const ts = () => `+${(performance.now() - T0).toFixed(0)}ms`;
-        log.log(`${ts()} module booted, v14.14 (justify via Tiptap editor API - true replace, no revert/newline)`);
+        log.log(`${ts()} module booted, Fix Procedures (generalized from Fix MET; matcher = shared Proc engine)`);
 
-        const HEADER_BTN_ID = 'athelas-fix-met-header-btn';
-        const TARGET_CODE = '97112';   // Neuromuscular Reeducation - where MET belongs
+        const HEADER_BTN_ID = 'athelas-fix-met-header-btn';   // id kept for continuity
         const KEY_DELAY_MS = 130;     // pause between simulated keystrokes (let React re-render + dnd-kit re-measure)
         const MAX_ARROW_STEPS = 45;   // safety cap on arrow presses (we normally stop on detection long before this)
+        const metJustification = Proc.metJustification;   // shared, robust "MET - X" splicer
 
         function isMETText(text) {
             const t = (text || '').trim();
@@ -1130,10 +1221,10 @@
         }
 
         // ---- Subtask 2: ensure a 97112 card exists (single click, no dup) ---
-        async function ensureTargetCard() {
-            const before = countCards(TARGET_CODE);
-            log.log(`${ts()} ensureTargetCard: ${TARGET_CODE} count before=${before}`);
-            if (before > 0) { log.log(`${ts()} 97112 already present - skipping +CPT dialog`); return true; }
+        async function ensureCard(code) {
+            const before = countCards(code);
+            log.log(`${ts()} ensureCard: ${code} count before=${before}`);
+            if (before > 0) { log.log(`${ts()} ${code} already present - skipping +CPT dialog`); return true; }
             const scope = getScope();
             let addBtn = scope.querySelector('button[jf-ext-button-ct$="cpt"]');
             if (!addBtn) {
@@ -1149,65 +1240,78 @@
             await sleep(200);
             let opt = null;
             const options = dialog.querySelectorAll('li[role="option"]');
-            for (const o of options) { if ((o.textContent || '').includes(TARGET_CODE)) { opt = o; break; } }
-            if (!opt) { log.warn(`${ts()} no ${TARGET_CODE} option among ${options.length} dialog options`); return false; }
+            for (const o of options) { if ((o.textContent || '').includes(code)) { opt = o; break; } }
+            if (!opt) { log.warn(`${ts()} no ${code} option among ${options.length} dialog options`); return false; }
             if (opt.getAttribute('aria-selected') !== 'true') {
-                log.log(`${ts()} ticking ${TARGET_CODE} option (single click)`);
+                log.log(`${ts()} ticking ${code} option (single click)`);
                 opt.click();
                 await sleep(250);
             } else {
-                log.log(`${ts()} ${TARGET_CODE} option already selected`);
+                log.log(`${ts()} ${code} option already selected`);
             }
             const addCodesBtn = dialog.querySelector('button[jf-ext-button-ct*="cpt code"]');
             if (!addCodesBtn) { log.warn(`${ts()} no "Add N CPT code" button in dialog`); return false; }
             if (addCodesBtn.disabled) { log.warn(`${ts()} Add button disabled (option not ticked?)`); return false; }
-            const pre = countCards(TARGET_CODE);
-            log.log(`${ts()} clicking "${addCodesBtn.textContent.trim()}" (single click); ${TARGET_CODE} count before add=${pre}`);
+            const pre = countCards(code);
+            log.log(`${ts()} clicking "${addCodesBtn.textContent.trim()}" (single click); ${code} count before add=${pre}`);
             addCodesBtn.click();
             for (let i = 0; i < 20; i++) {
                 await sleep(150);
-                if (countCards(TARGET_CODE) > pre) { log.log(`${ts()} 97112 card appeared after ${(i + 1) * 150}ms`); break; }
+                if (countCards(code) > pre) { log.log(`${ts()} ${code} card appeared after ${(i + 1) * 150}ms`); break; }
             }
-            const after = countCards(TARGET_CODE);
-            log.log(`${ts()} ensureTargetCard done: ${TARGET_CODE} count=${after} (added ${after - before})`);
+            const after = countCards(code);
+            log.log(`${ts()} ensureCard done: ${code} count=${after} (added ${after - before})`);
             if (after - before > 1) log.warn(`${ts()} DUPLICATE: added ${after - before} cards - single click still double-added, investigate`);
             return after > before;
         }
 
         // ---- full flow ------------------------------------------------------
-        // Return the first MET item that is NOT already in the target card, scanned
-        // across EVERY card (not just 97140 - the scribe misfiles MET under 97110
-        // too). Re-scanned every pass because the DOM re-renders after each move.
-        function findNextMisplacedMET() {
+        // Resolve every intervention via the shared matcher. An item "needs a fix"
+        // when it matches a rule (not excluded) AND either it is under the wrong CPT
+        // code OR it needs a rename (e.g. Rib -> "MET - Rib"). Re-scanned every pass
+        // because the DOM re-renders after each move.
+        function resolveItem(li, cardCode) {
+            const name = itemName(li).trim();
+            if (!name) return null;
+            const r = Proc.resolveProcedure(name);
+            if (!r || r.exclude) return null;             // no rule, or "leave alone"
+            const needsMove = r.code !== cardCode;
+            const needsRename = !!r.rename && r.rename !== name;
+            // Standardize the MET/Rib justification even when it's already in the right
+            // card (this preserves the old Fix-MET behavior). We do NOT re-append the
+            // canonical text to already-correct 'append' items (avoids surprise edits to
+            // everything the scribe already placed & justified); those are fixed on move.
+            let needsJust = false;
+            if (!needsMove && !needsRename) {
+                if (r.justMode === 'replace' && r.justification) {
+                    const details = li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
+                    const cur = details ? (details.textContent || '').trim() : '';
+                    if (cur !== r.justification) needsJust = true;
+                }
+                if (!needsJust) return null;               // already correct, nothing to do
+            }
+            return { name, from: cardCode, to: r.code, justMode: r.justMode, justification: r.justification, rename: r.rename, needsMove, needsJust, label: r.label };
+        }
+        function findNextFix() {
             for (const card of getCards()) {
-                if (card.code === TARGET_CODE) continue;   // already where we want it
                 for (const li of cardItems(card)) {
-                    if (isMETText(itemName(li))) return { card, li, name: itemName(li).trim() };
+                    const fix = resolveItem(li, card.code);
+                    if (fix) return { card, li, fix };
                 }
             }
             return null;
         }
-        function listMisplacedMET() {
+        function listFixes() {
             const out = [];
             for (const card of getCards()) {
-                if (card.code === TARGET_CODE) continue;
                 for (const li of cardItems(card)) {
-                    if (isMETText(itemName(li))) out.push({ code: card.code, name: itemName(li).trim() });
+                    const fix = resolveItem(li, card.code);
+                    if (fix) out.push(fix);
                 }
             }
             return out;
         }
 
-        // ---- Justification text (v14.12) -----------------------------------
-        // Names shaped "MET - X" get X spliced into the sentence; anything else
-        // (e.g. a bare "MET") gets the generic form.
-        function metJustification(name) {
-            const m = (name || '').trim().match(/^MET\s*-\s*(.+)$/i);
-            const tail = 'with tactile and vc to help facilitate proper proprioception and posture.';
-            return m
-                ? `Muscle energy technique applied to ${m[1].trim()}, ${tail}`
-                : `Muscle energy technique applied, ${tail}`;
-        }
         // ---- Set a Tiptap/ProseMirror field reliably (v14.14) ---------------
         // The old approach (set DOM selection + execCommand insertText) did NOT work:
         // ProseMirror ignores an externally-set DOM selection, so the text was
@@ -1255,101 +1359,139 @@
             await sleep(20);
             return ok;
         }
-        // Rewrite the "Intervention details" field for EVERY MET item now in 97112.
-        // Verifies the field ends up EXACTLY equal to the target text and retries if a
-        // controlled re-render reverts it. Idempotent.
-        async function applyMETJustifications() {
-            const target = getCards().find((c) => c.code === TARGET_CODE);
-            if (!target) { log.warn(`${ts()} applyMETJustifications: no ${TARGET_CODE} card`); return 0; }
-            const metItems = cardItems(target).filter((li) => isMETText(itemName(li)));
-            log.log(`${ts()} applyMETJustifications: ${metItems.length} MET item(s) in ${TARGET_CODE}`);
-            let edited = 0;
-            for (const li of metItems) {
-                const nm = itemName(li).trim();
-                const details = li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
-                if (!details) { log.warn(`${ts()} no "Intervention details" field for "${nm}"`); continue; }
-                const just = metJustification(nm);
-                if ((details.textContent || '').trim() === just) { log.log(`${ts()} justification "${nm}": already set, skip`); continue; }
-                let done = false;
-                for (let attempt = 1; attempt <= 3 && !done; attempt++) {
-                    const before = (details.textContent || '').trim();
-                    const usedTiptap = setViaTiptap(details, just);
-                    if (!usedTiptap) await setViaExecCommand(details, just);
-                    await sleep(150);
-                    let now = (details.textContent || '').trim();
-                    if (now === just) { await sleep(150); now = (details.textContent || '').trim(); } // catch a fast revert
-                    log.log(`${ts()} justification "${nm}" attempt ${attempt} (${usedTiptap ? 'tiptap' : 'execCommand'}): "${before.slice(0, 30)}" -> "${now.slice(0, 70)}"`);
-                    if (now === just) done = true;
-                }
-                if (done) edited++;
-                else log.warn(`${ts()} justification "${nm}" did NOT stick after 3 attempts`);
+        // Write `text` into a "Intervention details" contenteditable, verifying it
+        // sticks (retries a controlled re-render revert). Idempotent for a given text.
+        async function writeDetails(details, text) {
+            if ((details.textContent || '').trim() === text) return true;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                const before = (details.textContent || '').trim();
+                const usedTiptap = setViaTiptap(details, text);
+                if (!usedTiptap) await setViaExecCommand(details, text);
+                await sleep(150);
+                let now = (details.textContent || '').trim();
+                if (now === text) { await sleep(150); now = (details.textContent || '').trim(); }
+                log.log(`${ts()}   details attempt ${attempt} (${usedTiptap ? 'tiptap' : 'execCommand'}): "${before.slice(0, 30)}" -> "${now.slice(0, 70)}"`);
+                if (now === text) return true;
             }
-            return edited;
+            return false;
+        }
+        // Rename the intervention's name field (a plain MUI <input>) via the shared
+        // React-value setter, then confirm it took.
+        async function renameItem(li, newName) {
+            const inp = li.querySelector('input[aria-label="Intervention name"]');
+            if (!inp) { log.warn(`${ts()} rename: no name input`); return false; }
+            if ((inp.value || '').trim() === newName) return true;
+            setReactValue(inp, newName, log);
+            await sleep(120);
+            const ok = (inp.value || '').trim() === newName;
+            log.log(`${ts()} rename -> "${newName}": ${ok ? 'ok' : 'FAILED (value="' + (inp.value || '') + '")'}`);
+            return ok;
+        }
+        // Apply rename + justification to a single item ALREADY in its correct card.
+        // justMode: 'none' (leave details), 'replace' (MET - overwrite), 'append'
+        // (add canonical text once, keeping the scribe's text). Idempotent.
+        async function applyItemFix(li, fix) {
+            let renamed = false, justified = false;
+            if (fix.rename && (itemName(li).trim() !== fix.rename)) {
+                renamed = await renameItem(li, fix.rename);
+            }
+            if (fix.justMode === 'none' || !fix.justification) return { renamed, justified };
+            const details = li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
+            if (!details) { log.warn(`${ts()} no "Intervention details" field for "${itemName(li).trim()}"`); return { renamed, justified }; }
+            const existing = (details.textContent || '').trim();
+            let target;
+            if (fix.justMode === 'replace') {
+                target = fix.justification;
+            } else { // append
+                if (existing.includes(fix.justification)) { return { renamed, justified: true }; } // already appended
+                target = existing ? (existing.replace(/\s+$/, '') + ' ' + fix.justification) : fix.justification;
+            }
+            justified = await writeDetails(details, target);
+            if (!justified) log.warn(`${ts()} justification for "${itemName(li).trim()}" did NOT stick`);
+            return { renamed, justified };
+        }
+
+        function findItemInCardByName(code, name) {
+            const c = getCards().find((x) => x.code === code);
+            if (!c) return null;
+            return cardItems(c).find((li) => itemName(li).trim() === name) || null;
         }
 
         async function performFix() {
             log.log(`${ts()} ================= performFix START =================`);
             const scope = getScope();
-            if (!scope) { log.warn(`${ts()} no [data-section="flowsheet"]`); return { moved: 0, reason: 'no-flowsheet' }; }
+            if (!scope) { log.warn(`${ts()} no [data-section="flowsheet"]`); return { moved: 0, renamed: 0, justified: 0, reason: 'no-flowsheet' }; }
             dumpState('performFix-start');
 
-            const initial = listMisplacedMET();
-            const tgt0 = getCards().find((c) => c.code === TARGET_CODE);
-            const metInTarget0 = tgt0 ? cardItems(tgt0).filter((li) => isMETText(itemName(li))).length : 0;
-            log.log(`${ts()} misplaced MET (outside ${TARGET_CODE}): ${initial.length} -> ${JSON.stringify(initial)}; MET already in ${TARGET_CODE}: ${metInTarget0}`);
-            if (!initial.length && metInTarget0 === 0) {
-                log.log(`${ts()} no MET items anywhere - nothing to do`);
-                return { moved: 0, justified: 0, reason: 'no-MET' };
-            }
+            const initial = listFixes();
+            log.log(`${ts()} items needing a fix: ${initial.length} -> ${JSON.stringify(initial.map((f) => ({ name: f.name, from: f.from, to: f.to, rename: f.rename || undefined })))}`);
+            if (!initial.length) { log.log(`${ts()} everything already in its canonical CPT - nothing to do`); return { moved: 0, renamed: 0, justified: 0, reason: 'nothing-to-fix' }; }
 
-            let target = getCards().find((c) => c.code === TARGET_CODE);
-            if (!target) {
-                log.log(`${ts()} no ${TARGET_CODE} card - creating via +CPT`);
-                const ok = await ensureTargetCard();
-                if (!ok) return { moved: 0, justified: 0, reason: 'could-not-add-97112' };
-                await sleep(400);
-                target = getCards().find((c) => c.code === TARGET_CODE);
-            }
-            if (!target) { log.warn(`${ts()} still no ${TARGET_CODE} after ensure`); return { moved: 0, justified: 0, reason: 'no-97112-after-ensure' }; }
-            const targetName = target.name;
-            log.log(`${ts()} target "${targetName}" region=${!!target.region}`);
+            let moved = 0, renamed = 0, justified = 0;
+            let usePointer = true;                      // pointer path is fast + lands at top; falls back to keyboard on any miss
+            const maxPasses = initial.length * 2 + 2;   // safety against an infinite loop
 
-            // ---- move any misplaced MET into 97112 ----
-            let moved = 0;
-            if (initial.length) {
-                let usePointer = true;   // pointer path is fast + lands at top; falls back to keyboard on any miss
-                const maxPasses = initial.length + 2;   // safety against an infinite loop
-                for (let pass = 0; pass < maxPasses; pass++) {
-                    const next = findNextMisplacedMET();
-                    if (!next) { log.log(`${ts()} no more misplaced MET - done moving`); break; }
-                    log.log(`${ts()} --- MET pass ${pass + 1}: moving "${next.name}" from ${next.code} -> ${TARGET_CODE} (mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
-                    let res;
-                    if (usePointer) {
-                        res = await pointerDragToTop(next.li, targetName, {});
-                        if (!res.ok) {
-                            // Pointer cancelled cleanly (item back home) - drop to keyboard for
-                            // this item AND the rest (don't keep paying for pointer misses).
-                            log.warn(`${ts()} pointer path failed (${res.reason || 'no-target'}); switching to keyboard for the remainder.`);
-                            usePointer = false;
-                            await sleep(150);
-                            const again = findNextMisplacedMET();
-                            if (again) res = await keyboardDrag(again.li, targetName, {});
-                        }
-                    } else {
-                        res = await keyboardDrag(next.li, targetName, {});
-                    }
-                    if (res && res.ok) { moved++; }
-                    else { log.warn(`${ts()} drag of "${next.name}" failed (${(res && res.reason) || 'not-in-target'}); stopping to avoid a mess.`); break; }
-                    await sleep(200);
+            for (let pass = 0; pass < maxPasses; pass++) {
+                const next = findNextFix();
+                if (!next) { log.log(`${ts()} no more items to fix - done`); break; }
+                const fix = next.fix;
+
+                // ---- rename-only (already in the right card, just needs renaming) ----
+                if (!fix.needsMove) {
+                    log.log(`${ts()} --- pass ${pass + 1}: in-place fix "${fix.name}" in ${fix.from} (rule=${fix.label}${fix.rename ? ', rename->"' + fix.rename + '"' : ''}) ---`);
+                    const r = await applyItemFix(next.li, fix);
+                    if (r.renamed) renamed++;
+                    if (r.justified) justified++;
+                    await sleep(150);
+                    continue;
                 }
-            } else {
-                log.log(`${ts()} no misplaced MET to move; justification-only run`);
+
+                // ---- move to the correct CPT card ----
+                log.log(`${ts()} --- pass ${pass + 1}: moving "${fix.name}" ${fix.from} -> ${fix.to} (rule=${fix.label}, mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
+                let target = getCards().find((c) => c.code === fix.to);
+                if (!target) {
+                    log.log(`${ts()} no ${fix.to} card - creating via +CPT`);
+                    const ok = await ensureCard(fix.to);
+                    if (!ok) { log.warn(`${ts()} could not add ${fix.to} card; skipping "${fix.name}"`); break; }
+                    await sleep(400);
+                    target = getCards().find((c) => c.code === fix.to);
+                }
+                if (!target) { log.warn(`${ts()} still no ${fix.to} card after ensure; stopping`); break; }
+                const targetName = target.name;
+
+                // Re-find the source li (the DOM re-rendered if we created a card).
+                const srcLi = findItemInCardByName(fix.from, fix.name) || next.li;
+                let res;
+                if (usePointer) {
+                    res = await pointerDragToTop(srcLi, targetName, {});
+                    if (!res.ok) {
+                        log.warn(`${ts()} pointer path failed (${res.reason || 'no-target'}); switching to keyboard for the remainder.`);
+                        usePointer = false;
+                        await sleep(150);
+                        const again = findItemInCardByName(fix.from, fix.name);
+                        if (again) res = await keyboardDrag(again, targetName, {});
+                    }
+                } else {
+                    res = await keyboardDrag(srcLi, targetName, {});
+                }
+                if (!res || !res.ok) { log.warn(`${ts()} drag of "${fix.name}" failed (${(res && res.reason) || 'not-in-target'}); stopping to avoid a mess.`); break; }
+                moved++;
+                await sleep(200);
+
+                // ---- after the move, apply rename + justification in the target card ----
+                const movedLi = findItemInCardByName(fix.to, fix.name);
+                if (movedLi) {
+                    const r = await applyItemFix(movedLi, fix);
+                    if (r.renamed) renamed++;
+                    if (r.justified) justified++;
+                } else {
+                    log.warn(`${ts()} could not re-find "${fix.name}" in ${fix.to} to apply justification/rename`);
+                }
+                await sleep(150);
             }
 
-            // ---- standardize the justification of EVERY MET item now in 97112 ----
-            const justified = await applyMETJustifications();
-            log.log(`${ts()} ================= performFix END: moved=${moved}, justified=${justified} =================`);
-            return { moved, justified, reason: 'ok' };
+            log.log(`${ts()} ================= performFix END: moved=${moved}, renamed=${renamed}, justified=${justified} =================`);
+            return { moved, renamed, justified, reason: 'ok' };
         }
 
         // ---- Subtask 1: header button --------------------------------------
@@ -1367,8 +1509,8 @@
             const btn = document.createElement('button');
             btn.id = HEADER_BTN_ID;
             btn.type = 'button';
-            btn.textContent = 'Fix MET → 97112';
-            btn.title = 'Move Muscle Energy Technique (MET) items from 97140 to 97112 via a real dnd-kit drag. Click Apply Scribe afterwards to persist.';
+            btn.textContent = 'Fix Procedures';
+            btn.title = 'Move every intervention to its correct CPT code (97110/97112/97530) per the therapist\'s rules, via a real dnd-kit drag - including MET -> 97112. Renames Rib -> "MET - Rib" and appends the canonical justification. Excluded items (Bridges, TKE) are left alone. Click Apply Scribe afterwards to persist.';
             Object.assign(btn.style, {
                 justifySelf: 'end', alignSelf: 'center', marginRight: '12px',
                 padding: '4px 10px', background: '#c33', color: '#fff',
@@ -1384,19 +1526,20 @@
                     const result = await performFix();
                     const parts = [];
                     if (result.moved) parts.push(`moved ${result.moved}`);
+                    if (result.renamed) parts.push(`renamed ${result.renamed}`);
                     if (result.justified) parts.push(`just. ${result.justified}`);
-                    const didSomething = result.moved || result.justified;
+                    const didSomething = result.moved || result.renamed || result.justified;
                     btn.textContent = didSomething ? parts.join(', ') : (result.reason || 'no-op');
                     btn.style.background = didSomething ? '#2a7' : '#888';
                 } catch (err) {
                     log.error(`${ts()} performFix threw:`, err);
                     btn.textContent = 'error'; btn.style.background = '#888';
                 } finally {
-                    setTimeout(() => { btn.textContent = 'Fix MET → 97112'; btn.style.background = '#c33'; btn.disabled = false; }, 3500);
+                    setTimeout(() => { btn.textContent = 'Fix Procedures'; btn.style.background = '#c33'; btn.disabled = false; }, 3500);
                 }
             });
             row.appendChild(btn);
-            log.log(`${ts()} injected Fix MET header button`);
+            log.log(`${ts()} injected Fix Procedures header button`);
         }
 
         injectHeaderButton();
@@ -1413,29 +1556,484 @@
         else new MutationObserver((_, o) => { if (document.body) { o.disconnect(); startObs(); } }).observe(document.documentElement, { childList: true });
 
         // ---- DevTools hooks -------------------------------------------------
-        window.__athelasFixMET = performFix;
+        window.__athelasFixProcedures = performFix;
+        window.__athelasFixMET = performFix;   // back-compat alias
+        window.__athelasListFixes = () => { const r = listFixes(); console.table(r); return r; };
         window.__athelasDbgFlowsheet = () => { dumpState('manual'); return getCards().map((c) => ({ code: c.code, name: c.name, region: !!c.region, ul: !!c.ul, items: cardItems(c).map((li) => itemName(li).trim()) })); };
         window.__athelasListProcedureCards = () => { const r = getCards().map((c) => ({ code: c.code, name: c.name, items: cardItems(c).length })); console.table(r); return r; };
-        // Apply the standardized justification to every MET item in 97112 (same as
-        // what the button does after moving) - handy to test the field edit alone.
-        window.__athelasApplyJustifications = async () => applyMETJustifications();
-        window.__athelasKbdDragFirstMET = async () => {
-            const next = findNextMisplacedMET();
-            if (!next) { log.warn('no misplaced MET item (nothing outside 97112)'); return; }
-            const tgt = getCards().find((c) => c.code === TARGET_CODE);
-            if (!tgt) { log.warn('no 97112 card present - create it first (click the button) or run __athelasFixMET()'); return; }
-            log.log(`kbd-drag test: "${next.name}" from ${next.code} -> ${TARGET_CODE}`);
+        window.__athelasKbdDragFirstFix = async () => {
+            const next = findNextFix();
+            if (!next) { log.warn('nothing to fix'); return; }
+            const tgt = getCards().find((c) => c.code === next.fix.to);
+            if (!tgt) { log.warn(`no ${next.fix.to} card present - create it first or run __athelasFixProcedures()`); return; }
+            log.log(`kbd-drag test: "${next.fix.name}" from ${next.fix.from} -> ${next.fix.to}`);
             return keyboardDrag(next.li, tgt.name, {});
         };
-        window.__athelasPointerDragFirstMET = async () => {
-            const next = findNextMisplacedMET();
-            if (!next) { log.warn('no misplaced MET item (nothing outside 97112)'); return; }
-            const tgt = getCards().find((c) => c.code === TARGET_CODE);
-            if (!tgt) { log.warn('no 97112 card present'); return; }
-            log.log(`pointer-drag test: "${next.name}" from ${next.code} -> ${TARGET_CODE}`);
+        window.__athelasPointerDragFirstFix = async () => {
+            const next = findNextFix();
+            if (!next) { log.warn('nothing to fix'); return; }
+            const tgt = getCards().find((c) => c.code === next.fix.to);
+            if (!tgt) { log.warn(`no ${next.fix.to} card present`); return; }
+            log.log(`pointer-drag test: "${next.fix.name}" from ${next.fix.from} -> ${next.fix.to}`);
             return pointerDragToTop(next.li, tgt.name, {});
         };
-        log.log(`${ts()} hooks ready: __athelasFixMET, __athelasApplyJustifications, __athelasKbdDragFirstMET, __athelasPointerDragFirstMET, __athelasDbgFlowsheet, __athelasListProcedureCards`);
+        log.log(`${ts()} hooks ready: __athelasFixProcedures, __athelasListFixes, __athelasKbdDragFirstFix, __athelasPointerDragFirstFix, __athelasDbgFlowsheet, __athelasListProcedureCards`);
+    }
+
+    // =====================================================================
+    // MODULE 11: Fix Private Pay.
+    //
+    // Private-pay ("selfpay") patients have a "PPVISIT - Visit-Private Pay"
+    // CPT card in the flowsheet (their insurance policy # is 00000). Because
+    // they pay in the clinic, their work does not need to be billed under the
+    // real CPT codes - the therapist wants every procedure they actually did
+    // (the ones check-marked "Done") collected into the private-pay section.
+    //
+    // This button scans every OTHER CPT card for interventions whose "Done"
+    // checkbox is checked and drags each one down into the private-pay card,
+    // reusing the same dnd-kit drag machinery proven by Fix MET (pointer path
+    // first, keyboard path as fallback). It moves ONLY "Done" items and never
+    // touches the private-pay card's own contents.
+    //
+    // The button only appears for private-pay patients (i.e. when a PPVISIT /
+    // "Visit-Private Pay" card exists) and is placed just above that section.
+    //
+    // Run in DevTools:  window.__athelasFixPrivatePay()
+    // =====================================================================
+    function featureFixPrivatePay() {
+        const log = makeLogger('fix-pp');
+        const T0 = performance.now();
+        const ts = () => `+${(performance.now() - T0).toFixed(0)}ms`;
+        log.log(`${ts()} module booted, Fix Private Pay`);
+
+        const BTN_ID = 'athelas-fix-privatepay-btn';
+        const MAX_ARROW_STEPS = 60;
+
+        const getScope = () => document.querySelector('[data-section="flowsheet"]');
+
+        function liveRegionEl() {
+            return document.querySelector('[id^="DndLiveRegion"]')
+                || document.querySelector('[aria-live][role="status"]');
+        }
+        function liveRegionText() {
+            const lr = liveRegionEl();
+            return lr ? (lr.textContent || '').trim() : '(no DndLiveRegion)';
+        }
+
+        // ---- card / item model (handles numeric CPT codes AND non-numeric
+        // codes like "PPVISIT"; the MET module's getCards only matched 5-digit
+        // codes, so this one is deliberately separate). ----------------------
+        function findRegionByName(scope, name) {
+            for (const r of scope.querySelectorAll('[role="region"][aria-label$=" interventions"]')) {
+                if (r.getAttribute('aria-label') === `${name} interventions`) return r;
+            }
+            return null;
+        }
+        function getCards() {
+            const scope = getScope();
+            if (!scope) return [];
+            const cards = [];
+            for (const input of scope.querySelectorAll('input[aria-label="replace procedure"]')) {
+                const val = input.value || input.getAttribute('value') || '';
+                const m = val.match(/^(\S+)\s*-\s*(.+?)\s*$/);   // "97110 - Therapeutic Exercise" | "PPVISIT - Visit-Private Pay"
+                if (!m) continue;
+                const code = m[1];
+                const name = m[2].trim();
+                const region = findRegionByName(scope, name);
+                const ul = region ? region.querySelector('ul[aria-label$=" intervention list"]') : null;
+                cards.push({ code, name, input, region, ul });
+            }
+            return cards;
+        }
+        const isPrivatePayCard = (c) => c.code.toUpperCase() === 'PPVISIT' || /private\s*pay/i.test(c.name);
+        function targetCard() { return getCards().find(isPrivatePayCard) || null; }
+
+        function cardItems(card) {
+            if (!card || !card.region) return [];
+            const ul = card.region.querySelector('ul[aria-label$=" intervention list"]');
+            if (!ul) return [];
+            return Array.from(ul.querySelectorAll(':scope > li[aria-label="Intervention"]'));
+        }
+        function itemName(li) {
+            const i = li.querySelector('input[aria-label="Intervention name"]');
+            return i ? (i.value || i.getAttribute('value') || '') : '';
+        }
+        function itemHandle(li) {
+            return li.querySelector('[aria-label="Drag to reorder"][role="button"]')
+                || li.querySelector('[aria-label="Drag to reorder"]');
+        }
+        // A procedure is "Done" when its Done checkbox is checked.
+        function isDone(li) {
+            const cb = li.querySelector('input[aria-label="Done"]');
+            return !!(cb && cb.checked);
+        }
+
+        function regionsContainingName(name) {
+            const target = (name || '').trim();
+            const hits = [];
+            for (const card of getCards()) {
+                const n = cardItems(card).map((li) => itemName(li).trim()).filter((x) => x === target).length;
+                if (n) hits.push({ code: card.code, name: card.name, count: n });
+            }
+            return hits;
+        }
+        function codeForName(nm) { const c = getCards().find((x) => x.name === nm); return c ? c.code : undefined; }
+        function indexOfNameInCard(code, itemNm) {
+            const c = getCards().find((x) => x.code === code);
+            if (!c) return -1;
+            return cardItems(c).map((li) => itemName(li).trim()).indexOf((itemNm || '').trim());
+        }
+        function viewportH() { return document.documentElement.clientHeight || window.innerHeight || 800; }
+        function firstItemOfCard(code) {
+            const c = getCards().find((x) => x.code === code);
+            if (!c || !c.region) return null;
+            const ul = c.region.querySelector('ul[aria-label$=" intervention list"]');
+            return ul ? ul.querySelector(':scope > li[aria-label="Intervention"]') : null;
+        }
+
+        // ---- synthetic keyboard (dnd-kit KeyboardSensor) --------------------
+        const KEYCODES = { Space: 32, ArrowDown: 40, ArrowUp: 38, Escape: 27, Enter: 13 };
+        function dispatchKey(el, type, code, key) {
+            const ev = new KeyboardEvent(type, { key, code, bubbles: true, cancelable: true });
+            const kc = KEYCODES[code] || 0;
+            try { Object.defineProperty(ev, 'keyCode', { get: () => kc }); } catch (e) {}
+            try { Object.defineProperty(ev, 'which', { get: () => kc }); } catch (e) {}
+            el.dispatchEvent(ev);
+            return ev;
+        }
+        function pressKey(el, code, key) { dispatchKey(el, 'keydown', code, key); dispatchKey(el, 'keyup', code, key); }
+        async function waitForLiveChange(prevLive, maxMs) {
+            maxMs = maxMs || 220;
+            const start = performance.now();
+            while (performance.now() - start < maxMs) {
+                if (liveRegionText() !== prevLive) return performance.now() - start;
+                await sleep(6);
+            }
+            return -1;
+        }
+
+        // ---- KEYBOARD DRAG (reliable fallback) -----------------------------
+        async function keyboardDrag(li, targetName, opts) {
+            opts = opts || {};
+            const maxSteps = opts.maxSteps || MAX_ARROW_STEPS;
+            const name = itemName(li).trim();
+            const handle = itemHandle(li);
+            log.log(`${ts()} ===== keyboardDrag "${name}" -> "${targetName}" =====`);
+            if (!handle) { log.warn(`${ts()} no drag handle on li - abort`); return { ok: false, reason: 'no-handle' }; }
+            const targetCode = codeForName(targetName);
+            const targetRegion = findRegionByName(getScope(), targetName);
+            const liRect = li.getBoundingClientRect();
+            const trRect = targetRegion ? targetRegion.getBoundingClientRect() : null;
+            const goUp = !!trRect && (trRect.top < liRect.top);
+            const arrowKey = goUp ? 'ArrowUp' : 'ArrowDown';
+            const baseline = (regionsContainingName(name).find((h) => h.name === targetName) || { count: 0 }).count;
+
+            handle.focus();
+            let live = liveRegionText();
+            pressKey(handle, 'Space', ' ');
+            await waitForLiveChange(live, 320);
+            const pickedUp = handle.getAttribute('aria-pressed') === 'true' || liveRegionText() !== live;
+            if (!pickedUp) { log.warn(`${ts()} PICKUP FAILED`); pressKey(document, 'Escape', 'Escape'); return { ok: false, reason: 'pickup-failed' }; }
+
+            let crossed = false, steps = 0;
+            for (let i = 0; i < maxSteps; i++) {
+                steps++;
+                live = liveRegionText();
+                pressKey(document, arrowKey, arrowKey);
+                await waitForLiveChange(live, 240);
+                const tc = (regionsContainingName(name).find((h) => h.name === targetName) || { count: 0 }).count;
+                if (tc > baseline) { crossed = true; break; }
+            }
+            live = liveRegionText();
+            pressKey(document, 'Space', ' ');
+            await waitForLiveChange(live, 320);
+            await sleep(50);
+            const inTarget = regionsContainingName(name).some((h) => h.name === targetName);
+            const finalIdx = indexOfNameInCard(targetCode, name);
+            log.log(`${ts()} keyboardDrag END "${name}" inTarget=${inTarget} crossed=${crossed} steps=${steps} finalIdx=${finalIdx}`);
+            return { ok: inTarget, crossed, steps, finalIdx };
+        }
+
+        // ---- POINTER DRAG (primary: one gesture, drops at the TOP) ---------
+        const PTR_STEP_PX = 64, PTR_MAX_ITERS = 90, PTR_MOVE_DELAY = 28;
+        function dispatchPointer(type, x, y, el) {
+            const up = type === 'pointerup' || type === 'pointercancel';
+            const down = type === 'pointerdown';
+            const ev = new PointerEvent(type, {
+                bubbles: true, cancelable: true, composed: true,
+                pointerId: 1, pointerType: 'mouse', isPrimary: true,
+                clientX: x, clientY: y,
+                button: up ? 0 : (down ? 0 : -1),
+                buttons: up ? 0 : 1, pressure: up ? 0 : 0.5,
+            });
+            (el || document).dispatchEvent(ev);
+            return ev;
+        }
+        async function pointerDragToTop(li, targetName, opts) {
+            opts = opts || {};
+            const name = itemName(li).trim();
+            const handle = itemHandle(li);
+            log.log(`${ts()} ===== pointerDragToTop "${name}" -> "${targetName}" =====`);
+            if (!handle) { log.warn(`${ts()} no handle`); return { ok: false, reason: 'no-handle' }; }
+            const targetCode = codeForName(targetName);
+
+            try { li.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch (e) { li.scrollIntoView({ block: 'center' }); }
+            await sleep(70);
+            const hr = handle.getBoundingClientRect();
+            const px = Math.round(hr.left + hr.width / 2);
+            let py = Math.round(hr.top + hr.height / 2);
+            handle.focus();
+            const liveStart = liveRegionText();
+            dispatchPointer('pointerdown', px, py, handle);
+            await sleep(30);
+            py += 10;
+            dispatchPointer('pointermove', px, py, document);
+            await sleep(50);
+            const pickedUp = handle.getAttribute('aria-pressed') === 'true' || liveRegionText() !== liveStart;
+            if (!pickedUp) { dispatchPointer('pointerup', px, py, document); log.warn(`${ts()} pointer PICKUP FAILED`); return { ok: false, reason: 'pointer-pickup-failed' }; }
+
+            const vh = viewportH();
+            let curY = py, iters = 0, inTarget = false, settledAtAim = false;
+            for (let i = 0; i < PTR_MAX_ITERS; i++) {
+                iters++;
+                const region = findRegionByName(getScope(), targetName);
+                const rr = region ? region.getBoundingClientRect() : null;
+                const first = firstItemOfCard(targetCode);
+                const aimRaw = first ? (first.getBoundingClientRect().top + first.getBoundingClientRect().height / 2)
+                                     : (rr ? rr.top + 30 : vh / 2);
+                const aimY = Math.max(10, Math.min(vh - 10, Math.round(aimRaw)));
+                let goalY;
+                if (rr && rr.top > vh - 28) goalY = vh - 18;
+                else if (rr && rr.bottom < 28) goalY = 18;
+                else goalY = aimY;
+                if (curY < goalY) curY = Math.min(goalY, curY + PTR_STEP_PX);
+                else if (curY > goalY) curY = Math.max(goalY, curY - PTR_STEP_PX);
+                dispatchPointer('pointermove', px, curY, document);
+                await sleep(PTR_MOVE_DELAY);
+                inTarget = regionsContainingName(name).some((h) => h.name === targetName);
+                const aiming = (goalY === aimY);
+                if (inTarget && aiming && Math.abs(curY - aimY) <= PTR_STEP_PX) {
+                    dispatchPointer('pointermove', px, aimY, document);
+                    await sleep(70);
+                    settledAtAim = true;
+                    break;
+                }
+            }
+            if (regionsContainingName(name).some((h) => h.name === targetName)) {
+                dispatchPointer('pointerup', px, curY, document);
+                await sleep(180);
+                const stillIn = regionsContainingName(name).some((h) => h.name === targetName);
+                const idx = indexOfNameInCard(targetCode, name);
+                log.log(`${ts()} pointerDrag DROP settledAtAim=${settledAtAim} inTarget=${stillIn} finalIdx=${idx} iters=${iters}`);
+                return { ok: stillIn, finalIdx: idx, iters };
+            }
+            log.warn(`${ts()} pointer never reached target after ${iters} iters - CANCEL (item returns home), fall back to keyboard`);
+            pressKey(document, 'Escape', 'Escape');
+            dispatchPointer('pointercancel', px, curY, document);
+            await sleep(140);
+            return { ok: false, reason: 'pointer-no-target' };
+        }
+
+        // ---- scan: Done items outside the private-pay card -----------------
+        function findNextDone() {
+            const tgt = targetCard();
+            const tname = tgt ? tgt.name : null;
+            for (const card of getCards()) {
+                if (tname && card.name === tname) continue;   // never touch the private-pay card itself
+                for (const li of cardItems(card)) {
+                    if (isDone(li)) return { card, li, name: itemName(li).trim() };
+                }
+            }
+            return null;
+        }
+        function listDone() {
+            const out = [];
+            const tgt = targetCard();
+            const tname = tgt ? tgt.name : null;
+            for (const card of getCards()) {
+                if (tname && card.name === tname) continue;
+                for (const li of cardItems(card)) {
+                    if (isDone(li)) out.push({ code: card.code, name: itemName(li).trim() });
+                }
+            }
+            return out;
+        }
+
+        async function performFix() {
+            log.log(`${ts()} ================= performFix START =================`);
+            const scope = getScope();
+            if (!scope) { log.warn(`${ts()} no [data-section="flowsheet"]`); return { moved: 0, reason: 'no-flowsheet' }; }
+            const tgt = targetCard();
+            if (!tgt) { log.warn(`${ts()} no private-pay (PPVISIT) card - not a private-pay chart`); return { moved: 0, reason: 'no-ppvisit-card' }; }
+            if (!tgt.region) { log.warn(`${ts()} private-pay card has no region/list yet`); return { moved: 0, reason: 'no-ppvisit-region' }; }
+            const targetName = tgt.name;
+
+            const initial = listDone();
+            log.log(`${ts()} target "${targetName}"; Done items to move: ${initial.length} -> ${JSON.stringify(initial)}`);
+            if (!initial.length) { log.log(`${ts()} nothing marked Done outside private pay`); return { moved: 0, reason: 'no-done-items' }; }
+
+            let moved = 0, usePointer = true;
+            const maxPasses = initial.length + 2;   // safety against an infinite loop
+            for (let pass = 0; pass < maxPasses; pass++) {
+                const next = findNextDone();
+                if (!next) { log.log(`${ts()} no more Done items outside private pay - done`); break; }
+                log.log(`${ts()} --- pass ${pass + 1}: moving Done "${next.name}" from ${next.code} -> private pay (mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
+                let res;
+                if (usePointer) {
+                    res = await pointerDragToTop(next.li, targetName, {});
+                    if (!res.ok) {
+                        log.warn(`${ts()} pointer path failed (${res.reason || 'no-target'}); switching to keyboard for the remainder.`);
+                        usePointer = false;
+                        await sleep(150);
+                        const again = findNextDone();
+                        if (again) res = await keyboardDrag(again.li, targetName, {});
+                    }
+                } else {
+                    res = await keyboardDrag(next.li, targetName, {});
+                }
+                if (res && res.ok) { moved++; }
+                else { log.warn(`${ts()} drag of "${next.name}" failed (${(res && res.reason) || 'not-in-target'}); stopping to avoid a mess.`); break; }
+                await sleep(200);
+            }
+            log.log(`${ts()} ================= performFix END: moved=${moved} =================`);
+            return { moved, reason: 'ok' };
+        }
+
+        // ---- button (above the private-pay section) ------------------------
+        function injectButton() {
+            if (document.getElementById(BTN_ID)) return;
+            const scope = getScope();
+            if (!scope) return;
+            const tgt = targetCard();
+            if (!tgt || !tgt.region) return;   // only private-pay patients get the button
+            const region = tgt.region;
+
+            const btn = document.createElement('button');
+            btn.id = BTN_ID;
+            btn.type = 'button';
+            btn.textContent = 'Fix Private Pay';
+            btn.title = 'Move every procedure check-marked "Done" from the CPT cards down into the Private Pay (PPVISIT) section via a real dnd-kit drag. Click Apply Scribe afterwards to persist.';
+            Object.assign(btn.style, {
+                display: 'block', margin: '8px 0', padding: '5px 12px',
+                background: '#6b3fa0', color: '#fff', border: '1px solid #532f7d',
+                borderRadius: '4px', font: '600 12px/1.2 system-ui, sans-serif',
+                cursor: 'pointer', whiteSpace: 'nowrap',
+            });
+            btn.addEventListener('mouseenter', () => { btn.style.background = '#532f7d'; });
+            btn.addEventListener('mouseleave', () => { btn.style.background = '#6b3fa0'; });
+            btn.addEventListener('click', async (ev) => {
+                ev.preventDefault(); ev.stopPropagation();
+                btn.disabled = true; btn.textContent = 'Working…'; btn.style.background = '#888';
+                try {
+                    const result = await performFix();
+                    const didSomething = !!result.moved;
+                    btn.textContent = didSomething ? `moved ${result.moved}` : (result.reason || 'no-op');
+                    btn.style.background = didSomething ? '#2a7' : '#888';
+                } catch (err) {
+                    log.error(`${ts()} performFix threw:`, err);
+                    btn.textContent = 'error'; btn.style.background = '#888';
+                } finally {
+                    setTimeout(() => { btn.textContent = 'Fix Private Pay'; btn.style.background = '#6b3fa0'; btn.disabled = false; }, 3500);
+                }
+            });
+            // Place the button just ABOVE the private-pay section.
+            region.parentNode.insertBefore(btn, region);
+            log.log(`${ts()} injected Fix Private Pay button above "${tgt.name}"`);
+        }
+
+        injectButton();
+        let pending = null;
+        const obs = new MutationObserver(() => {
+            if (pending) return;
+            pending = setTimeout(() => { pending = null; injectButton(); }, 250);
+        });
+        const startObs = () => { obs.observe(document.body, { childList: true, subtree: true }); };
+        if (document.body) startObs();
+        else new MutationObserver((_, o) => { if (document.body) { o.disconnect(); startObs(); } }).observe(document.documentElement, { childList: true });
+
+        // ---- DevTools hooks -------------------------------------------------
+        window.__athelasFixPrivatePay = performFix;
+        window.__athelasListPrivatePayDone = () => { const r = listDone(); console.table(r); return r; };
+        window.__athelasPrivatePayTarget = () => { const t = targetCard(); return t ? { code: t.code, name: t.name, region: !!t.region } : null; };
+        log.log(`${ts()} hooks ready: __athelasFixPrivatePay, __athelasListPrivatePayDone, __athelasPrivatePayTarget`);
+    }
+
+    // =====================================================================
+    // MODULE 10 (preview / read-only): generalized procedure matcher.
+    //
+    // Extends the Fix-MET idea to the therapist's full canonical list from
+    // "Stuff for EMR.xlsx". THIS DOES NOT MOVE ANYTHING. It only scans the
+    // flowsheet and reports, per intervention, which canonical procedure it
+    // matched and whether it's currently under the wrong CPT code. Once the
+    // edge-case questions in redesign/procedure-matching-QUESTIONS.md are
+    // answered, the same table drives the real move (reusing the Fix-MET
+    // drag machinery). Kept separate + read-only so it can't break the
+    // working Fix-MET button while the matching is still being tuned.
+    //
+    // Run in DevTools:  window.__athelasScanProcedures()
+    // The matching table here is a copy of redesign/procedure-matching.js -
+    // keep the two in sync when tuning.
+    // =====================================================================
+    function featureProcedureMatchPreview() {
+        const log = makeLogger('proc-match');
+
+        const resolveProcedure = Proc.resolveProcedure;   // shared engine (see SHARED block near top)
+        window.__athelasResolveProcedure = resolveProcedure;
+
+        // Minimal, independent flowsheet scanner (mirrors the Fix-MET model).
+        function scanFlowsheet() {
+            const scope = document.querySelector('[data-section="flowsheet"]');
+            if (!scope) return [];
+            const cards = [];
+            for (const input of scope.querySelectorAll('input[aria-label="replace procedure"]')) {
+                const val = input.value || input.getAttribute('value') || '';
+                const m = val.match(/^(\d{5})\s*-\s*(.+?)\s*$/);
+                if (!m) continue;
+                const code = m[1], name = m[2].trim();
+                let region = null;
+                for (const r of scope.querySelectorAll('[role="region"][aria-label$=" interventions"]')) {
+                    if (r.getAttribute('aria-label') === name + ' interventions') { region = r; break; }
+                }
+                const ul = region ? region.querySelector('ul[aria-label$=" intervention list"]') : null;
+                const items = ul ? Array.from(ul.querySelectorAll(':scope > li[aria-label="Intervention"]')) : [];
+                cards.push({ code, name, items });
+            }
+            return cards;
+        }
+        const liName = (li) => { const i = li.querySelector('input[aria-label="Intervention name"]'); return i ? (i.value || i.getAttribute('value') || '') : ''; };
+
+        function scanProcedures() {
+            const cards = scanFlowsheet();
+            log.log('scan: ' + cards.length + ' CPT card(s) in flowsheet');
+            const rows = [];
+            for (const card of cards) {
+                for (const li of card.items) {
+                    const name = liName(li).trim();
+                    if (!name) continue;
+                    const r = resolveProcedure(name);
+                    let action = '(no match)';
+                    if (r && r.exclude) action = 'leave alone';
+                    else if (r) action = (r.code !== card.code ? 'MOVE -> ' + r.code : 'stay ' + r.code);
+                    rows.push({
+                        name,
+                        now: card.code,
+                        rule: r ? r.label : '',
+                        action,
+                        rename: r && r.rename ? r.rename : '',
+                        just: r && !r.exclude ? r.justMode : '',
+                        justPreview: r && r.justification ? r.justification.slice(0, 50) : '',
+                    });
+                }
+            }
+            const wouldMove = rows.filter((x) => x.action.startsWith('MOVE'));
+            const wouldRename = rows.filter((x) => x.rename);
+            log.log('%cscan: ' + rows.length + ' item(s) | ' + wouldMove.length + ' would MOVE | ' + wouldRename.length + ' would RENAME (read-only, nothing changed)', 'color:#2a7;font-weight:bold');
+            if (console.table) console.table(rows);
+            for (const r of wouldMove) log.log('  MOVE: "' + r.name + '"  ' + r.now + ' -> ' + r.action.replace('MOVE -> ', '') + '  (' + r.rule + ')' + (r.rename ? '  rename->"' + r.rename + '"' : ''));
+            return rows;
+        }
+        window.__athelasScanProcedures = scanProcedures;
+        log.log('proc-match preview ready (read-only, finalized rules). Run window.__athelasScanProcedures(). Nothing moves/renames yet.');
     }
 
     // =====================================================================
@@ -1445,6 +2043,8 @@
     if (isChartNote) {
         featureScrollToFlowsheet();
         featureFixMisplacedMET();
+        featureFixPrivatePay();
+        featureProcedureMatchPreview();
         // Legacy modules disabled in the v14 site rework live in
         // athelas-appointments-compact.archive.js (see note above MODULE 9).
     }
