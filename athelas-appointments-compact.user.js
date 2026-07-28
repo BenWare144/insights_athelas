@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      15.12.0
+// @version      15.12.1
 // @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -1439,8 +1439,12 @@
                 return Math.max(16, Math.min(vh - 16, Math.round(a.getBoundingClientRect().bottom + 12)));
             }
 
-            // ---- jump loop ----
-            let curY = py, inTarget = false, atBottom = false, jumps = 0;
+            // ---- jump loop: move the pointer to the drop spot; the MOMENT the item
+            //      is confirmed last, STOP and drop. No extra "confirm" nudge - that
+            //      re-triggered dnd-kit and made the item flicker in place. If it lands
+            //      in the target but bottom-detection stays flaky for a few tries, drop
+            //      it where it is rather than keep jiggling. ----
+            let curY = py, jumps = 0, inStreak = 0;
             for (let i = 0; i < MAX_JUMPS; i++) {
                 jumps++;
                 scrollTargetIntoView();
@@ -1448,15 +1452,12 @@
                 curY = dropY();
                 dispatchPointer('pointermove', px, curY, document);
                 await sleep(PTR_SETTLE_MS);
-                inTarget = regionsContainingName(name).some((h) => h.name === targetName);
-                atBottom = inTarget && isAtBottomOfCard(targetCode, name);
+                const inTarget = regionsContainingName(name).some((h) => h.name === targetName);
+                const atBottom = inTarget && isAtBottomOfCard(targetCode, name);
                 log.log(`${ts()} jump ${jumps}: curY=${curY} inTarget=${inTarget} atBottom=${atBottom} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
-                if (atBottom) {
-                    // confirm stable: nudge to the same spot once more, re-verify last.
-                    dispatchPointer('pointermove', px, dropY(), document);
-                    await sleep(70);
-                    if (isAtBottomOfCard(targetCode, name)) break;
-                }
+                if (atBottom) break;
+                inStreak = inTarget ? inStreak + 1 : 0;
+                if (inStreak >= 4) { log.log(`${ts()} in target but bottom unconfirmed after ${inStreak} tries - dropping here`); break; }
             }
 
             if (regionsContainingName(name).some((h) => h.name === targetName)) {
@@ -2126,7 +2127,7 @@
                 return Math.max(16, Math.min(vh - 16, Math.round(a.getBoundingClientRect().bottom + 12)));
             }
 
-            let curY = py, atBottom = false, jumps = 0;
+            let curY = py, jumps = 0, inStreak = 0;
             for (let i = 0; i < MAX_JUMPS; i++) {
                 jumps++;
                 scrollTargetIntoView();
@@ -2134,13 +2135,12 @@
                 curY = dropY();
                 dispatchPointer('pointermove', px, curY, document);
                 await sleep(PTR_SETTLE_MS);
-                atBottom = regionsContainingName(name).some((h) => h.name === targetName) && isAtBottomOfCard(targetCode, name);
+                const inTarget = regionsContainingName(name).some((h) => h.name === targetName);
+                const atBottom = inTarget && isAtBottomOfCard(targetCode, name);
                 log.log(`${ts()} jump ${jumps}: curY=${curY} atBottom=${atBottom} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
-                if (atBottom) {
-                    dispatchPointer('pointermove', px, dropY(), document);
-                    await sleep(70);
-                    if (isAtBottomOfCard(targetCode, name)) break;
-                }
+                if (atBottom) break;                          // landed - drop now, no re-grab
+                inStreak = inTarget ? inStreak + 1 : 0;
+                if (inStreak >= 4) { log.log(`${ts()} in target, bottom unconfirmed - dropping here`); break; }
             }
             if (regionsContainingName(name).some((h) => h.name === targetName)) {
                 dispatchPointer('pointerup', px, curY, document);

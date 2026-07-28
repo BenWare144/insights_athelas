@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Athelas Insights - Compact Mode + Chart Note Helpers",
-  "version": "15.12.0",
+  "version": "15.12.1",
   "description": "Compact spacing for Athelas Insights, jump-to-Flowsheet, one-click Fix Procedures (correct CPT codes) and Fix Private Pay. Works across single-page-app navigation.",
   "minimum_chrome_version": "111",
   "icons": {
