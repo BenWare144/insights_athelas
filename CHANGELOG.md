@@ -1,5 +1,10 @@
 # Changelog
 
+## 15.10.1 — 2026-07-28
+
+- Section sub-nav rail (follow-up to 15.10.0): the item highlight box could still grow wider than the rail and get clipped mid-corner. Every inner box is now bounded to the rail (`max-width: 100%`), the item rows clip their own overflow, and the rail is widened 148px → 160px so the common labels fit without truncation.
+- Far-left global nav drawer: it had gained a horizontal scrollbar because the narrowed 150px width was tighter than a couple of labels. Widened 150px → 165px and set the drawer content to `overflow-x: hidden` so no scrollbar appears (vertical scroll still works on a short viewport).
+
 ## 15.10.0 — 2026-07-28
 
 - Fix jump-to-Flowsheet over-firing: after v15.9 made the script re-evaluate on every SPA URL change, clicking a section in the note's left nav (which changes the URL) made the page jump back down to the flowsheet. It now only auto-jumps when entering a *different* chart note (patient + appointment id changes), not on same-note section clicks.

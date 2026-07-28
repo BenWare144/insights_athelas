@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      15.10.0
+// @version      15.10.1
 // @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -584,8 +584,13 @@
                   style on the page (DOM-FACTS lesson #2), so !important is
                   required to win. The existing v10 drawer rules above
                   (q-item min-height 28/24px etc.) still apply on top of this. */
-            aside.q-drawer { width: 150px !important; }
-            .q-page-container { padding-left: 150px !important; }
+            aside.q-drawer { width: 165px !important; }
+            .q-page-container { padding-left: 165px !important; }
+            /* The drawer content ("scroll" class) got a horizontal scrollbar because
+               the narrowed width is tighter than a couple of labels ("Daily
+               Operations"). Clip horizontally so no scrollbar appears; keep vertical
+               auto so a short viewport can still scroll the nav list. */
+            aside.q-drawer .q-drawer__content { overflow-x: hidden !important; }
 
             /* Ellipsize the section-header label row (EHR / Insights / Daily
                Operations / Utilities / Settings) so a narrower rail never
@@ -607,13 +612,20 @@
                   untouched - ExtraSmall stays small. overflow-x:clip (not hidden) so
                   the nav's sticky positioning is unaffected. */
             .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] {
-                width: 148px !important;
-                min-width: 148px !important;
-                max-width: 148px !important;
+                width: 160px !important;
+                min-width: 160px !important;
+                max-width: 160px !important;
                 overflow-x: clip !important;
             }
-            /* let the inner box/flex chain shrink so labels ellipsize in-place */
-            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] div { min-width: 0 !important; }
+            /* Bound every inner box to the rail so the item highlight box (a flex
+               row with a rounded background) can never grow wider than the rail and
+               get clipped mid-corner. min-width:0 lets long labels ellipsize. */
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] div {
+                min-width: 0 !important;
+                max-width: 100% !important;
+            }
+            /* the highlighted item rows themselves: clip their own overflow too */
+            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] .tr-min-h-7 { overflow: hidden !important; }
             .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] [class*="MuiTypography-Body.ExtraSmall"] {
                 display: block !important;
                 padding-left: 8px !important;      /* was tr-pl-5 = 20px */
