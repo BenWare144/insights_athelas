@@ -1,5 +1,9 @@
 # Changelog
 
+## 15.11.0 — 2026-07-28
+
+- Compact mode: dropped the two horizontal width-forces that caused the breakage, kept the (safe, valuable) vertical density. The section sub-nav rail returns to its native width — forcing it to 112px overflowed the item highlights/labels over the note. The far-left drawer goes to 200px (from the broken 150px, still narrower than the native 250px) with `overflow-x: hidden` so no horizontal scrollbar appears. Everything else keeps the 15.2.0 vertical compaction. No feature changes (Fix Procedures, Fix Private Pay, jump-to-Flowsheet, SPA injection all intact). See `redesign/COMPACT-MODE-POSTMORTEM.md`.
+
 ## 15.10.1 — 2026-07-28
 
 - Section sub-nav rail (follow-up to 15.10.0): the item highlight box could still grow wider than the rail and get clipped mid-corner. Every inner box is now bounded to the rail (`max-width: 100%`), the item rows clip their own overflow, and the rail is widened 148px → 160px so the common labels fit without truncation.

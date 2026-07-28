@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      15.10.1
+// @version      15.11.0
 // @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -584,12 +584,12 @@
                   style on the page (DOM-FACTS lesson #2), so !important is
                   required to win. The existing v10 drawer rules above
                   (q-item min-height 28/24px etc.) still apply on top of this. */
-            aside.q-drawer { width: 165px !important; }
-            .q-page-container { padding-left: 165px !important; }
-            /* The drawer content ("scroll" class) got a horizontal scrollbar because
-               the narrowed width is tighter than a couple of labels ("Daily
-               Operations"). Clip horizontally so no scrollbar appears; keep vertical
-               auto so a short viewport can still scroll the nav list. */
+            /* v15.11: 150px was too narrow - labels like "Daily Operations"
+               overflowed and gave the drawer a horizontal scrollbar. 200px (down
+               from the native 250px) still reclaims space but fits the labels;
+               overflow-x:hidden is a safety net so no h-scrollbar can appear. */
+            aside.q-drawer { width: 200px !important; }
+            .q-page-container { padding-left: 200px !important; }
             aside.q-drawer .q-drawer__content { overflow-x: hidden !important; }
 
             /* Ellipsize the section-header label row (EHR / Insights / Daily
@@ -604,36 +604,12 @@
             }
             .q-drawer-container > aside [class*="tw-px-4"] { padding-left: 8px !important; padding-right: 8px !important; }
 
-            /* 2. Section sub-nav rail: narrow it, but CLIP it so item highlights
-                  and labels can never paint out over the note content (v15.10 fix),
-                  reduce the big 20px item indent, and ellipsize long labels.
-                  148px fits the common labels ("Functional Outcomes" etc.); anything
-                  longer truncates with an ellipsis instead of overflowing. font-size
-                  untouched - ExtraSmall stays small. overflow-x:clip (not hidden) so
-                  the nav's sticky positioning is unaffected. */
-            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] {
-                width: 160px !important;
-                min-width: 160px !important;
-                max-width: 160px !important;
-                overflow-x: clip !important;
-            }
-            /* Bound every inner box to the rail so the item highlight box (a flex
-               row with a rounded background) can never grow wider than the rail and
-               get clipped mid-corner. min-width:0 lets long labels ellipsize. */
-            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] div {
-                min-width: 0 !important;
-                max-width: 100% !important;
-            }
-            /* the highlighted item rows themselves: clip their own overflow too */
-            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] .tr-min-h-7 { overflow: hidden !important; }
-            .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] [class*="MuiTypography-Body.ExtraSmall"] {
-                display: block !important;
-                padding-left: 8px !important;      /* was tr-pl-5 = 20px */
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
-                white-space: nowrap !important;
-                min-width: 0 !important;
-            }
+            /* 2. Section sub-nav rail: v15.11 KEEPS THE NATIVE WIDTH (160/200px).
+                  Forcing it narrower (the old 160->112px rule) made the item
+                  highlight boxes and labels overflow the rail and paint over the
+                  note - see redesign/COMPACT-MODE-POSTMORTEM.md. Only the padding/
+                  height compaction from the v10 rail rules above is kept; the
+                  vertical density is preserved, the horizontal breakage is not. */
 
             /* 3. Content side margins: drop the note scroller's 16px
                   tr-mx-4 gutters, and shrink the tr-px-6 rows inside the
