@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      15.7.0
+// @version      15.8.1
 // @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/v3/appointments*
@@ -1058,12 +1058,32 @@
             const ul = c.region.querySelector('ul[aria-label$=" intervention list"]');
             return ul ? ul.querySelector(':scope > li[aria-label="Intervention"]') : null;
         }
+        function ulOfCard(code) {
+            const c = getCards().find((x) => x.code === code);
+            if (!c || !c.region) return null;
+            return c.region.querySelector('ul[aria-label$=" intervention list"]');
+        }
+        function lastItemOfCard(code) {
+            const ul = ulOfCard(code);
+            if (!ul) return null;
+            const items = ul.querySelectorAll(':scope > li[aria-label="Intervention"]');
+            return items.length ? items[items.length - 1] : null;
+        }
+        function itemCountInCard(code) {
+            const c = getCards().find((x) => x.code === code);
+            return c ? cardItems(c).length : 0;
+        }
+        // Is the moved item currently the LAST entry in its target card?
+        function isAtBottomOfCard(code, name) {
+            const idx = indexOfNameInCard(code, name);
+            return idx >= 0 && idx === itemCountInCard(code) - 1;
+        }
 
         // ---- KEYBOARD DRAG (reliable fallback) -----------------------------
         // Focus handle -> Space (pick up) -> Arrow toward target until the item
-        // enters the target card -> Space (drop). Directional (v14.10) and now
-        // adaptive-timed (v14.11). Lands where it crosses in (top when coming from
-        // above, bottom when coming from below); precise "top" is the pointer path.
+        // enters the target card -> then keep nudging so it lands at the BOTTOM
+        // of that card -> Space (drop). Adaptive-timed (v14.11). Precise bottom
+        // placement is confirmed by index (idx === lastIdx) after each key.
         async function keyboardDrag(li, targetName, opts) {
             opts = opts || {};
             const maxSteps = opts.maxSteps || MAX_ARROW_STEPS;
@@ -1105,6 +1125,28 @@
             }
             if (!crossed) log.warn(`${ts()} did NOT confirm crossing after ${steps} ${arrowKey} steps`);
 
+            // ---- nudge to the BOTTOM of the target card ----
+            // Coming from above (ArrowDown) the item lands near the TOP, so keep
+            // pressing ArrowDown until it's the last entry. Coming from below
+            // (ArrowUp) it already enters at the bottom. Stop the moment idx stops
+            // advancing (guards against pushing it out into the next card).
+            if (crossed && arrowKey === 'ArrowDown') {
+                for (let j = 0; j < maxSteps; j++) {
+                    if (isAtBottomOfCard(targetCode, name)) { log.log(`${ts()} at bottom after ${j} nudge(s)`); break; }
+                    const before = indexOfNameInCard(targetCode, name);
+                    live = liveRegionText();
+                    pressKey(document, 'ArrowDown', 'ArrowDown');
+                    await waitForLiveChange(live, 240);
+                    const after = indexOfNameInCard(targetCode, name);
+                    const stillIn = regionsContainingName(name).some((h) => h.name === targetName);
+                    if (!stillIn || after <= before) {
+                        // overshot out of the card or couldn't advance: step back if we left it
+                        if (!stillIn) { pressKey(document, 'ArrowUp', 'ArrowUp'); await waitForLiveChange(liveRegionText(), 240); }
+                        break;
+                    }
+                }
+            }
+
             live = liveRegionText();
             pressKey(document, 'Space', ' ');
             await waitForLiveChange(live, 320);
@@ -1116,14 +1158,15 @@
             return { ok: inTargetAtAll, crossed, steps, finalIdx, finalHits };
         }
 
-        // ---- POINTER DRAG (primary: one gesture => fast, and drops at the TOP) --
+        // ---- POINTER DRAG (primary: one gesture => fast, drops at the BOTTOM) --
         // dnd-kit's PointerSensor + built-in auto-scroll. We grab the handle, push
-        // the pointer toward the 97112 list (riding auto-scroll if it's off-screen),
-        // aim at the first item so the insert lands at the top, then release. If we
-        // can't confirm the item is over the target we CANCEL (Escape) so nothing is
-        // ever dropped in the wrong place - the caller then falls back to keyboard.
+        // the pointer toward the target list (riding auto-scroll if it's off-screen),
+        // aim just below the last item so the insert lands at the END of the list,
+        // and only settle once the moved item is confirmed to be the last entry. If
+        // we can't confirm the item is over the target we CANCEL (Escape) so nothing
+        // is ever dropped in the wrong place - the caller then falls back to keyboard.
         const PTR_STEP_PX = 64;      // pointer move increment per iteration
-        const PTR_MAX_ITERS = 90;    // safety cap
+        const PTR_MAX_ITERS = 120;   // safety cap (bottom placement needs a few more)
         const PTR_MOVE_DELAY = 28;   // ms between pointer moves (autoscroll needs a beat)
         function dispatchPointer(type, x, y, el) {
             const up = type === 'pointerup' || type === 'pointercancel';
@@ -1139,11 +1182,11 @@
             (el || document).dispatchEvent(ev);
             return ev;
         }
-        async function pointerDragToTop(li, targetName, opts) {
+        async function pointerDragToBottom(li, targetName, opts) {
             opts = opts || {};
             const name = itemName(li).trim();
             const handle = itemHandle(li);
-            log.log(`${ts()} ===== pointerDragToTop "${name}" -> "${targetName}" =====`);
+            log.log(`${ts()} ===== pointerDragToBottom "${name}" -> "${targetName}" =====`);
             if (!handle) { log.warn(`${ts()} no handle`); return { ok: false, reason: 'no-handle' }; }
             const targetCode = codeForName(targetName);
 
@@ -1174,33 +1217,39 @@
             }
 
             const vh = viewportH();
-            let curY = py, iters = 0, inTarget = false, settledAtAim = false;
+            let curY = py, iters = 0, inTarget = false, settledAtBottom = false;
             for (let i = 0; i < PTR_MAX_ITERS; i++) {
                 iters++;
                 const region = findRegionByName(getScope(), targetName);
                 const rr = region ? region.getBoundingClientRect() : null;
-                const first = firstItemOfCard(targetCode);
-                const aimRaw = first ? (first.getBoundingClientRect().top + first.getBoundingClientRect().height / 2)
-                                     : (rr ? rr.top + 30 : vh / 2);
+                // Aim just BELOW the last item so the insert lands at the end. While
+                // the dragged item is still climbing in, "last" is a real anchor; once
+                // it IS the last, its own bottom is the aim (stable => we settle).
+                const ulEl = ulOfCard(targetCode);
+                const last = lastItemOfCard(targetCode);
+                const aimRaw = last ? (last.getBoundingClientRect().bottom + 6)
+                                    : (ulEl ? ulEl.getBoundingClientRect().bottom - 6
+                                    : (rr ? rr.bottom - 12 : vh / 2));
                 const aimY = Math.max(10, Math.min(vh - 10, Math.round(aimRaw)));
                 let goalY;
                 if (rr && rr.top > vh - 28) goalY = vh - 18;         // target below viewport -> autoscroll down
                 else if (rr && rr.bottom < 28) goalY = 18;           // target above viewport -> autoscroll up
-                else goalY = aimY;                                   // in view -> aim at the top item
+                else goalY = aimY;                                   // in view -> aim below the last item
                 if (curY < goalY) curY = Math.min(goalY, curY + PTR_STEP_PX);
                 else if (curY > goalY) curY = Math.max(goalY, curY - PTR_STEP_PX);
                 dispatchPointer('pointermove', px, curY, document);
                 await sleep(PTR_MOVE_DELAY);
                 inTarget = regionsContainingName(name).some((h) => h.name === targetName);
                 const aiming = (goalY === aimY);
+                const atBottom = inTarget && isAtBottomOfCard(targetCode, name);
                 if (i % 4 === 0 || inTarget) {
-                    log.log(`${ts()} ptr ${iters}: curY=${curY} goalY=${goalY} aimY=${aimY} rTop=${rr ? Math.round(rr.top) : 'n/a'} inTarget=${inTarget} live="${liveRegionText()}"`);
+                    log.log(`${ts()} ptr ${iters}: curY=${curY} goalY=${goalY} aimY=${aimY} rBot=${rr ? Math.round(rr.bottom) : 'n/a'} inTarget=${inTarget} atBottom=${atBottom} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
                 }
-                if (inTarget && aiming && Math.abs(curY - aimY) <= PTR_STEP_PX) {
+                if (atBottom && aiming && Math.abs(curY - aimY) <= PTR_STEP_PX) {
                     dispatchPointer('pointermove', px, aimY, document);
                     await sleep(70);
-                    settledAtAim = true;
-                    log.log(`${ts()} settled over target top (aimY=${aimY}) after ${iters} iters`);
+                    settledAtBottom = true;
+                    log.log(`${ts()} settled at target BOTTOM (aimY=${aimY}) after ${iters} iters`);
                     break;
                 }
             }
@@ -1210,8 +1259,9 @@
                 await sleep(180);
                 const stillIn = regionsContainingName(name).some((h) => h.name === targetName);
                 const idx = indexOfNameInCard(targetCode, name);
-                log.log(`${ts()} pointerDrag DROP settledAtAim=${settledAtAim} inTarget=${stillIn} finalIdx=${idx} iters=${iters}`);
-                return { ok: stillIn, finalIdx: idx, iters };
+                const atBottom = isAtBottomOfCard(targetCode, name);
+                log.log(`${ts()} pointerDrag DROP settledAtBottom=${settledAtBottom} inTarget=${stillIn} finalIdx=${idx}/${itemCountInCard(targetCode)} atBottom=${atBottom} iters=${iters}`);
+                return { ok: stillIn, finalIdx: idx, atBottom, iters };
             }
             log.warn(`${ts()} pointer never reached target after ${iters} iters - CANCEL (item returns home), will fall back to keyboard`);
             pressKey(document, 'Escape', 'Escape');
@@ -1463,7 +1513,7 @@
                 const srcLi = findItemInCardByName(fix.from, fix.name) || next.li;
                 let res;
                 if (usePointer) {
-                    res = await pointerDragToTop(srcLi, targetName, {});
+                    res = await pointerDragToBottom(srcLi, targetName, {});
                     if (!res.ok) {
                         log.warn(`${ts()} pointer path failed (${res.reason || 'no-target'}); switching to keyboard for the remainder.`);
                         usePointer = false;
@@ -1575,7 +1625,7 @@
             const tgt = getCards().find((c) => c.code === next.fix.to);
             if (!tgt) { log.warn(`no ${next.fix.to} card present`); return; }
             log.log(`pointer-drag test: "${next.fix.name}" from ${next.fix.from} -> ${next.fix.to}`);
-            return pointerDragToTop(next.li, tgt.name, {});
+            return pointerDragToBottom(next.li, tgt.name, {});
         };
         log.log(`${ts()} hooks ready: __athelasFixProcedures, __athelasListFixes, __athelasKbdDragFirstFix, __athelasPointerDragFirstFix, __athelasDbgFlowsheet, __athelasListProcedureCards`);
     }
@@ -1690,6 +1740,25 @@
             const ul = c.region.querySelector('ul[aria-label$=" intervention list"]');
             return ul ? ul.querySelector(':scope > li[aria-label="Intervention"]') : null;
         }
+        function ulOfCard(code) {
+            const c = getCards().find((x) => x.code === code);
+            if (!c || !c.region) return null;
+            return c.region.querySelector('ul[aria-label$=" intervention list"]');
+        }
+        function lastItemOfCard(code) {
+            const ul = ulOfCard(code);
+            if (!ul) return null;
+            const items = ul.querySelectorAll(':scope > li[aria-label="Intervention"]');
+            return items.length ? items[items.length - 1] : null;
+        }
+        function itemCountInCard(code) {
+            const c = getCards().find((x) => x.code === code);
+            return c ? cardItems(c).length : 0;
+        }
+        function isAtBottomOfCard(code, name) {
+            const idx = indexOfNameInCard(code, name);
+            return idx >= 0 && idx === itemCountInCard(code) - 1;
+        }
 
         // ---- synthetic keyboard (dnd-kit KeyboardSensor) --------------------
         const KEYCODES = { Space: 32, ArrowDown: 40, ArrowUp: 38, Escape: 27, Enter: 13 };
@@ -1744,6 +1813,22 @@
                 const tc = (regionsContainingName(name).find((h) => h.name === targetName) || { count: 0 }).count;
                 if (tc > baseline) { crossed = true; break; }
             }
+            // nudge to the BOTTOM of the target card (see MODULE 9 for rationale)
+            if (crossed && arrowKey === 'ArrowDown') {
+                for (let j = 0; j < maxSteps; j++) {
+                    if (isAtBottomOfCard(targetCode, name)) break;
+                    const before = indexOfNameInCard(targetCode, name);
+                    live = liveRegionText();
+                    pressKey(document, 'ArrowDown', 'ArrowDown');
+                    await waitForLiveChange(live, 240);
+                    const after = indexOfNameInCard(targetCode, name);
+                    const stillIn = regionsContainingName(name).some((h) => h.name === targetName);
+                    if (!stillIn || after <= before) {
+                        if (!stillIn) { pressKey(document, 'ArrowUp', 'ArrowUp'); await waitForLiveChange(liveRegionText(), 240); }
+                        break;
+                    }
+                }
+            }
             live = liveRegionText();
             pressKey(document, 'Space', ' ');
             await waitForLiveChange(live, 320);
@@ -1754,8 +1839,8 @@
             return { ok: inTarget, crossed, steps, finalIdx };
         }
 
-        // ---- POINTER DRAG (primary: one gesture, drops at the TOP) ---------
-        const PTR_STEP_PX = 64, PTR_MAX_ITERS = 90, PTR_MOVE_DELAY = 28;
+        // ---- POINTER DRAG (primary: one gesture, drops at the BOTTOM) ------
+        const PTR_STEP_PX = 64, PTR_MAX_ITERS = 120, PTR_MOVE_DELAY = 28;
         function dispatchPointer(type, x, y, el) {
             const up = type === 'pointerup' || type === 'pointercancel';
             const down = type === 'pointerdown';
@@ -1769,11 +1854,11 @@
             (el || document).dispatchEvent(ev);
             return ev;
         }
-        async function pointerDragToTop(li, targetName, opts) {
+        async function pointerDragToBottom(li, targetName, opts) {
             opts = opts || {};
             const name = itemName(li).trim();
             const handle = itemHandle(li);
-            log.log(`${ts()} ===== pointerDragToTop "${name}" -> "${targetName}" =====`);
+            log.log(`${ts()} ===== pointerDragToBottom "${name}" -> "${targetName}" =====`);
             if (!handle) { log.warn(`${ts()} no handle`); return { ok: false, reason: 'no-handle' }; }
             const targetCode = codeForName(targetName);
 
@@ -1793,14 +1878,17 @@
             if (!pickedUp) { dispatchPointer('pointerup', px, py, document); log.warn(`${ts()} pointer PICKUP FAILED`); return { ok: false, reason: 'pointer-pickup-failed' }; }
 
             const vh = viewportH();
-            let curY = py, iters = 0, inTarget = false, settledAtAim = false;
+            let curY = py, iters = 0, inTarget = false, settledAtBottom = false;
             for (let i = 0; i < PTR_MAX_ITERS; i++) {
                 iters++;
                 const region = findRegionByName(getScope(), targetName);
                 const rr = region ? region.getBoundingClientRect() : null;
-                const first = firstItemOfCard(targetCode);
-                const aimRaw = first ? (first.getBoundingClientRect().top + first.getBoundingClientRect().height / 2)
-                                     : (rr ? rr.top + 30 : vh / 2);
+                // Aim just BELOW the last item so the insert lands at the end.
+                const ulEl = ulOfCard(targetCode);
+                const last = lastItemOfCard(targetCode);
+                const aimRaw = last ? (last.getBoundingClientRect().bottom + 6)
+                                    : (ulEl ? ulEl.getBoundingClientRect().bottom - 6
+                                    : (rr ? rr.bottom - 12 : vh / 2));
                 const aimY = Math.max(10, Math.min(vh - 10, Math.round(aimRaw)));
                 let goalY;
                 if (rr && rr.top > vh - 28) goalY = vh - 18;
@@ -1812,10 +1900,11 @@
                 await sleep(PTR_MOVE_DELAY);
                 inTarget = regionsContainingName(name).some((h) => h.name === targetName);
                 const aiming = (goalY === aimY);
-                if (inTarget && aiming && Math.abs(curY - aimY) <= PTR_STEP_PX) {
+                const atBottom = inTarget && isAtBottomOfCard(targetCode, name);
+                if (atBottom && aiming && Math.abs(curY - aimY) <= PTR_STEP_PX) {
                     dispatchPointer('pointermove', px, aimY, document);
                     await sleep(70);
-                    settledAtAim = true;
+                    settledAtBottom = true;
                     break;
                 }
             }
@@ -1824,8 +1913,9 @@
                 await sleep(180);
                 const stillIn = regionsContainingName(name).some((h) => h.name === targetName);
                 const idx = indexOfNameInCard(targetCode, name);
-                log.log(`${ts()} pointerDrag DROP settledAtAim=${settledAtAim} inTarget=${stillIn} finalIdx=${idx} iters=${iters}`);
-                return { ok: stillIn, finalIdx: idx, iters };
+                const atBottom = isAtBottomOfCard(targetCode, name);
+                log.log(`${ts()} pointerDrag DROP settledAtBottom=${settledAtBottom} inTarget=${stillIn} finalIdx=${idx}/${itemCountInCard(targetCode)} atBottom=${atBottom} iters=${iters}`);
+                return { ok: stillIn, finalIdx: idx, atBottom, iters };
             }
             log.warn(`${ts()} pointer never reached target after ${iters} iters - CANCEL (item returns home), fall back to keyboard`);
             pressKey(document, 'Escape', 'Escape');
@@ -1880,7 +1970,7 @@
                 log.log(`${ts()} --- pass ${pass + 1}: moving Done "${next.name}" from ${next.code} -> private pay (mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
                 let res;
                 if (usePointer) {
-                    res = await pointerDragToTop(next.li, targetName, {});
+                    res = await pointerDragToBottom(next.li, targetName, {});
                     if (!res.ok) {
                         log.warn(`${ts()} pointer path failed (${res.reason || 'no-target'}); switching to keyboard for the remainder.`);
                         usePointer = false;
