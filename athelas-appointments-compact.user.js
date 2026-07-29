@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      15.12.2
+// @version      15.12.3
 // @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -499,9 +499,9 @@
                 // movement: start section -> end section
                 const c2 = mkCell();
                 if (r.willMove) {
-                    const from = document.createElement('span'); from.textContent = r.fromLabel; from.style.color = '#666'; c2.appendChild(from);
+                    const from = document.createElement('span'); from.textContent = r.fromLabel; from.style.color = '#b3261e'; from.style.textDecoration = 'line-through'; c2.appendChild(from);
                     c2.appendChild(document.createTextNode('  →  '));
-                    const to = document.createElement('span'); to.textContent = r.toLabel; to.style.color = '#0a1e8f'; to.style.fontWeight = '600'; c2.appendChild(to);
+                    const to = document.createElement('span'); to.textContent = r.toLabel; to.style.color = '#127a2e'; to.style.fontWeight = '600'; c2.appendChild(to);
                 } else {
                     const dash = document.createElement('span'); dash.textContent = '—'; dash.style.color = '#bbb'; c2.appendChild(dash);
                 }
@@ -1470,10 +1470,16 @@
                 dispatchPointer('pointermove', px, curY, document);   // one move; no re-jiggle
                 let landed = false, inTarget = false;
                 const t0 = performance.now();
-                while (performance.now() - t0 < 420) {
+                while (performance.now() - t0 < 500) {
                     await sleep(25);
                     inTarget = regionsContainingName(name).some((h) => h.name === targetName);
-                    if (inTarget && isAtBottomOfCard(targetCode, name)) { landed = true; break; }
+                    // dnd-kit's live sortable preview sits one slot high when aiming at the
+                    // very bottom, so treat "last OR 2nd-last" as landed - it resolves to the
+                    // bottom on release (confirmed by the DROP log's atBottom=true).
+                    if (inTarget) {
+                        const idx = indexOfNameInCard(targetCode, name), cnt = itemCountInCard(targetCode);
+                        if (idx >= 0 && idx >= cnt - 2) { landed = true; break; }
+                    }
                 }
                 log.log(`${ts()} jump ${jumps}: curY=${curY} inTarget=${inTarget} landed=${landed} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
                 if (landed) break;
@@ -2157,10 +2163,16 @@
                 dispatchPointer('pointermove', px, curY, document);   // one move; then poll (no re-jiggle)
                 let landed = false, inTarget = false;
                 const t0 = performance.now();
-                while (performance.now() - t0 < 420) {
+                while (performance.now() - t0 < 500) {
                     await sleep(25);
                     inTarget = regionsContainingName(name).some((h) => h.name === targetName);
-                    if (inTarget && isAtBottomOfCard(targetCode, name)) { landed = true; break; }
+                    // dnd-kit's live sortable preview sits one slot high when aiming at the
+                    // very bottom, so treat "last OR 2nd-last" as landed - it resolves to the
+                    // bottom on release (confirmed by the DROP log's atBottom=true).
+                    if (inTarget) {
+                        const idx = indexOfNameInCard(targetCode, name), cnt = itemCountInCard(targetCode);
+                        if (idx >= 0 && idx >= cnt - 2) { landed = true; break; }
+                    }
                 }
                 log.log(`${ts()} jump ${jumps}: curY=${curY} inTarget=${inTarget} landed=${landed} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
                 if (landed) break;
