@@ -1,5 +1,10 @@
 # Changelog
 
+## 15.13.0 — 2026-07-28
+
+- Fix Private Pay now applies the **same** rename + justification as Fix Procedures when it moves a Done item down — only the destination differs (private pay, for billing). So a balance item still gets its glute-med justification appended, MET is renamed/replaced, Rib becomes "MET - Rib", etc.; excluded/unmatched items just move. The private-pay review dialog now shows the Movement and Justification columns too, with per-row checkboxes.
+- Refactor: the rename/justification machinery is extracted into a shared `Fixer` used by both movers (no behavior change to Fix Procedures).
+
 ## 15.12.4 — 2026-07-28
 
 - Confirmation dialog: append-mode justifications now show a true diff — the existing text stays grey (nothing is removed on an append) and only the appended sentence is green — instead of repeating the whole note struck-through-red then green. MET's genuine replace still shows old (red strikethrough) → new (green).

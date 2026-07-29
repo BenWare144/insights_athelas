@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      15.12.4
+// @version      15.13.0
 // @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -583,6 +583,103 @@
         }
         return document.scrollingElement || document.documentElement;
     }
+
+
+    // =====================================================================
+    // SHARED: item fixer - applies a matched rule's rename + justification to an
+    // intervention <li>. Extracted from Fix Procedures so Fix Private Pay can
+    // apply the SAME justification/rename when it moves Done items down (only the
+    // destination differs). Self-contained; takes a logger. See Proc for the rules.
+    // =====================================================================
+    const Fixer = (function () {
+        const nameOf = (li) => { const i = li.querySelector('input[aria-label="Intervention name"]'); return i ? (i.value || i.getAttribute('value') || '').trim() : ''; };
+        function findTiptapEditor(el) {
+            const k = Object.keys(el).find((x) => x.startsWith('__reactFiber$') || x.startsWith('__reactInternalInstance$'));
+            let f = k ? el[k] : null, depth = 0;
+            while (f && depth < 30) {
+                const p = f.memoizedProps;
+                if (p && p.editor && typeof p.editor.chain === 'function') return p.editor;
+                const sn = f.stateNode;
+                if (sn && sn.editor && typeof sn.editor.chain === 'function') return sn.editor;
+                f = f.return; depth++;
+            }
+            return null;
+        }
+        function fxSetViaTiptap(el, value, log) {
+            const editor = findTiptapEditor(el);
+            if (!editor) { log && log.log('setViaTiptap: no editor on fiber'); return false; }
+            try { editor.chain().focus().selectAll().insertContent(value).run(); return true; }
+            catch (e) { log && log.error('setViaTiptap threw', e); return false; }
+        }
+        function keyA(el, type) {
+            const ev = new KeyboardEvent(type, { key: 'a', code: 'KeyA', bubbles: true, cancelable: true, ctrlKey: true });
+            try { Object.defineProperty(ev, 'keyCode', { get: () => 65 }); } catch (e) {}
+            try { Object.defineProperty(ev, 'which', { get: () => 65 }); } catch (e) {}
+            el.dispatchEvent(ev);
+        }
+        async function fxSetViaExecCommand(el, value, log) {
+            el.focus();
+            for (const t of ['mousedown', 'mouseup', 'click']) el.dispatchEvent(new MouseEvent(t, { bubbles: true }));
+            await sleep(30);
+            keyA(el, 'keydown'); keyA(el, 'keyup');
+            await sleep(20);
+            document.execCommand('delete', false);
+            await sleep(20);
+            if ((el.textContent || '').trim() !== '') { log && log.warn('setViaExecCommand: Ctrl+A+delete did not clear - aborting'); return false; }
+            const ok = document.execCommand('insertText', false, value);
+            await sleep(20);
+            return ok;
+        }
+        async function fxWriteDetails(details, text, log) {
+            if ((details.textContent || '').trim() === text) return true;
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                const usedTiptap = fxSetViaTiptap(details, text, log);
+                if (!usedTiptap) await fxSetViaExecCommand(details, text, log);
+                await sleep(150);
+                let now = (details.textContent || '').trim();
+                if (now === text) { await sleep(150); now = (details.textContent || '').trim(); }
+                if (now === text) return true;
+            }
+            return false;
+        }
+        async function fxRenameItem(li, newName, log) {
+            const inp = li.querySelector('input[aria-label="Intervention name"]');
+            if (!inp) { log && log.warn('rename: no name input'); return false; }
+            if ((inp.value || '').trim() === newName) return true;
+            setReactValue(inp, newName, log);
+            await sleep(120);
+            const ok = (inp.value || '').trim() === newName;
+            log && log.log('rename -> "' + newName + '": ' + (ok ? 'ok' : 'FAILED (value="' + (inp.value || '') + '")'));
+            return ok;
+        }
+        // Apply rename + justification. justMode: 'none' (leave), 'replace' (MET -
+        // overwrite), 'append' (add canonical text once, keep the scribe's text).
+        async function fxApplyItemFix(li, fix, log) {
+            let renamed = false, justified = false;
+            if (fix.rename && (nameOf(li) !== fix.rename)) renamed = await fxRenameItem(li, fix.rename, log);
+            if (fix.justMode === 'none' || !fix.justification) return { renamed, justified };
+            const details = li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
+            if (!details) { log && log.warn('no "Intervention details" field for "' + nameOf(li) + '"'); return { renamed, justified }; }
+            const existing = (details.textContent || '').trim();
+            let target;
+            if (fix.justMode === 'replace') { target = fix.justification; }
+            else { if (existing.includes(fix.justification)) return { renamed, justified: true }; target = existing ? (existing.replace(/\s+$/, '') + ' ' + fix.justification) : fix.justification; }
+            justified = await fxWriteDetails(details, target, log);
+            if (!justified && log) log.warn('justification for "' + nameOf(li) + '" did NOT stick');
+            return { renamed, justified };
+        }
+        function fxCurrentDetailsText(li) {
+            const d = li && li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
+            return d ? (d.textContent || '').trim() : '';
+        }
+        function fxComputeNewJust(fix, cur) {
+            if (fix.justMode === 'none' || !fix.justification) return '';
+            if (fix.justMode === 'replace') return fix.justification;
+            if (cur.includes(fix.justification)) return cur;
+            return cur ? (cur.replace(/\s+$/, '') + ' ' + fix.justification) : fix.justification;
+        }
+        return { applyItemFix: fxApplyItemFix, currentDetailsText: fxCurrentDetailsText, computeNewJust: fxComputeNewJust };
+    })();
 
 
     // =====================================================================
@@ -1606,104 +1703,8 @@
             return out;
         }
 
-        // ---- Set a Tiptap/ProseMirror field reliably (v14.14) ---------------
-        // The old approach (set DOM selection + execCommand insertText) did NOT work:
-        // ProseMirror ignores an externally-set DOM selection, so the text was
-        // inserted at the caret (prepended) rather than replacing, and the Enter we
-        // sent to "commit" only added blank paragraphs. Instead we drive Tiptap's own
-        // Editor instance, located by walking the React fiber up from the
-        // contenteditable node. selectAll()+insertContent() replaces the whole field
-        // in one real transaction that persists (fires the app's onUpdate) with no
-        // stray Enter/newline.
-        function findTiptapEditor(el) {
-            const k = Object.keys(el).find((x) => x.startsWith('__reactFiber$') || x.startsWith('__reactInternalInstance$'));
-            let f = k ? el[k] : null, depth = 0;
-            while (f && depth < 30) {
-                const p = f.memoizedProps;
-                if (p && p.editor && typeof p.editor.chain === 'function') return p.editor;
-                const sn = f.stateNode;
-                if (sn && sn.editor && typeof sn.editor.chain === 'function') return sn.editor;
-                f = f.return; depth++;
-            }
-            return null;
-        }
-        function setViaTiptap(el, value) {
-            const editor = findTiptapEditor(el);
-            if (!editor) { log.log(`${ts()}   setViaTiptap: no editor on fiber`); return false; }
-            try { editor.chain().focus().selectAll().insertContent(value).run(); return true; }
-            catch (e) { log.error(`${ts()}   setViaTiptap threw`, e); return false; }
-        }
-        // Fallback: select-all through ProseMirror's own keymap (Ctrl+A), delete, then
-        // insert. Verifies the field actually emptied first, so a failed select can
-        // never duplicate content.
-        async function setViaExecCommand(el, value) {
-            el.focus();
-            for (const t of ['mousedown', 'mouseup', 'click']) el.dispatchEvent(new MouseEvent(t, { bubbles: true }));
-            await sleep(30);
-            dispatchKey(el, 'keydown', 'KeyA', 'a', { ctrlKey: true });
-            dispatchKey(el, 'keyup', 'KeyA', 'a', { ctrlKey: true });
-            await sleep(20);
-            document.execCommand('delete', false);
-            await sleep(20);
-            if ((el.textContent || '').trim() !== '') {
-                log.warn(`${ts()}   setViaExecCommand: Ctrl+A+delete did not clear ("${(el.textContent || '').trim().slice(0, 30)}") - aborting to avoid duplication`);
-                return false;
-            }
-            const ok = document.execCommand('insertText', false, value);
-            await sleep(20);
-            return ok;
-        }
-        // Write `text` into a "Intervention details" contenteditable, verifying it
-        // sticks (retries a controlled re-render revert). Idempotent for a given text.
-        async function writeDetails(details, text) {
-            if ((details.textContent || '').trim() === text) return true;
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                const before = (details.textContent || '').trim();
-                const usedTiptap = setViaTiptap(details, text);
-                if (!usedTiptap) await setViaExecCommand(details, text);
-                await sleep(150);
-                let now = (details.textContent || '').trim();
-                if (now === text) { await sleep(150); now = (details.textContent || '').trim(); }
-                log.log(`${ts()}   details attempt ${attempt} (${usedTiptap ? 'tiptap' : 'execCommand'}): "${before.slice(0, 30)}" -> "${now.slice(0, 70)}"`);
-                if (now === text) return true;
-            }
-            return false;
-        }
-        // Rename the intervention's name field (a plain MUI <input>) via the shared
-        // React-value setter, then confirm it took.
-        async function renameItem(li, newName) {
-            const inp = li.querySelector('input[aria-label="Intervention name"]');
-            if (!inp) { log.warn(`${ts()} rename: no name input`); return false; }
-            if ((inp.value || '').trim() === newName) return true;
-            setReactValue(inp, newName, log);
-            await sleep(120);
-            const ok = (inp.value || '').trim() === newName;
-            log.log(`${ts()} rename -> "${newName}": ${ok ? 'ok' : 'FAILED (value="' + (inp.value || '') + '")'}`);
-            return ok;
-        }
-        // Apply rename + justification to a single item ALREADY in its correct card.
-        // justMode: 'none' (leave details), 'replace' (MET - overwrite), 'append'
-        // (add canonical text once, keeping the scribe's text). Idempotent.
-        async function applyItemFix(li, fix) {
-            let renamed = false, justified = false;
-            if (fix.rename && (itemName(li).trim() !== fix.rename)) {
-                renamed = await renameItem(li, fix.rename);
-            }
-            if (fix.justMode === 'none' || !fix.justification) return { renamed, justified };
-            const details = li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
-            if (!details) { log.warn(`${ts()} no "Intervention details" field for "${itemName(li).trim()}"`); return { renamed, justified }; }
-            const existing = (details.textContent || '').trim();
-            let target;
-            if (fix.justMode === 'replace') {
-                target = fix.justification;
-            } else { // append
-                if (existing.includes(fix.justification)) { return { renamed, justified: true }; } // already appended
-                target = existing ? (existing.replace(/\s+$/, '') + ' ' + fix.justification) : fix.justification;
-            }
-            justified = await writeDetails(details, target);
-            if (!justified) log.warn(`${ts()} justification for "${itemName(li).trim()}" did NOT stick`);
-            return { renamed, justified };
-        }
+        // ---- rename + justification: shared Fixer (self-contained; see top of file) ----
+        const applyItemFix = (li, fix) => Fixer.applyItemFix(li, fix, log);
 
         function findItemInCardByName(code, name) {
             const c = getCards().find((x) => x.code === code);
@@ -1718,18 +1719,8 @@
             const nm = c ? c.name : (CODE_NAMES[code] || '');
             return nm ? (code + ' ' + nm) : code;
         }
-        function currentDetailsText(li) {
-            const d = li && li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
-            return d ? (d.textContent || '').trim() : '';
-        }
-        // What the details field WILL say after applyItemFix (for the before/after preview).
-        function computeNewJust(fix, cur) {
-            if (fix.justMode === 'none' || !fix.justification) return '';
-            if (fix.justMode === 'replace') return fix.justification;
-            if (cur.includes(fix.justification)) return cur;             // append: already present
-            return cur ? (cur.replace(/\s+$/, '') + ' ' + fix.justification) : fix.justification;
-        }
-
+        const currentDetailsText = Fixer.currentDetailsText;
+        const computeNewJust = Fixer.computeNewJust;
         async function performFix() {
             log.log(`${ts()} ================= performFix START =================`);
             const scope = getScope();
@@ -2237,21 +2228,25 @@
             const c = getCards().find((x) => x.code === code);
             return c ? (c.code + ' ' + c.name) : code;
         }
-        // First Done item (outside the private-pay card) whose name is approved and
-        // not yet processed - lets the therapist skip some in the review dialog
-        // without the scan looping forever on an un-approved item.
-        function findNextDoneApproved(approved, done) {
+        function findSourceItem(name) {
             const t = targetCard(); const tn = t ? t.name : null;
             for (const card of getCards()) {
-                if (tn && card.name === tn) continue;
-                for (const li of cardItems(card)) {
-                    if (isDone(li)) {
-                        const nm = itemName(li).trim();
-                        if (approved.has(nm) && !done.has(nm)) return { card, li, name: nm };
-                    }
-                }
+                if (tn && card.name === tn) continue;   // never touch the private-pay card
+                const li = cardItems(card).find((x) => itemName(x).trim() === name);
+                if (li) return li;
             }
             return null;
+        }
+        function findInTarget(name) {
+            const t = targetCard(); if (!t) return null;
+            return cardItems(t).find((li) => itemName(li).trim() === name) || null;
+        }
+        // The matched rule's justification/rename for a Done item. The DESTINATION is
+        // always private pay (billing), but the fix-up is the SAME as Fix Procedures.
+        function justFixFor(name) {
+            const r = Proc.resolveProcedure(name);
+            if (!r || r.exclude) return { justMode: 'none', justification: null, rename: null };
+            return { justMode: r.justMode, justification: r.justification, rename: r.rename };
         }
 
         async function performFix() {
@@ -2262,55 +2257,79 @@
             if (!tgt) { log.warn(`${ts()} no private-pay (PPVISIT) card - not a private-pay chart`); return { moved: 0, reason: 'no-ppvisit-card' }; }
             if (!tgt.region) { log.warn(`${ts()} private-pay card has no region/list yet`); return { moved: 0, reason: 'no-ppvisit-region' }; }
             const targetName = tgt.name;
+            const toLabel = cardLabelPP(tgt.code);
 
             const initial = listDone();
-            log.log(`${ts()} target "${targetName}"; Done items to move: ${initial.length}`);
+            log.log(`${ts()} Done items to move: ${initial.length}`);
             if (!initial.length) { log.log(`${ts()} nothing marked Done outside private pay`); return { moved: 0, reason: 'no-done-items' }; }
 
-            // ---- review dialog (moves only; no justification changes here) ----
-            const toLabel = cardLabelPP(tgt.code);
-            const rows = initial.map((it) => ({
-                name: it.name, fromLabel: cardLabelPP(it.code), toLabel: toLabel,
-                willMove: true, willJust: false, oldJust: '', newJust: '', renameTo: '',
-            }));
-            const { confirmed, decisions } = await athConfirmMoves('Fix Private Pay — review moves', rows);
+            // ---- review rows: movement -> private pay + the SAME justification/rename ----
+            const rows = initial.map((it) => {
+                const li = findSourceItem(it.name);
+                const cur = li ? Fixer.currentDetailsText(li) : '';
+                const curName = li ? itemName(li).trim() : it.name;
+                const fx = justFixFor(it.name);
+                const newJust = Fixer.computeNewJust(fx, cur);
+                const renameChange = !!fx.rename && curName !== fx.rename;
+                const justChange = fx.justMode !== 'none' && !!fx.justification && newJust !== cur;
+                return {
+                    name: it.name, fromLabel: cardLabelPP(it.code), toLabel: toLabel,
+                    willMove: true, willJust: renameChange || justChange,
+                    justMode: fx.justMode,
+                    oldJust: justChange ? cur : '', newJust: justChange ? newJust : '',
+                    appendText: (justChange && fx.justMode === 'append') ? fx.justification : '',
+                    renameTo: renameChange ? fx.rename : '',
+                };
+            });
+
+            const { confirmed, decisions } = await athConfirmMoves('Fix Private Pay — review changes', rows);
             if (!confirmed) { log.log(`${ts()} user cancelled`); return { moved: 0, reason: 'cancelled' }; }
-            const approved = new Set(decisions.filter((d) => d.moveChecked).map((d) => d.name));
-            if (!approved.size) { log.log(`${ts()} nothing checked`); return { moved: 0, reason: 'nothing-checked' }; }
+            const byName = {};
+            decisions.forEach((d) => { byName[d.name] = d; });
+            const toDo = initial.filter((it) => { const d = byName[it.name]; return d && (d.moveChecked || d.justChecked); });
+            if (!toDo.length) { log.log(`${ts()} nothing checked`); return { moved: 0, reason: 'nothing-checked' }; }
 
             // ---- execute (with a live progress toast) ----
             const prog = athToast('Moving to private pay…', { ttl: 0 });
-            let moved = 0, usePointer = true;
-            const done = new Set();
-            const maxPasses = approved.size + 4;   // safety against an infinite loop
-            for (let pass = 0; pass < maxPasses; pass++) {
-                const next = findNextDoneApproved(approved, done);
-                if (!next) { log.log(`${ts()} no more approved Done items - done`); break; }
-                prog.update('Moving “' + next.name + '” → ' + toLabel);
-                log.log(`${ts()} --- moving Done "${next.name}" from ${next.code} -> private pay (mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
-                let res;
-                if (usePointer) {
-                    res = await pointerDragToBottom(next.li, targetName, {});
-                    if (!res.ok) {
-                        log.warn(`${ts()} pointer path failed; switching to keyboard for the remainder.`);
+            let moved = 0, renamed = 0, justified = 0, usePointer = true;
+
+            for (const it of toDo) {
+                const d = byName[it.name];
+                const fx = justFixFor(it.name);
+                const doMove = d.moveChecked;
+                const doJust = d.justChecked;
+
+                if (doMove) {
+                    prog.update('Moving “' + it.name + '” → ' + toLabel);
+                    log.log(`${ts()} --- moving Done "${it.name}" -> private pay (mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
+                    const srcLi = findSourceItem(it.name);
+                    if (!srcLi) { log.warn(`${ts()} "${it.name}" not found; skip`); continue; }
+                    let res = usePointer ? await pointerDragToBottom(srcLi, targetName, {}) : await keyboardDrag(srcLi, targetName, {});
+                    if (usePointer && (!res || !res.ok)) {
+                        log.warn(`${ts()} pointer failed; keyboard for the remainder`);
                         usePointer = false; await sleep(150);
-                        const again = findNextDoneApproved(approved, done);
-                        if (again) res = await keyboardDrag(again.li, targetName, {});
+                        const again = findSourceItem(it.name);
+                        if (again) res = await keyboardDrag(again, targetName, {});
                     }
-                } else {
-                    res = await keyboardDrag(next.li, targetName, {});
+                    if (!res || !res.ok) { log.warn(`${ts()} move of "${it.name}" failed; skip`); athToast('Could not move “' + it.name + '”', { ttl: 3200 }); continue; }
+                    moved++; await sleep(170);
+                    if (doJust) {
+                        const movedLi = findInTarget(it.name);
+                        if (movedLi) { const r = await Fixer.applyItemFix(movedLi, fx, log); if (r.renamed) renamed++; if (r.justified) justified++; }
+                    }
+                } else if (doJust) {
+                    prog.update('Updating “' + it.name + '”');
+                    const li = findSourceItem(it.name);
+                    if (li) { const r = await Fixer.applyItemFix(li, fx, log); if (r.renamed) renamed++; if (r.justified) justified++; }
                 }
-                done.add(next.name);
-                if (res && res.ok) { moved++; }
-                else { log.warn(`${ts()} drag of "${next.name}" failed; skipping it`); athToast('Could not move “' + next.name + '”', { ttl: 3200 }); }
-                await sleep(170);
+                await sleep(110);
             }
             prog.done(300);
-            athToast('Done: moved ' + moved + '. Click Apply Scribe to save.', { ttl: 4200 });
-            log.log(`${ts()} ================= performFix END: moved=${moved} =================`);
-            return { moved, reason: 'ok' };
+            const summary = [moved ? 'moved ' + moved : '', renamed ? 'renamed ' + renamed : '', justified ? 'justified ' + justified : ''].filter(Boolean).join(', ') || 'no changes';
+            athToast('Done: ' + summary + '. Click Apply Scribe to save.', { ttl: 4200 });
+            log.log(`${ts()} ================= performFix END: ${summary} =================`);
+            return { moved, renamed, justified, reason: 'ok' };
         }
-
         // ---- button (above the private-pay section) ------------------------
         function injectButton() {
             if (document.getElementById(BTN_ID)) return;
