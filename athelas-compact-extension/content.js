@@ -1,5 +1,5 @@
 // Athelas Insights - Compact Mode + Chart Note Helpers (Chrome extension build)
-// v15.12.1 - ported verbatim from athelas-appointments-compact.user.js (the
+// v15.12.2 - ported verbatim from athelas-appointments-compact.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the Fix-MET module can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -467,29 +467,45 @@
             const table = document.createElement('table');
             Object.assign(table.style, { width: '100%', borderCollapse: 'collapse' });
             const thr = document.createElement('tr');
-            [['', '32px'], ['Movement', 'auto'], ['', '32px'], ['Justification', '46%']].forEach(([t, w]) => {
+            [['Procedure', '26%'], ['', '34px'], ['Movement', 'auto'], ['', '34px'], ['Justification', '38%']].forEach(([t, w]) => {
                 const th = document.createElement('th'); th.textContent = t; th.style.width = w;
                 Object.assign(th.style, { textAlign: 'left', padding: '7px 10px', position: 'sticky', top: '0', background: '#fafafa', borderBottom: '1px solid #e5e5e5', fontSize: '11px', color: '#888', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '.03em' });
                 thr.appendChild(th);
             });
             table.appendChild(thr);
 
+            // A checkbox when the change is applicable, otherwise a greyed-out ✕ so
+            // it's obvious the box cannot be checked.
+            function mkCheck(applicable) {
+                if (applicable) { const c = document.createElement('input'); c.type = 'checkbox'; c.checked = true; c.style.cursor = 'pointer'; return c; }
+                const x = document.createElement('span'); x.textContent = '✕'; x.title = 'no change — nothing to apply';
+                Object.assign(x.style, { color: '#c4c4c4', fontWeight: '700', fontSize: '13px', display: 'inline-block' });
+                return x;
+            }
+
             const state = [];
             rows.forEach((r) => {
                 const tr = document.createElement('tr'); tr.style.borderBottom = '1px solid #f0f0f0';
                 const mkCell = () => { const td = document.createElement('td'); td.style.padding = '7px 10px'; td.style.verticalAlign = 'top'; return td; };
-                const c1 = mkCell();
-                const mv = document.createElement('input'); mv.type = 'checkbox'; mv.checked = !!r.willMove; mv.disabled = !r.willMove; c1.appendChild(mv);
+                // Procedure
+                const cP = mkCell();
+                const nm = document.createElement('span'); nm.textContent = '“' + r.name + '”'; nm.style.fontWeight = '600'; cP.appendChild(nm);
+                // move checkbox
+                const c1 = mkCell(); c1.style.textAlign = 'center';
+                const mv = mkCheck(!!r.willMove); c1.appendChild(mv);
+                // movement: start section -> end section
                 const c2 = mkCell();
-                const nm = document.createElement('span'); nm.textContent = '“' + r.name + '”'; nm.style.fontWeight = '600'; c2.appendChild(nm);
                 if (r.willMove) {
+                    const from = document.createElement('span'); from.textContent = r.fromLabel; from.style.color = '#666'; c2.appendChild(from);
                     c2.appendChild(document.createTextNode('  →  '));
-                    const to = document.createElement('span'); to.textContent = r.toLabel; to.style.color = '#0a1e8f'; c2.appendChild(to);
+                    const to = document.createElement('span'); to.textContent = r.toLabel; to.style.color = '#0a1e8f'; to.style.fontWeight = '600'; c2.appendChild(to);
                 } else {
-                    const stay = document.createElement('span'); stay.textContent = '  (stays in ' + r.fromLabel + ')'; stay.style.color = '#999'; c2.appendChild(stay);
+                    const dash = document.createElement('span'); dash.textContent = '—'; dash.style.color = '#bbb'; c2.appendChild(dash);
                 }
-                const c3 = mkCell();
-                const jv = document.createElement('input'); jv.type = 'checkbox'; jv.checked = !!r.willJust; jv.disabled = !r.willJust; c3.appendChild(jv);
+                // justification checkbox
+                const c3 = mkCell(); c3.style.textAlign = 'center';
+                const jv = mkCheck(!!r.willJust); c3.appendChild(jv);
+                // justification: old (red) -> new (green)
                 const c4 = mkCell(); c4.style.fontSize = '12px';
                 if (r.willJust) {
                     if (r.renameTo) {
@@ -507,7 +523,7 @@
                 } else {
                     const none = document.createElement('span'); none.textContent = 'no change'; none.style.color = '#999'; c4.appendChild(none);
                 }
-                tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(c3); tr.appendChild(c4);
+                tr.appendChild(cP); tr.appendChild(c1); tr.appendChild(c2); tr.appendChild(c3); tr.appendChild(c4);
                 table.appendChild(tr);
                 state.push({ row: r, mv, jv });
             });
@@ -526,9 +542,10 @@
             (document.body || document.documentElement).appendChild(overlay);
 
             const close = (confirmed) => {
+                const isChecked = (el) => !!el && el.tagName === 'INPUT' && el.checked;
                 const decisions = state.map((s) => Object.assign({}, s.row, {
-                    moveChecked: s.mv.checked && !s.mv.disabled,
-                    justChecked: s.jv.checked && !s.jv.disabled,
+                    moveChecked: isChecked(s.mv),
+                    justChecked: isChecked(s.jv),
                 }));
                 overlay.remove();
                 document.removeEventListener('keydown', onKey, true);
@@ -1436,25 +1453,29 @@
                 return Math.max(16, Math.min(vh - 16, Math.round(a.getBoundingClientRect().bottom + 12)));
             }
 
-            // ---- jump loop: move the pointer to the drop spot; the MOMENT the item
-            //      is confirmed last, STOP and drop. No extra "confirm" nudge - that
-            //      re-triggered dnd-kit and made the item flicker in place. If it lands
-            //      in the target but bottom-detection stays flaky for a few tries, drop
-            //      it where it is rather than keep jiggling. ----
+            // ---- jump loop: send ONE decisive pointer-move into the bottom slot,
+            //      then POLL for the landing WITHOUT sending any more moves. Every
+            //      pointer-move makes dnd-kit re-sort (that's the flicker), so once the
+            //      item is placed we just watch until it's confirmed last and drop.
+            //      Only re-jump if that single move didn't land it. ----
             let curY = py, jumps = 0, inStreak = 0;
             for (let i = 0; i < MAX_JUMPS; i++) {
                 jumps++;
                 scrollTargetIntoView();
                 await sleep(30);
                 curY = dropY();
-                dispatchPointer('pointermove', px, curY, document);
-                await sleep(PTR_SETTLE_MS);
-                const inTarget = regionsContainingName(name).some((h) => h.name === targetName);
-                const atBottom = inTarget && isAtBottomOfCard(targetCode, name);
-                log.log(`${ts()} jump ${jumps}: curY=${curY} inTarget=${inTarget} atBottom=${atBottom} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
-                if (atBottom) break;
+                dispatchPointer('pointermove', px, curY, document);   // one move; no re-jiggle
+                let landed = false, inTarget = false;
+                const t0 = performance.now();
+                while (performance.now() - t0 < 420) {
+                    await sleep(25);
+                    inTarget = regionsContainingName(name).some((h) => h.name === targetName);
+                    if (inTarget && isAtBottomOfCard(targetCode, name)) { landed = true; break; }
+                }
+                log.log(`${ts()} jump ${jumps}: curY=${curY} inTarget=${inTarget} landed=${landed} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
+                if (landed) break;
                 inStreak = inTarget ? inStreak + 1 : 0;
-                if (inStreak >= 4) { log.log(`${ts()} in target but bottom unconfirmed after ${inStreak} tries - dropping here`); break; }
+                if (inStreak >= 3) { log.log(`${ts()} in target, bottom unconfirmed - dropping here`); break; }
             }
 
             if (regionsContainingName(name).some((h) => h.name === targetName)) {
@@ -2130,14 +2151,18 @@
                 scrollTargetIntoView();
                 await sleep(30);
                 curY = dropY();
-                dispatchPointer('pointermove', px, curY, document);
-                await sleep(PTR_SETTLE_MS);
-                const inTarget = regionsContainingName(name).some((h) => h.name === targetName);
-                const atBottom = inTarget && isAtBottomOfCard(targetCode, name);
-                log.log(`${ts()} jump ${jumps}: curY=${curY} atBottom=${atBottom} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
-                if (atBottom) break;                          // landed - drop now, no re-grab
+                dispatchPointer('pointermove', px, curY, document);   // one move; then poll (no re-jiggle)
+                let landed = false, inTarget = false;
+                const t0 = performance.now();
+                while (performance.now() - t0 < 420) {
+                    await sleep(25);
+                    inTarget = regionsContainingName(name).some((h) => h.name === targetName);
+                    if (inTarget && isAtBottomOfCard(targetCode, name)) { landed = true; break; }
+                }
+                log.log(`${ts()} jump ${jumps}: curY=${curY} inTarget=${inTarget} landed=${landed} idx=${indexOfNameInCard(targetCode, name)}/${itemCountInCard(targetCode)}`);
+                if (landed) break;
                 inStreak = inTarget ? inStreak + 1 : 0;
-                if (inStreak >= 4) { log.log(`${ts()} in target, bottom unconfirmed - dropping here`); break; }
+                if (inStreak >= 3) { log.log(`${ts()} in target, bottom unconfirmed - dropping here`); break; }
             }
             if (regionsContainingName(name).some((h) => h.name === targetName)) {
                 dispatchPointer('pointerup', px, curY, document);

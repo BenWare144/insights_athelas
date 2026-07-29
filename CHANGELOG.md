@@ -1,5 +1,10 @@
 # Changelog
 
+## 15.12.2 — 2026-07-28
+
+- Drag: eliminate the residual post-drop flicker. The jump loop now sends a single decisive pointer-move into the bottom slot and then *polls* for the landing instead of sending more moves (each move made dnd-kit re-sort, which was the flicker). Drops the moment it's confirmed last.
+- Confirmation dialog: split into a dedicated **Procedure** column; the Movement column now shows "start section → end section". Where a change isn't applicable, the checkbox is replaced by a greyed-out ✕ so it's clear it can't be selected.
+
 ## 15.12.0 — 2026-07-28
 
 - **Faster, more robust drag ("jump" drag).** Rewrote the mover: instead of riding dnd-kit's slow auto-scroll and creeping the cursor toward the target (which timed out on far targets, was slow, and "vibrated" between the last two slots at the end), it now programmatically scrolls the target's drop point on-screen and moves the pointer straight to a spot just below the last item, releasing the instant the item is confirmed last. Cost is independent of distance and of zoom/resolution (all geometry from `getBoundingClientRect`). Applies to both Fix Procedures and Fix Private Pay; keyboard drag remains the fallback.
