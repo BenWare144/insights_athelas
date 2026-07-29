@@ -1,5 +1,9 @@
 # Changelog
 
+## 15.12.4 — 2026-07-28
+
+- Confirmation dialog: append-mode justifications now show a true diff — the existing text stays grey (nothing is removed on an append) and only the appended sentence is green — instead of repeating the whole note struck-through-red then green. MET's genuine replace still shows old (red strikethrough) → new (green).
+
 ## 15.12.3 — 2026-07-28
 
 - Drag: fully remove the flicker. dnd-kit's live drag preview reports the item one slot high when aiming at the very bottom (`idx 19/21` while dragging), so the old "is it exactly last?" check never matched mid-drag and the loop re-jumped ~3 times before giving up — even though the drop itself landed correctly. Now it accepts last-or-second-to-last as landed (which resolves to the bottom on release), so it drops after a single move.

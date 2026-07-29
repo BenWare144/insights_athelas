@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      15.12.3
+// @version      15.12.4
 // @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -515,7 +515,18 @@
                         const rn = document.createElement('div'); rn.appendChild(document.createTextNode('rename → '));
                         const g = document.createElement('span'); g.textContent = '“' + r.renameTo + '”'; g.style.color = '#127a2e'; g.style.fontWeight = '600'; rn.appendChild(g); c4.appendChild(rn);
                     }
-                    if (r.newJust) {
+                    if (r.justMode === 'append' && r.appendText) {
+                        // Diff view: existing text stays grey (nothing removed on an
+                        // append), only the appended sentence is green.
+                        const line = document.createElement('div');
+                        if (r.oldJust) {
+                            const o = document.createElement('span'); o.textContent = r.oldJust; o.style.color = '#777'; line.appendChild(o);
+                            line.appendChild(document.createTextNode(' '));
+                        }
+                        const g = document.createElement('span'); g.textContent = r.appendText; g.style.color = '#127a2e'; line.appendChild(g);
+                        c4.appendChild(line);
+                    } else if (r.newJust) {
+                        // Replace (MET): old text struck through in red, new text in green.
                         if (r.oldJust) {
                             const od = document.createElement('div'); const o = document.createElement('span');
                             o.textContent = r.oldJust; o.style.color = '#b3261e'; o.style.textDecoration = 'line-through'; od.appendChild(o); c4.appendChild(od);
@@ -1740,7 +1751,9 @@
                 return {
                     name: f.name, fromLabel: cardLabel(f.from), toLabel: cardLabel(f.to),
                     willMove: f.needsMove, willJust: renameChange || justChange,
+                    justMode: f.justMode,
                     oldJust: justChange ? cur : '', newJust: justChange ? newJust : '',
+                    appendText: (justChange && f.justMode === 'append') ? f.justification : '',
                     renameTo: renameChange ? f.rename : '',
                 };
             });
