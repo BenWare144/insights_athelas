@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights - Compact Mode + Chart Note Helpers
 // @namespace    https://insights.athelas.com/
-// @version      15.13.0
+// @version      15.14.0
 // @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -1661,9 +1661,16 @@
         // when it matches a rule (not excluded) AND either it is under the wrong CPT
         // code OR it needs a rename (e.g. Rib -> "MET - Rib"). Re-scanned every pass
         // because the DOM re-renders after each move.
+        // Only interventions the therapist actually performed (Done-checked) are
+        // fixed - per therapist request, matching Fix Private Pay (v15.14).
+        function isDone(li) {
+            const cb = li.querySelector('input[aria-label="Done"]');
+            return !!(cb && cb.checked);
+        }
         function resolveItem(li, cardCode) {
             const name = itemName(li).trim();
             if (!name) return null;
+            if (!isDone(li)) return null;                 // only "Done" items get fixed
             const r = Proc.resolveProcedure(name);
             if (!r || r.exclude) return null;             // no rule, or "leave alone"
             const needsMove = r.code !== cardCode;
@@ -1823,7 +1830,7 @@
             btn.id = HEADER_BTN_ID;
             btn.type = 'button';
             btn.textContent = 'Fix Procedures';
-            btn.title = 'Move every intervention to its correct CPT code (97110/97112/97530) per the therapist\'s rules, via a real dnd-kit drag - including MET -> 97112. Renames Rib -> "MET - Rib" and appends the canonical justification. Excluded items (Bridges, TKE) are left alone. Click Apply Scribe afterwards to persist.';
+            btn.title = 'Move every "Done"-checked intervention to its correct CPT code (97110/97112/97530) per the therapist\'s rules, via a real dnd-kit drag - including MET -> 97112. Renames Rib -> "MET - Rib" and appends the canonical justification. Un-checked, excluded (Bridges, TKE) and unmatched items are left alone. You review every change before it runs. Click Apply Scribe afterwards to persist.';
             Object.assign(btn.style, {
                 justifySelf: 'end', alignSelf: 'center', marginRight: '12px',
                 padding: '4px 10px', background: '#c33', color: '#fff',
