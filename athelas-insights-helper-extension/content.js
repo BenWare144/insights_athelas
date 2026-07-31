@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.14.0 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.14.1 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.

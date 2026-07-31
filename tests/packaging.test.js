@@ -8,7 +8,7 @@ const { spawnSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 const EXT = path.join(ROOT, 'athelas-insights-helper-extension');
-const userscriptPath = path.join(ROOT, 'athelas-insights-helper.user.js');
+const userscriptPath = path.join(ROOT, 'userscript', 'athelas-insights-helper.user.js');
 const contentPath = path.join(EXT, 'content.js');
 const manifestPath = path.join(EXT, 'manifest.json');
 
@@ -16,7 +16,7 @@ const userscript = fs.readFileSync(userscriptPath, 'utf8');
 const content = fs.readFileSync(contentPath, 'utf8');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
-const GM_HEADER_LINES = 11;   // // ==UserScript== ... // ==/UserScript==
+const GM_HEADER_LINES = 12;   // // ==UserScript== ... // ==/UserScript==
 const BANNER_LINES = 8;       // generated banner at the top of content.js
 
 function headerField(name) {
