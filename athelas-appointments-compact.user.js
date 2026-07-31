@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Athelas Insights - Compact Mode + Chart Note Helpers
+// @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
 // @version      15.14.0
-// @description  Compact spacing for Appointments / Chart Note; jump-to-Flowsheet on load; Fix Procedures (move interventions to their correct CPT code) incl. MET; Fix Private Pay. Verbose logging.
+// @description  One-click chart-note helpers for Athelas Insights: Fix Procedures (move "Done" interventions to the correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet; compact layout. Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
 // @run-at       document-start
