@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 
 const { normProc, resolveProcedure, RULES, J } =
-    require(path.join(__dirname, '..', 'redesign', 'procedure-matching.js'));
+    require(path.join(__dirname, '..', 'matching', 'procedure-matching.js'));
 
 test('normProc: lowercases, strips punctuation, collapses whitespace', () => {
     assert.equal(normProc('Sit-to-Stand'), 'sit to stand');

@@ -29,21 +29,23 @@ The extension runs the script in the **MAIN world** — required, because the on
 
 - `athelas-insights-helper.user.js` — the script. Modules are independent, booted at the bottom of the IIFE. Verbose `[athelas:tag]` console logging throughout; keep that style.
 - `athelas-insights-helper-extension/` — MV3 packaging (see its README).
-- `redesign/` — v15 planning workspace: `PLAN.md`, `DOM-FACTS.md` (verified DOM structure — check here before inventing selectors), `procedure-matching.js` (canonical matching table + the only module with exports), `procedure-matching-QUESTIONS.md` (open therapist questions — entries marked draft there are **not final**).
+- `matching/` — the **canonical procedure-matching engine** `procedure-matching.js` (source of truth for the userscript's `Proc` engine; the only module with exports) + `procedure-matching.test.js`, plus the decision docs (`procedure-audit.md`, `procedure-matching-QUESTIONS.md`, `BRIDGES-review.md`) and the research trail in `analysis/`.
+- `reference/` — source data behind the rules: the canonical `Stuff for EMR.xlsx` and exercise-name lists. Exercise names only, **not PHI**.
+- `deploy/` — Chrome Web Store assets (`store-listing.md`, `privacy-policy.html`, `store-screenshot-1280x800.png`, and the built `.zip`).
+- `archive/` — historical / dead code, kept so nothing is lost: `compact-redesign/` (the retired compact-mode redesign — `PLAN.md`, `DOM-FACTS.md`, the postmortem, `prompts/`, a broken attempt), `example_menu_toggle.user.js` (a parked feature-toggle idea), and `original_prompt_for_v1.txt`.
 - `captures/` — all real-page captures (`*.mhtml`), console logs (`*.log`), and chart-note DOM dumps (`dom-*.html`). These contain **real patient data (PHI)** and are git-ignored twice over (see `.gitignore`). The closest thing to fixtures; open a `.mhtml` in Chrome to inspect DOM offline. Never let their contents leave the repo.
-- `athelas-insights-helper.archive.js` — modules killed by the v14 site rework. Reference only.
 - `tests/` + `package.json` — `npm test` (Node ≥ 20, zero deps).
 - `DEPLOYMENT.md` — Web Store publishing + IT force-install runbook.
 
 ## Procedure-matching table sync
 
-The matching table exists in **three places** and must stay behaviorally identical: `redesign/procedure-matching.js` (canonical, exported, tested), the shared `Proc` engine near the top of the userscript, and therefore in the generated `content.js`. `tests/table-sync.test.js` compares them; if you tune the table, change the canonical file first, then mirror into the userscript's `Proc` engine.
+The matching table exists in **three places** and must stay behaviorally identical: `matching/procedure-matching.js` (canonical, exported, tested), the shared `Proc` engine near the top of the userscript, and therefore in the generated `content.js`. `tests/table-sync.test.js` compares them; if you tune the table, change the canonical file first, then mirror into the userscript's `Proc` engine.
 
 ## Workflow expectations
 
 - Run `npm test` before calling anything done.
 - Real verification requires the live site or an `.mhtml` fixture; when you can't verify DOM behavior, say so explicitly.
-- The site changes under us (see git history: v11 and v14 reworks). When a selector fails, check the newest `.mhtml` captures and `redesign/DOM-FACTS.md` before rewriting logic.
+- The site changes under us (see git history: v11 and v14 reworks). When a selector fails, check the newest `.mhtml` captures (in `captures/`) and `archive/compact-redesign/DOM-FACTS.md` before rewriting logic.
 - PHI caution: everything under `captures/` (`.mhtml`, `.log`, `dom-*.html`) contains real patient names. Keep new captures in `captures/` (git-ignored twice). Never copy their contents into commit messages, docs, or anything leaving this repo.
 
 ## Versioning

@@ -1,0 +1,59 @@
+EHR > Calendar
+type in blackduck
+Then hover over any patient that is not completed
+click open note
+click on flowsheet.
+
+
+Feature: Auto jump to flowsheet section
+
+
+On Patient in appointments
+
+example url: https://insights.athelas.com/ehr/v2/patients/19442247/appointments/63497586
+
+Steps
+
+1. Go to interventions > flowsheet
+2. Click in search field (can it debounce)
+3. Type source
+4. Click the checkbox
+5. Click add intervention
+6. Repeat
+
+Example:
+FRS Right [Lumb?]
+
+7. Scroll down to new intervention
+8. Expand new element
+9. Type in justification
+   If "FRS:" enter justifications["frs..."]
+10. In Procedure (in Billing details) enter
+    Procedure_number["Frs..."]
+11. Check the box on the main expandable bar for "Done"
+12. Repeat
+
+
+===================== Prompt
+
+Thank you, that worked great! Now the next task.
+
+For the ChartNote page, I want to modify it as follows. 
+
+Feature 1:
+Small feature. I want the page to jump down to the flowsheet subsection of the interventions section.
+
+Feature 2:
+Main feature. When new interventions are added, I want these steps automated.
+
+```
+Repeat for each new interventions:
+1. Scroll down to new intervention
+2. Expand new element
+3. Type in justification
+   If "FRS:" enter data["frs..."]["justifications"]
+4. In Procedure (in Billing details) enter
+    data["Frs..."]["Procedure_number"]
+5. Check the box on the main expandable bar for "Done"
+```
+I will provide the particular definitions for "data" later via a csv file so just add template examples for now.

@@ -17,16 +17,22 @@
 !tests/
 !tests/**
 
-!redesign/
-!redesign/PLAN.md
-!redesign/DOM-FACTS.md
-!redesign/procedure-matching.js
-!redesign/procedure-matching.test.js
-!redesign/procedure-matching-QUESTIONS.md
-!redesign/procedure-audit.md
-!redesign/BRIDGES-review.md
-!redesign/COMPACT-MODE-POSTMORTEM.md
-# NOT whitelisted: redesign/dom-*.html (real chart-note DOM dumps -> PHI)
+# live matching engine (canonical) + its decision docs + research trail
+!matching/
+!matching/**
+
+# source/reference data behind the rules (exercise lists, canonical xlsx) - not PHI
+!reference/
+!reference/**
+
+# Web Store deploy assets (the *.zip build artifact stays ignored via *.zip below)
+!deploy/
+!deploy/**
+
+# historical / parked code, kept so nothing is lost (compact-mode redesign,
+# the feature-toggle idea, the original v1 prompt)
+!archive/
+!archive/**
 
 # never these, even inside whitelisted dirs
 node_modules/

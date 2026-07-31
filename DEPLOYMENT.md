@@ -9,8 +9,8 @@ The plan: publish the extension **unlisted** on the Chrome Web Store (invisible 
 3. Zip the **contents** of `athelas-insights-helper-extension/` so `manifest.json` sits at the zip root (not inside a subfolder):
    - Windows: open the folder, select all files → right-click → *Compress to ZIP file*.
 4. Prepare listing assets (first release only):
-   - At least one **screenshot, 1280×800 or 640×400** — the Fix Procedures review dialog on a chart note (blur/crop any patient names before uploading; see `store-screenshot-1280x800.png`).
-   - A short description (see `store-listing.md`). Suggested: "One-click chart-note helpers for Athelas Insights (Fix Procedures, Fix Private Pay). For authorized clinic use. Collects and transmits no data."
+   - At least one **screenshot, 1280×800 or 640×400** — the Fix Procedures review dialog on a chart note (blur/crop any patient names before uploading; see `deploy/store-screenshot-1280x800.png`).
+   - A short description (see `deploy/store-listing.md`). Suggested: "One-click chart-note helpers for Athelas Insights (Fix Procedures, Fix Private Pay). For authorized clinic use. Collects and transmits no data."
    - A **privacy policy URL** — required even for no-data extensions. A one-page statement ("This extension does not collect, store, or transmit any data. All processing happens locally in the browser.") hosted anywhere public works; a GitHub Pages page or public Gist is fine.
 
 ## Part B — Developer account (once ever)
