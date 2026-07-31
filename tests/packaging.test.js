@@ -7,8 +7,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
-const EXT = path.join(ROOT, 'athelas-compact-extension');
-const userscriptPath = path.join(ROOT, 'athelas-appointments-compact.user.js');
+const EXT = path.join(ROOT, 'athelas-insights-helper-extension');
+const userscriptPath = path.join(ROOT, 'athelas-insights-helper.user.js');
 const contentPath = path.join(EXT, 'content.js');
 const manifestPath = path.join(EXT, 'manifest.json');
 
@@ -36,7 +36,7 @@ test('content.js body is byte-identical to the userscript body', () => {
     const scriptBody = userscript.split('\n').slice(GM_HEADER_LINES).join('\n');
     const contentBody = content.split('\n').slice(BANNER_LINES).join('\n');
     assert.equal(contentBody, scriptBody,
-        'content.js drifted from the userscript — regenerate per athelas-compact-extension/README.md');
+        'content.js drifted from the userscript — regenerate per athelas-insights-helper-extension/README.md');
 });
 
 test('manifest: MV3, MAIN world, document_start, same match patterns as @match', () => {

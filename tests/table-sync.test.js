@@ -1,7 +1,7 @@
 // The procedure-matching table lives in three places (see AGENTS.md):
 //   1. redesign/procedure-matching.js          (canonical)
-//   2. athelas-appointments-compact.user.js    (shared `Proc` engine near the top)
-//   3. athelas-compact-extension/content.js    (generated copy of 2)
+//   2. athelas-insights-helper.user.js    (shared `Proc` engine near the top)
+//   3. athelas-insights-helper-extension/content.js    (generated copy of 2)
 // This test fails if they drift. Comparison is comment- and whitespace-
 // insensitive, so formatting (one-line vs wrapped entries, inline comments)
 // may differ between copies as long as the rules themselves are identical.
@@ -13,8 +13,8 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 const FILES = {
     canonical: 'redesign/procedure-matching.js',
-    userscript: 'athelas-appointments-compact.user.js',
-    extension: 'athelas-compact-extension/content.js',
+    userscript: 'athelas-insights-helper.user.js',
+    extension: 'athelas-insights-helper-extension/content.js',
 };
 
 function read(rel) {

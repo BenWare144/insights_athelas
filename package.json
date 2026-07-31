@@ -1,8 +1,8 @@
 {
-  "name": "athelas-compact",
+  "name": "athelas-insights-helper",
   "version": "15.14.0",
   "private": true,
-  "description": "Compact mode + chart-note helpers for Athelas Insights (userscript + Chrome extension)",
+  "description": "One-click chart-note workflow helpers for Athelas Insights (userscript + Chrome extension)",
   "type": "commonjs",
   "scripts": {
     "test": "node --test \"tests/*.test.js\""

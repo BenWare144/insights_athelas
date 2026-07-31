@@ -5,14 +5,14 @@
 
 # --- whitelisted ---
 !.gitignore
-!athelas-appointments-compact.user.js
+!athelas-insights-helper.user.js
 !AGENTS.md
 !CHANGELOG.md
 !DEPLOYMENT.md
 !package.json
 
-!athelas-compact-extension/
-!athelas-compact-extension/**
+!athelas-insights-helper-extension/
+!athelas-insights-helper-extension/**
 
 !tests/
 !tests/**
@@ -35,3 +35,9 @@ node_modules/
 *.zip
 *.new
 *.tmp
+
+# PHI captures live here (console logs, .mhtml page saves, chart-note DOM dumps).
+# Redundantly ignored as a whole folder in addition to the *.log/*.mhtml rules
+# above - a belt-and-suspenders guard so real patient data can never be committed.
+captures/
+captures/**

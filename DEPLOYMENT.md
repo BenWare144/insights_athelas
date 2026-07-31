@@ -6,16 +6,16 @@ The plan: publish the extension **unlisted** on the Chrome Web Store (invisible 
 
 1. Run `npm test` — all green.
 2. Confirm `manifest.json` version matches the userscript `@version` (test 1 enforces this).
-3. Zip the **contents** of `athelas-compact-extension/` so `manifest.json` sits at the zip root (not inside a subfolder):
+3. Zip the **contents** of `athelas-insights-helper-extension/` so `manifest.json` sits at the zip root (not inside a subfolder):
    - Windows: open the folder, select all files → right-click → *Compress to ZIP file*.
 4. Prepare listing assets (first release only):
-   - At least one **screenshot, 1280×800 or 640×400** — a chart note with compact mode on (blur/crop any patient names before uploading).
-   - A short description. Suggested: "Display tweaks for Athelas Insights: compact spacing on Appointments and Chart Note pages, plus one-click chart-note helpers. For authorized clinic use. Collects and transmits no data."
+   - At least one **screenshot, 1280×800 or 640×400** — the Fix Procedures review dialog on a chart note (blur/crop any patient names before uploading; see `store-screenshot-1280x800.png`).
+   - A short description (see `store-listing.md`). Suggested: "One-click chart-note helpers for Athelas Insights (Fix Procedures, Fix Private Pay). For authorized clinic use. Collects and transmits no data."
    - A **privacy policy URL** — required even for no-data extensions. A one-page statement ("This extension does not collect, store, or transmit any data. All processing happens locally in the browser.") hosted anywhere public works; a GitHub Pages page or public Gist is fine.
 
 ## Part B — Developer account (once ever)
 
-1. Go to the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole) with a Google account you'll keep long-term (consider a dedicated one, e.g. `athelascompact@gmail.com` — the account owns the listing, and migrating later is painful).
+1. Go to the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole) with a Google account you'll keep long-term (the dedicated `lakeregiondev@gmail.com` — the account owns the listing, and migrating later is painful).
 2. Pay the **$5 one-time** registration fee.
 3. In *Account* settings: verify your contact email (required before you can publish).
 
@@ -61,11 +61,11 @@ This path exists because Chrome **ignores** `ExtensionInstallForcelist` set via 
 
 Verification on any machine: `chrome://extensions` shows the extension with "Installed by your administrator"; `chrome://policy` shows `ExtensionInstallForcelist`.
 
-**Before rollout:** anyone who piloted the Tampermonkey userscript must disable it (both running = doubled CSS and duplicate Fix-MET buttons).
+**Before rollout:** anyone who piloted the Tampermonkey userscript must disable it (both running = doubled CSS and duplicate helper buttons).
 
 ## Part E — Shipping an update
 
-1. Edit the userscript → regenerate `content.js` (command in `athelas-compact-extension/README.md`) → bump `@version`, `manifest.json`, `package.json` → `npm test` → update `CHANGELOG.md`.
+1. Edit the userscript → regenerate `content.js` (command in `athelas-insights-helper-extension/README.md`) → bump `@version`, `manifest.json`, `package.json` → `npm test` → update `CHANGELOG.md`.
 2. Zip and upload as a new package on the existing dashboard item → submit.
 3. After approval, Chrome updates deployed machines automatically (checks run every few hours; `chrome://extensions` → *Update* forces it). No IT action needed.
 
