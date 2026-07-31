@@ -307,7 +307,7 @@
     // The therapist's canonical rules from "Stuff for EMR.xlsx" + markup.
     // Used by BOTH the Fix Procedures button (MODULE 9) and the read-only
     // preview (MODULE 10). This is the single source of truth in the script;
-    // keep it in sync with redesign/procedure-matching.js.
+    // keep it in sync with matching/procedure-matching.js.
     //
     // Proc.resolveProcedure(name) -> null            (no rule; leave alone)
     //   | { label, exclude:true }                    (matched an "leave alone" rule)
@@ -860,7 +860,7 @@
                The v14 site rework replaced the interventions DataGrid with
                dnd-kit sortable cards - no .MuiDataGrid-* elements exist on the
                page anymore. Historical notes live in
-               athelas-insights-helper.archive.js (featureSimpleGridHeight). */
+               the removed v14-rework archive (featureSimpleGridHeight). */
 
             /* ============================================================
                v15 Phase 1: horizontal space reclaim. CSS only - nothing is
@@ -896,7 +896,7 @@
             /* 2. Section sub-nav rail: v15.11 KEEPS THE NATIVE WIDTH (160/200px).
                   Forcing it narrower (the old 160->112px rule) made the item
                   highlight boxes and labels overflow the rail and paint over the
-                  note - see redesign/COMPACT-MODE-POSTMORTEM.md. Only the padding/
+                  note - see archive/compact-redesign/COMPACT-MODE-POSTMORTEM.md. Only the padding/
                   height compaction from the v10 rail rules above is kept; the
                   vertical density is preserved, the horizontal breakage is not. */
 
@@ -1109,7 +1109,7 @@
         // (info-strip) gap/padding. This is an ESTIMATE, not a live
         // measurement (no authenticated browser session available while
         // writing this CSS) - re-check with Claude in Chrome per
-        // redesign/PLAN.md and nudge again if jump-to-flowsheet lands off.
+        // archive/compact-redesign/PLAN.md and nudge again if jump-to-flowsheet lands off.
         const HEADER_OFFSET = 60;       // sticky app bar height + a bit of breathing room
         const SETTLE_MS     = 350;      // delay between scroll attempts
         const MAX_ATTEMPTS  = 5;
@@ -1185,7 +1185,7 @@
 
     // =====================================================================
     // Disabled/legacy modules moved to companion file:
-    //   athelas-insights-helper.archive.js
+    //   the removed v14-rework archive
     //
     // Includes featureAutofillInterventions, featureFocusInterventionsSearch,
     // featureMinsColumnHelpers, featureMoveToBottom, featureForceEditMode,
@@ -2403,13 +2403,13 @@
     // "Stuff for EMR.xlsx". THIS DOES NOT MOVE ANYTHING. It only scans the
     // flowsheet and reports, per intervention, which canonical procedure it
     // matched and whether it's currently under the wrong CPT code. Once the
-    // edge-case questions in redesign/procedure-matching-QUESTIONS.md are
+    // edge-case questions in matching/procedure-matching-QUESTIONS.md are
     // answered, the same table drives the real move (reusing the Fix-MET
     // drag machinery). Kept separate + read-only so it can't break the
     // working Fix-MET button while the matching is still being tuned.
     //
     // Run in DevTools:  window.__athelasScanProcedures()
-    // The matching table here is a copy of redesign/procedure-matching.js -
+    // The matching table here is a copy of matching/procedure-matching.js -
     // keep the two in sync when tuning.
     // =====================================================================
     function featureProcedureMatchPreview() {
@@ -2483,7 +2483,7 @@
     // is exactly what makes them survive SPA navigation into a chart note. CSS and
     // jump-to-flowsheet are (re)applied per-navigation via onUrlChange.
     // Legacy modules disabled in the v14 site rework live in
-    // athelas-insights-helper.archive.js (see note above MODULE 9).
+    // the removed v14-rework archive (see note above MODULE 9).
     // =====================================================================
     applyCompactCss();
     featureFixMisplacedMET();

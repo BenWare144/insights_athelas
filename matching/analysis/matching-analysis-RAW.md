@@ -1,0 +1,884 @@
+# Raw matching analysis (against the prehab exercise library)
+
+Each rule below is run **independently** over the 2702 unique library names (so an exercise can appear under more than one rule — see the duplicates file). Symbols: ✅ correctly matched · ⚠️ uncertain · ❌ definitely misclassified · ➕ should match but the keyword does not catch it.
+
+## 97110 — Therapeutic Exercise
+
+### Curl  (64)
+
+- ✅ Bicep Curl - 3 Way, Band  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - Arms Elevated, Band  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - Band  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - Cable Bar  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - Dumbbell  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - Narrow, EZ Bar  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - Pronated Grip, Band  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - Pronated, Dumbbell  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - Pronated, EZ Bar  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - Rope  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - Supinated, Neutral, Pronated  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - Weight Plate, Hold  — therapist rule: any curl → 97110
+- ✅ Bicep Curl - WIde, EZ Bar  — therapist rule: any curl → 97110
+- ✅ Bicep Curl To Overhead Press - Band  — therapist rule: any curl → 97110
+- ✅ Bicep Curl To Overhead Press - Dumbbell  — therapist rule: any curl → 97110
+- ✅ Curl Up  — therapist rule: any curl → 97110
+- ✅ Curl Up - McGill  — therapist rule: any curl → 97110
+- ✅ Curl Up - Segmental  — therapist rule: any curl → 97110
+- ✅ Double Leg Hamstring Curl - Machine  — therapist rule: any curl → 97110
+- ✅ Eccentric Bicep Curl - Cable  — therapist rule: any curl → 97110
+- ✅ Eccentric Hamstring Curl  — therapist rule: any curl → 97110
+- ✅ Eccentric Hamstring Curl - Foam Roller  — therapist rule: any curl → 97110
+- ✅ Eccentric Hamstring Curl - MHFAKE  — therapist rule: any curl → 97110
+- ✅ Eccentric Hamstring Curl - Swissball  — therapist rule: any curl → 97110
+- ✅ Eccentric Single Leg Hamstring Curl - Foam Roller  — therapist rule: any curl → 97110
+- ✅ Eccentric Single Leg Hamstring Curl - Swissball  — therapist rule: any curl → 97110
+- ✅ Eccentric Single Leg Hamstring Curl - Swissball, Two to One  — therapist rule: any curl → 97110
+- ✅ Hammer curl  — therapist rule: any curl → 97110
+- ✅ Hammer Curl - Band  — therapist rule: any curl → 97110
+- ✅ Hammer Curl - Dumbbell  — therapist rule: any curl → 97110
+- ✅ Hamstring Curl - Foam Roller  — therapist rule: any curl → 97110
+- ✅ Hamstring Curl - Hips Down, Slider  — therapist rule: any curl → 97110
+- ✅ Hamstring Curl - Quick, Machine  — therapist rule: any curl → 97110
+- ✅ Hamstring Curl - Rest, Swissball  — therapist rule: any curl → 97110
+- ✅ Hamstring Curl - Swissball  — therapist rule: any curl → 97110
+- ✅ Hamstring Curl to Bridge - Hips Down, Slider  — therapist rule: any curl → 97110
+- ✅ Hamstring Razor Curl - Ab Wheel Assist  — therapist rule: any curl → 97110
+- ✅ Hamstring Swissball Curl Prehab  — therapist rule: any curl → 97110
+- ✅ Isometric Single Leg Hamstring Curl - 45 Deg, Machine  — therapist rule: any curl → 97110
+- ✅ Jefferson Curl - Kettlebell  — therapist rule: any curl → 97110
+- ✅ Nordic Hamstring Curl  — therapist rule: any curl → 97110
+- ✅ Nordic Hamstring Curl - Ab Wheel Assisted  — therapist rule: any curl → 97110
+- ✅ Nordic Hamstring Curl - Assisted  — therapist rule: any curl → 97110
+- ✅ Nordic Hamstring Curl - Band Assist, Barbell  — therapist rule: any curl → 97110
+- ✅ Nordic Hamstring Curl - Swissball Assisted  — therapist rule: any curl → 97110
+- ✅ Prone Hamstring Curl  — therapist rule: any curl → 97110
+- ✅ Prone Hamstring Curl - Band  — therapist rule: any curl → 97110
+- ✅ Prone Hamstring Curl - Block  — therapist rule: any curl → 97110
+- ✅ Prone Hamstring Curl Isometrics - Band  — therapist rule: any curl → 97110
+- ✅ Quadruped Hamstring Curl  — therapist rule: any curl → 97110
+- ✅ Reverse Nordic Curl  — therapist rule: any curl → 97110
+- ✅ Reverse Nordic Curl - Assisted  — therapist rule: any curl → 97110
+- ✅ Single Leg Eccentric Hamstring Curl - Machine  — therapist rule: any curl → 97110
+- ✅ Single Leg Hamstring Curl - Foam Roller  — therapist rule: any curl → 97110
+- ✅ Single Leg Hamstring Curl - Hips Down, Slider  — therapist rule: any curl → 97110
+- ✅ Single Leg Hamstring Curl - Machine  — therapist rule: any curl → 97110
+- ✅ Single Leg Hamstring Curl - Quick, Machine  — therapist rule: any curl → 97110
+- ✅ Single Leg Hamstring Curl - Rest, Swiss Ball  — therapist rule: any curl → 97110
+- ✅ Single Leg Hamstring Curl - Slider  — therapist rule: any curl → 97110
+- ✅ Single Leg Hamstring Curl - Swissball  — therapist rule: any curl → 97110
+- ✅ Standing Hamstring Curl  — therapist rule: any curl → 97110
+- ✅ Standing Hamstring Curl - Band  — therapist rule: any curl → 97110
+- ✅ Toe Curl  — therapist rule: any curl → 97110
+- ✅ Towel Curl  — therapist rule: any curl → 97110
+
+### Long Arc Quad  (8)
+
+- ✅ Eccentric Long Arc Quad
+- ✅ Long Arc Quad - 0 to 90 deg
+- ✅ Long Arc Quad - 45 to 90 deg
+- ✅ Long Arc Quad - AROM
+- ✅ Long Arc Quad - Band
+- ✅ Long Arc Quad - Dorsiflexion Bias, Kettlebell
+- ✅ Long Arc Quad Theraband Set Up
+- ✅ Seated Long Arc Quad Isometrics - Band
+
+### PROM  (35)
+
+- ✅ Bear Wrist Flexion & Extension - PROM
+- ✅ Body On Knee Flexion PROM
+- ✅ Body On Knee Flexion Stretch - PROM, Chair
+- ✅ Body on Wrist Radial & Ulnar Deviation - PROM
+- ✅ Knee Flexion On Wall - PROM
+- ✅ Prone Knee Extension PROM Hang
+- ✅ Quadruped Wrist Flexion & Extension - PROM
+- ✅ Seated Big Toe Abduction - PROM, Band
+- ✅ Seated Big Toe Flexion:Extension - PROM
+- ✅ Seated Knee Extension - Overpressure, PROM
+- ✅ Seated Knee Extension - PROM
+- ✅ Seated Knee Extension Bag Hang - PROM
+- ✅ Seated Knee Extension PROM - Towel Supported
+- ✅ Seated Knee Extension PROM - Towel Supported, Step
+- ✅ Seated Knee Flexion - PROM, Other Leg Assist
+- ✅ Seated Knee Flexion PROM Off Table
+- ✅ Shoulder Abduction Step Back - PROM
+- ✅ Shoulder Abuction - PROM, Pulley
+- ✅ Shoulder Flexion - PROM, Pulley
+- ✅ Shoulder Flexion Step Back - PROM
+- ✅ Shoulder Hand Behind Back - PROM
+- ✅ Shoulder Scaption - PROM, Pulley
+- ✅ Standing Body On Wrist Flexion & Extension - PROM
+- ✅ Supine Passive Knee Extension PROM
+- ✅ Supine Passive Knee Extension PROM With Overpressure - Ankle Weight
+- ✅ Supine Shoulder External Rotation - PROM
+- ✅ Supine Shoulder External Rotation at 45deg - PROM, Dowel
+- ✅ Supine Shoulder Flexion - PROM
+- ✅ Supine Shoulder Flexion - PROM, Dowel
+- ✅ Supine Shoulder Flexion to 90 - PROM, Dowel
+- ✅ Supine Shoulder Flexion to 90 - PROM, Hand Assist
+- ✅ Supine Shoulder Internal Rotation - PROM, Dowel
+- ✅ Supine Shoulder Internal Rotation at 45deg - PROM, Dowel
+- ✅ Tall Plank Body Saw - Wrist PROM Bias
+- ✅ Towel Slide - Wrist PROM Bias, Wall
+
+### Short Arc Quad  (1)
+
+- ✅ Short Arc Quad
+
+### Shoulder Abduction  (9)
+
+- ⚠️ Isometric Shoulder Abduction - Wall Support  — therapist only named the "-Band" variant; this is broader
+- ⚠️ Shoulder Abduction - AAROM, Dowel  — a PROM/AAROM/stretch variant, not the band exercise the therapist named
+- ⚠️ Shoulder Abduction - AROM  — a PROM/AAROM/stretch variant, not the band exercise the therapist named
+- ⚠️ Shoulder Abduction Step Back - PROM  — a PROM/AAROM/stretch variant, not the band exercise the therapist named
+- ⚠️ Shoulder Abduction Stretch - Wall Support  — a PROM/AAROM/stretch variant, not the band exercise the therapist named
+- ⚠️ Shoulder Abduction Wall Walk  — therapist only named the "-Band" variant; this is broader
+- ⚠️ Side Lying Shoulder Abduction  — therapist only named the "-Band" variant; this is broader
+- ⚠️ Side Lying Shoulder Abduction - AROM  — a PROM/AAROM/stretch variant, not the band exercise the therapist named
+- ❌ Side Plank - Shoulder Abduction, Dumbbell  — not a plain shoulder ab/extension exercise
+
+### Shoulder Extension  (8)
+
+- ❌ D2 Shoulder Extension  — not a plain shoulder ab/extension exercise
+- ⚠️ Isometric Shoulder Extension - Wall Support  — therapist only named the "-Band" variant; this is broader
+- ⚠️ Prone Shoulder Extension - AAROM, Dowel  — a PROM/AAROM/stretch variant, not the band exercise the therapist named
+- ⚠️ Quadruped Posterior Oblique Sling - Hip Extension, Shoulder Extension  — therapist only named the "-Band" variant; this is broader
+- ⚠️ Shoulder Extension - AAROM, Dowel  — a PROM/AAROM/stretch variant, not the band exercise the therapist named
+- ⚠️ Shoulder Extension Bridge  — therapist only named the "-Band" variant; this is broader
+- ❌ Standing Posterior Sling Split Squat - Split Squat to Shoulder Extension  — not a plain shoulder ab/extension exercise
+- ❌ Standing Posterior Sling Step Up - Step Up to Shoulder Extension  — not a plain shoulder ab/extension exercise
+
+### Straight Leg Raise  (10)
+
+- ✅ Long Sitting SLR - Lift Over
+- ✅ Long Sitting Straight Leg Raise
+- ✅ Seated Straight Leg Raise - AAROM, Strap
+- ✅ Standing Straight Leg Raise
+- ✅ Straight Leg Raise
+- ✅ Straight Leg Raise - Hip External Rotation
+- ✅ Straight Leg Raise - J
+- ⚠️ Straight Leg Raise - Single Leg Bridge Position  — also matches Bridges — overlap
+- ⚠️ Straight Leg Raise - Single Leg Bridge Position, Band  — also matches Bridges — overlap
+- ⚠️ Straight Leg Raise To Single Leg Bridge  — also matches Bridges — overlap
+
+### Stretch  (157)
+
+- ✅ 90/90 Hip Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ 90/90 Hip Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ 90/90 Hip Stretch - Dynamic, Trunk Rotation  — therapist rule: anything with "stretch" → 97110
+- ✅ 90/90 Hip Switch Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Ankle & Toe Plantarflexion Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Ankle Dorsiflexion Stretch - Contract-Relax  — therapist rule: anything with "stretch" → 97110
+- ✅ Bear Position Big Toe Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Best Glute Stretch Variations  — therapist rule: anything with "stretch" → 97110
+- ✅ Body On Knee Flexion Stretch - PROM, Chair  — therapist rule: anything with "stretch" → 97110
+- ✅ Bretzel Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Butterfly Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Calf Stretch - Off Step  — therapist rule: anything with "stretch" → 97110
+- ✅ Contract Relax Lat Stretch - Swissball  — therapist rule: anything with "stretch" → 97110
+- ✅ Couch Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Couch Stretch - Contract Relax  — therapist rule: anything with "stretch" → 97110
+- ✅ Couch Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Couch Stretch - Front Split  — therapist rule: anything with "stretch" → 97110
+- ✅ Couch Stretch - Front Split, Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Dynamic Runners Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Erector Spinae Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Foot On Wall Calf Stretch - 3 Way  — therapist rule: anything with "stretch" → 97110
+- ✅ Foot On Wall Calf Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Foot On Wall Calf Stretch - Knee Bent, Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Foot On Wall Calf Stretch - Knee Bent, Static  — therapist rule: anything with "stretch" → 97110
+- ✅ Foot On Wall Calf Stretch - Static  — therapist rule: anything with "stretch" → 97110
+- ✅ Frog Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Frog Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Frog Stretch - Windmill  — therapist rule: anything with "stretch" → 97110
+- ✅ Gastroc Stretch with Great Toe Extension  — therapist rule: anything with "stretch" → 97110
+- ✅ Glute Stretch - Walking, Heel Raise  — therapist rule: anything with "stretch" → 97110
+- ✅ Half Kneeling Anterior Chain Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Half Kneeling Hamstring Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Half Kneeling Hip Flexor And Hamstrings Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Half Kneeling Hip Flexor Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Half Kneeling Hip Flexor Stretch (DNU)  — therapist rule: anything with "stretch" → 97110
+- ✅ Half Kneeling Quadriceps Stretch - Dynamic, Strap  — therapist rule: anything with "stretch" → 97110
+- ✅ Half Kneeling Soleus Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Hand Behind Back Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Hip 90/90 External, Internal, and Extension Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Hip 90/90 Internal Rotation Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Knee Across Chest Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Knee Across Chest Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Kneeling Pec and Bicep Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Lat Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Lat Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Lat Stretch - Dynamic, Foam Roller  — therapist rule: anything with "stretch" → 97110
+- ✅ Levator Scapulae Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Long Sitting Hamstring Stretch  — therapist rule: anything with "stretch" → 97110
+- ⚠️ Lunge Hip Flexion Stretch  — also a lunge — precedence sends it to 97530
+- ✅ Mermaid Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Pec and Bicep Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Pec Major Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Pec Major Stretch - Head Turn  — therapist rule: anything with "stretch" → 97110
+- ✅ Pec Minor Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Pec Minor Stretch - Doorway  — therapist rule: anything with "stretch" → 97110
+- ✅ Pec Minor Stretch - Head Turn  — therapist rule: anything with "stretch" → 97110
+- ✅ Pigeon Hip Extension Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Pigeon Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Pigeon Stretch - Dynamic, Alternating  — therapist rule: anything with "stretch" → 97110
+- ✅ Plantarflexion with Inversion Twistability Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Posterior Cuff Doorway Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Prone Hip Flexor Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Prone Pec Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Prone Pec Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Prone Quad Stretch - Strap  — therapist rule: anything with "stretch" → 97110
+- ✅ Prone Quadriceps Stretch - Bench  — therapist rule: anything with "stretch" → 97110
+- ✅ QL Stretch on Box  — therapist rule: anything with "stretch" → 97110
+- ✅ Quadruped Rock Back - Ankle Plantarflexion Stretch Bias  — therapist rule: anything with "stretch" → 97110
+- ✅ Reverse Phalen's Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Rhomboid Doorway Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Scalene Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Scorpion Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Big Toe Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Calf Stretch - Knee Bent, Towel  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Calf Stretch - Knee Straight, Towel  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Calf Stretch With Strap  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Glute Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Hamstring Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Hip External Rotation Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Pigeon Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Piriformis Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Plantar Fascia Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated QL Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Soleus Stretch With Strap  — therapist rule: anything with "stretch" → 97110
+- ✅ Seated Spine Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Self Neck Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Shoulder Abduction Stretch - Wall Support  — therapist rule: anything with "stretch" → 97110
+- ✅ Shoulder Butterfly Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Shoulder External Rotation Stretch - Wall Support  — therapist rule: anything with "stretch" → 97110
+- ✅ Shoulder Flexion Stretch - Wall Support  — therapist rule: anything with "stretch" → 97110
+- ✅ Shoulder Internal Rotation Stretch - AAROM, Dowel  — therapist rule: anything with "stretch" → 97110
+- ✅ Shoulder Internal Rotation Stretch - Strap  — therapist rule: anything with "stretch" → 97110
+- ✅ Shoulder Internal Rotation Stretch - Wall Support  — therapist rule: anything with "stretch" → 97110
+- ✅ Side Lying Posterior Cuff Shoulder Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Side Lying Quadriceps Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Side Lying Shoulder Cross Body Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Sleeper Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Soleus Stretch - Unsupported  — therapist rule: anything with "stretch" → 97110
+- ✅ Split Hamstring Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Apley Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Big Toe Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Gastrocnemius Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Hamstring Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Hamstring Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Hamstring Stretch - Dynamic, Foot Elevated  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Hamstring Stretch - Foot Elevated  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Hamstring Stretch - Foot Elevated, 3 Way  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Hamstring Stretch - Kettlebell  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Hip Flexor Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Hip Flexor Stretch - Chair  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Hip Flexor Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Hip Flexor Stretch - Dynamic, Arm Elevation  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Hip Flexor Stretch - Pelvic Tilt  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Pigeon Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing QL Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Quadriceps Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Shoulder Cross Body Stretch - Posterior Cuff  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Shoulder Cross Body Stretch - Rhomboid  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Shoulder External Rotation Stretch - Dowel  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing Soleus Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Standing TFL and ITB Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Supine Calf Stretch With Strap  — therapist rule: anything with "stretch" → 97110
+- ✅ Supine Hamstring Stretch - Contract Relax, At Wall  — therapist rule: anything with "stretch" → 97110
+- ✅ Supine Hamstring Stretch - Dynamic, At Wall  — therapist rule: anything with "stretch" → 97110
+- ✅ Supine Hamstring Stretch - Strap  — therapist rule: anything with "stretch" → 97110
+- ✅ Supine Hip External Rotation Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Supine Hip Flexion + External Rotation Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Supine Hip Flexor Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Supine Hip Internal Rotation Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Supine Pec Stretch - Foam Roller  — therapist rule: anything with "stretch" → 97110
+- ✅ Supine Piriformis Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Tall Kneeling Apley Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Tall Kneeling Quadriceps Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Tall Kneeling Quadriceps Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Thoracic Spine Rotation Against Wall Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Triceps Stretch - Dowel  — therapist rule: anything with "stretch" → 97110
+- ✅ Triceps Stretch - Overhead  — therapist rule: anything with "stretch" → 97110
+- ✅ Upper Body World’s Greatest Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Upper Cervical Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Upper Trapezius Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Walking Pigeon Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Walking Quad Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Wall Calf Stretch - Knee Bent  — therapist rule: anything with "stretch" → 97110
+- ✅ Wall Calf Stretch - Knee Bent, 3D  — therapist rule: anything with "stretch" → 97110
+- ✅ Wall Calf Stretch - Knee Bent, Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Wall Calf Stretch - Knee Straight  — therapist rule: anything with "stretch" → 97110
+- ✅ Wall Calf Stretch - Knee Straight, 3D  — therapist rule: anything with "stretch" → 97110
+- ✅ Wall Calf Stretch - Knee Straight, Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Wall Lat Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ World's Greatest Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ World’s Greatest Stretch - 2  — therapist rule: anything with "stretch" → 97110
+- ✅ Wrist Extensor Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Wrist Extensor Stretch - Contract Relax  — therapist rule: anything with "stretch" → 97110
+- ✅ Wrist Extensor Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+- ✅ Wrist Flexor Stretch  — therapist rule: anything with "stretch" → 97110
+- ✅ Wrist Flexor Stretch - Contract Relax  — therapist rule: anything with "stretch" → 97110
+- ✅ Wrist Flexor Stretch - Dynamic  — therapist rule: anything with "stretch" → 97110
+
+Should arguably match Stretch but is not caught:
+
+- ➕ Adductor Mobility Flow In Quadruped
+- ➕ Ankle Mobility Drills and Tips and Tricks
+- ➕ Chest Opener - Hands Behind Head
+- ➕ Do You Need Mobility Work or Strength Work?
+- ➕ Dynamic Hip Mobility Drill
+- ➕ Finger Opener - Hand Exerciser
+- ➕ Half Kneeling Groin Opener
+- ➕ Lower Extremity Dynamic Flexibility Warm Up
+- ➕ Rearfoot & Midfoot Mobility & Stability Exercises
+- ➕ Tri-planar Hip Mobility Flow
+
+## 97112 — Neuromuscular Reeducation
+
+### Balance  (50)
+
+- ⚠️ Anterior Lunge To Single Leg Balance  — also a lunge — precedence currently sends it to 97530
+- ⚠️ Anterior Step Down To Single Leg Balance  — also a step — ambiguous between 97112 and 97530
+- ⚠️ Anterior Step Up To Single Leg Balance  — also a step — ambiguous between 97112 and 97530
+- ⚠️ Curtsey Lunge To Single Leg Balance  — also a lunge — precedence currently sends it to 97530
+- ⚠️ Curtsey Step Down To Single Leg Balance  — also a step — ambiguous between 97112 and 97530
+- ⚠️ Deficit Posterior Lunge - Step Up, Single Leg Balance  — also a lunge — precedence currently sends it to 97530
+- ⚠️ Lateral Lunge to Single Leg Balance  — also a lunge — precedence currently sends it to 97530
+- ⚠️ Lateral Step Down To Single Leg Balance  — also a step — ambiguous between 97112 and 97530
+- ⚠️ Lateral Step Up To Single Leg Balance  — also a step — ambiguous between 97112 and 97530
+- ⚠️ Posterior Lunge To Single Leg Balance  — also a lunge — precedence currently sends it to 97530
+- ⚠️ Posterior Step Down To Single Leg Balance  — also a step — ambiguous between 97112 and 97530
+- ✅ Semi Tandem Balance  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Anti-Rotation  — single-leg balance / tandem → 97112
+- ✅ Single leg balance - ball toss lateral  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Ball Toss Lateral, Foam Pad  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Ball Toss Medial  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Ball Toss Medial, Foam Pad  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Ball Toss Sideways  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Ball Toss, Forward  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Ball Toss, Lateral  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Band, Anti-Eversion  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Band, Anti-Inversion  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Band, Controlled Pronation  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Band, Controlled Supination  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - BOSU Black Side  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - BOSU Black Side, Horizontal Head Turns  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - BOSU Black Side, Vertical Head Turns  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - BOSU, Blue Side Up  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Eyes Closed  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Foam Pad  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Foam Pad, Ball Toss Forward  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Foam Pad, Eyes Closed  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Horizontal Head Turn  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Kettlebell Handoff  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Off Step  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Side and Down Reach  — single-leg balance / tandem → 97112
+- ⚠️ Single Leg Balance - Terminal Knee Extension, Band  — also a TKE
+- ✅ Single Leg Balance - Up and Down Reach  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance - Vertical Head Turns  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance – Horizontal Head Turn, Foam Pad  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance On Toes - Band, Anti-Eversion  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance On Toes - Band, Anti-Inversion  — single-leg balance / tandem → 97112
+- ✅ Single Leg Balance With Ankle Inversion With Basketball Dribble  — single-leg balance / tandem → 97112
+- ✅ Tall Kneeling Single Leg Balance - Foam Pad  — single-leg balance / tandem → 97112
+- ✅ Tandem Balance  — single-leg balance / tandem → 97112
+- ✅ Tandem Balance - Eyes Closed  — single-leg balance / tandem → 97112
+- ✅ Tandem Balance - Horizontal Head Turns  — single-leg balance / tandem → 97112
+- ✅ Tandem Balance - Vertical Head Turns  — single-leg balance / tandem → 97112
+- ✅ Tandem Walking  — single-leg balance / tandem → 97112
+
+Should arguably match Balance but is not caught:
+
+- ➕ Anterior & Posterior Step Over - BOSU
+- ➕ Feet Together Balance - Eyes Closed
+- ➕ Feet Together Balance - Foam Pad
+- ➕ Feet Together Balance - Foam Pad, Eyes Closed
+- ➕ Forward Bound On BOSU
+- ➕ Forward Hop On BOSU
+- ➕ In-line Balance - Half Kneeling
+- ➕ In-Line Balance - Half Kneeling, Eyes Closed
+- ➕ Lateral Bound On Bosu
+- ➕ Lateral Hop And Stick With Bosu
+- ➕ Plank - On Knees, BOSU
+- ➕ Plyometric Push Up - Bosu
+- ➕ Plyometric Push Up - BOSU Blue Side
+- ➕ Push Up - Bosu
+- ➕ Standing Balance - Horizontal Head Turn
+- ➕ Tall Plank - BOSU
+- ➕ Tall Plank Circles - BOSU
+- ➕ Y Balance Exercise
+- ➕ Y Balance Exercise - Foam Pad
+
+### MET  (1)
+
+- ✅ Sacroiliac Joint Muscle Energy Technique
+
+### Rib -> MET - Rib  (1)
+
+- ✅ First Rib Mobilization - Strap
+
+## 97530 — Therapeutic Activity
+
+### Bridges  (60)
+
+- ⚠️ Bear to High Single Leg Bridge Position  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge - Adduction  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge - Adduction, Pelvic Floor Contraction  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge - Hamstring Bias  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge - Head Turns  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge - Heel Raise  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge - Isometric Heel Raise  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge - Isometric Hip Abduction, Band  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge - Pelvic Floor Contraction  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge - Segmental  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge Hold  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge Hold - Hamstring Bias  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge March  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge March - Arms Extended  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge March - Pelvic Floor Contraction  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge Twist and Reach  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge Twist and Reach - Isometric Hip Abduction, Band  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Bridge Walkout  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Cross Connect Bridge  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Elevated Bridge - Knee Straight, Alternating  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ❌ Floor Press - Bridge Position  — not really a bridge — the word "bridge" is incidental
+- ⚠️ Frog Bridge  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Hamstring Bridge  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Hamstring Bridge - Knees Bent, Swissball  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Hamstring Bridge - Knees Straight  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Hamstring Bridge - Knees Straight, Swissball  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Hamstring Bridge March  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Hamstring Curl to Bridge - Hips Down, Slider  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Isometric Bridge - Hip Abduction, Band  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Isometric Bridge - Isometric Adduction  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Isometric Bridge – Isometric Hip Abduction, Band  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Isometric Cross Connect Bridge  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Isometric Elevated Bridge - Knee Straight  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Isometric Hamstring Bridge - Elevated  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Isometric Single Leg Elevated Bridge - Knee Straight  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Isometric Single Leg Hamstring Bridge - Elevated  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Isometric Single Leg Hamstring Bridge - Elevated, Alternating  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ❌ Midback Mobilization - Bridge, Peanut  — a mobilization (likely 97140), not a bridge activity
+- ❌ Reverse Plank Bridge  — not really a bridge — the word "bridge" is incidental
+- ❌ Reverse Plank Bridge - Isometric  — not really a bridge — the word "bridge" is incidental
+- ❌ Shoulder Extension Bridge  — not really a bridge — the word "bridge" is incidental
+- ❌ Single Arm Floor Press - Single Leg Bridge Position  — not really a bridge — the word "bridge" is incidental
+- ⚠️ Single Leg Bridge - Abductor Bias  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Single Leg Bridge - Adductor Bias  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Single Leg Bridge - Band  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Single Leg Bridge - Leg Bent  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Single Leg Bridge - Leg Crossed  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Single Leg Bridge - Leg Straight  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Single Leg Bridge - Pelvic Floor Contraction  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Single Leg Bridge Isometric Hold  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Single Leg Hamstring Bridge  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Single Leg Hamstring Bridge - Knee Straight  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Single Leg Psoas March - Bridge  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Staggered Bridge  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ⚠️ Straight Leg Bridge to Single Leg Bridge - Band  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ❌ Straight Leg Raise - Single Leg Bridge Position  — not really a bridge — the word "bridge" is incidental
+- ❌ Straight Leg Raise - Single Leg Bridge Position, Band  — not really a bridge — the word "bridge" is incidental
+- ❌ Straight Leg Raise To Single Leg Bridge  — not really a bridge — the word "bridge" is incidental
+- ⚠️ Supine Bridge  — bridge strengthening is usually Therapeutic Exercise (97110), not Activity (97530)
+- ❌ Thoracic Spine Bridge  — not really a bridge — the word "bridge" is incidental
+
+### Lunge  (94)
+
+- ✅ Anterior And Lateral Lunge With Bosu  — therapist rule: anything with a lunge → 97530
+- ✅ Anterior Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Anterior Lunge - BOSU  — therapist rule: anything with a lunge → 97530
+- ✅ Anterior Lunge - Walking, Dumbbell  — therapist rule: anything with a lunge → 97530
+- ✅ Anterior Lunge Deceleration - Medball  — therapist rule: anything with a lunge → 97530
+- ⚠️ Anterior Lunge To Single Leg Balance  — lunge + balance — 97530 (activity) vs 97112 (balance) is a judgment call
+- ✅ Anterior Lunge With Bosu  — therapist rule: anything with a lunge → 97530
+- ✅ Anterior Step Down To Posterior Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Anterior Step Up to Reverse Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Carry - Overhead, Walking Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Curtsey Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Curtsey Lunge - In Place  — therapist rule: anything with a lunge → 97530
+- ✅ Curtsey Lunge - Landmine  — therapist rule: anything with a lunge → 97530
+- ✅ Curtsey Lunge - Medball Slam  — therapist rule: anything with a lunge → 97530
+- ✅ Curtsey Lunge - Push Off  — therapist rule: anything with a lunge → 97530
+- ✅ Curtsey Lunge - Slider  — therapist rule: anything with a lunge → 97530
+- ⚠️ Curtsey Lunge To Single Leg Balance  — lunge + balance — 97530 (activity) vs 97112 (balance) is a judgment call
+- ✅ Cutting Power Explosive Curtsey Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Deficit Posterior Lunge  — therapist rule: anything with a lunge → 97530
+- ⚠️ Deficit Posterior Lunge - Step Up, Single Leg Balance  — lunge + balance — 97530 (activity) vs 97112 (balance) is a judgment call
+- ✅ Forward Lunge - Walking  — therapist rule: anything with a lunge → 97530
+- ✅ Front Foot Elevated Split Stance Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ KettleBell Lunge Matrix  — therapist rule: anything with a lunge → 97530
+- ✅ Landmine Combination - Posterior Lunge To Overhead Press  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Adductor Lunge - Slider  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Adductor Lunge - Slider, Dynamic  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge - Alternating  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge - Anti-rotation  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge - Band  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge - BOSU  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge - Front Rack Kettlebell  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge - Slider  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge - Slider, Band  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge - TRX  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge - Walking  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge Decleration - Medball  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge Hold  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge No Step  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge Pallof - Press  — therapist rule: anything with a lunge → 97530
+- ⚠️ Lateral Lunge to Single Leg Balance  — lunge + balance — 97530 (activity) vs 97112 (balance) is a judgment call
+- ✅ Lateral Lunge With Bosu  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge With Kettlebell  — therapist rule: anything with a lunge → 97530
+- ✅ Lateral Lunge- Kettlebell  — therapist rule: anything with a lunge → 97530
+- ✅ Lunge Hip Flexion Stretch  — therapist rule: anything with a lunge → 97530
+- ✅ Lunge Matrix - Frontal Plane  — therapist rule: anything with a lunge → 97530
+- ✅ Lunge Matrixes  — therapist rule: anything with a lunge → 97530
+- ✅ Lunge Windmill - Alternating  — therapist rule: anything with a lunge → 97530
+- ✅ Multi Directional Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Multi Directional Lunge - Posterior Focus  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge - Alternating  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge - Alternating, Kettlebell, Front Rack  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge - Anti-Rotation  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge - Landmine, Alternating, One Hand  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge - Landmine, Alternating, Two Hands  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge - Landmine, Offset  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge - Pelvic Floor Contraction, Dumbbell  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge - Slider  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge - TRX  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge - Walking  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge - Walking, Dumbbell  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge + Overhead Reach  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge to Shoulder Press - Landmine  — therapist rule: anything with a lunge → 97530
+- ✅ Posterior Lunge to Shoulder Press - Step Through  — therapist rule: anything with a lunge → 97530
+- ⚠️ Posterior Lunge To Single Leg Balance  — lunge + balance — 97530 (activity) vs 97112 (balance) is a judgment call
+- ✅ Reactive Neuromuscular Training (RNT) Posterior Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Runner's Lunge Hold  — therapist rule: anything with a lunge → 97530
+- ✅ Runners Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Runners Lunge - Circles  — therapist rule: anything with a lunge → 97530
+- ✅ Sagittal Plane Lunge Matrix  — therapist rule: anything with a lunge → 97530
+- ✅ Sagittal Plane Lunge Matrix - Arm Drivers  — therapist rule: anything with a lunge → 97530
+- ✅ Slider Lunge - Anterior, Lateral, Posterior  — therapist rule: anything with a lunge → 97530
+- ✅ Slider Lunge - Anterior, Lateral, Posterior, Curtsey  — therapist rule: anything with a lunge → 97530
+- ✅ Split Jump Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Split Squat Lunges With Band  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge - Anti-rotation  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge - Band  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge - Big Toe Extension Bias  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge - Dumbbell  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge - Rear Leg Emphasis  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge - RNT  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge - TKE  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge - Toes Elevated  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge Hold  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge Hold - Band  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge Turns - Band  — therapist rule: anything with a lunge → 97530
+- ✅ Split Stance Lunge Turns - Dowel  — therapist rule: anything with a lunge → 97530
+- ✅ Tempo Split Stance Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Tempo Split Stance Lunge - Band  — therapist rule: anything with a lunge → 97530
+- ✅ Transverse Lunge  — therapist rule: anything with a lunge → 97530
+- ✅ Transverse Plane Lunge Matrix  — therapist rule: anything with a lunge → 97530
+- ✅ Walking Cossack Lunge  — therapist rule: anything with a lunge → 97530
+
+### Matrix  (5)
+
+- ⚠️ KettleBell Lunge Matrix  — verify "matrix" is the exercise (word may appear incidentally)
+- ⚠️ Lunge Matrix - Frontal Plane  — verify "matrix" is the exercise (word may appear incidentally)
+- ⚠️ Sagittal Plane Lunge Matrix  — verify "matrix" is the exercise (word may appear incidentally)
+- ⚠️ Sagittal Plane Lunge Matrix - Arm Drivers  — verify "matrix" is the exercise (word may appear incidentally)
+- ⚠️ Transverse Plane Lunge Matrix  — verify "matrix" is the exercise (word may appear incidentally)
+
+### Sit to Stand  (3)
+
+- ✅ Sit To Stand
+- ✅ Staggered Sit To Stand
+- ✅ Staggered Sit To Stand - Reach Towards Rear Leg
+
+### Squat  (155)
+
+- ✅ Air Squat  — therapist rule: all squat variants → 97530
+- ✅ Air Squat - Band  — therapist rule: all squat variants → 97530
+- ✅ Air Squat - Toes Elevated  — therapist rule: all squat variants → 97530
+- ✅ Air Squat (DNU)  — therapist rule: all squat variants → 97530
+- ✅ Back Squat - High Bar, Barbell  — therapist rule: all squat variants → 97530
+- ✅ Back Squat - Low Bar, Barbell  — therapist rule: all squat variants → 97530
+- ✅ Back Squat Isometrics - Barbell  — therapist rule: all squat variants → 97530
+- ✅ Barbell Back Squat  — therapist rule: all squat variants → 97530
+- ✅ Barbell Front Squat  — therapist rule: all squat variants → 97530
+- ✅ Barbell Front Squat with Modified Front Rack  — therapist rule: all squat variants → 97530
+- ✅ Barbell Front Squat with Modified Front Rack Arms Out in Front  — therapist rule: all squat variants → 97530
+- ✅ Box Back Squat - Barbell  — therapist rule: all squat variants → 97530
+- ✅ Box Squat  — therapist rule: all squat variants → 97530
+- ✅ Bulgarian Split Squat  — therapist rule: all squat variants → 97530
+- ✅ Bulgarian Split Squat - Band  — therapist rule: all squat variants → 97530
+- ✅ Bulgarian Split Squat - Contralateral, Kettlebell  — therapist rule: all squat variants → 97530
+- ✅ Bulgarian Split Squat - Dumbbell, Catch  — therapist rule: all squat variants → 97530
+- ✅ Bulgarian Split Squat - Heel Float  — therapist rule: all squat variants → 97530
+- ✅ Bulgarian Split Squat - Heel Raise  — therapist rule: all squat variants → 97530
+- ✅ Bulgarian Split Squat - Hop  — therapist rule: all squat variants → 97530
+- ✅ Bulgarian Split Squat - Jump, Knee Drive  — therapist rule: all squat variants → 97530
+- ✅ Bulgarian Split Squat - Trunk Rotation, Dumbbell  — therapist rule: all squat variants → 97530
+- ✅ Bulgarian Split Squat- Dumbbell  — therapist rule: all squat variants → 97530
+- ✅ Captain Morgan -Single Leg Squat  — therapist rule: all squat variants → 97530
+- ✅ Cossack Squat  — therapist rule: all squat variants → 97530
+- ✅ Deadlift <>Goblet Squat  — therapist rule: all squat variants → 97530
+- ✅ Deadlift To Squat - Kettlebell  — therapist rule: all squat variants → 97530
+- ✅ Deep Squat Hip And Ankle Mobilization - Kettlebell  — therapist rule: all squat variants → 97530
+- ✅ Deep Squat Hip External Rotation - AROM  — therapist rule: all squat variants → 97530
+- ✅ Deep Squat Hip Prying  — therapist rule: all squat variants → 97530
+- ✅ Deep Squat Isometric Hold  — therapist rule: all squat variants → 97530
+- ✅ Deep Squat Weight Shift  — therapist rule: all squat variants → 97530
+- ✅ Double Extension Drop Squat  — therapist rule: all squat variants → 97530
+- ✅ Drop Squat  — therapist rule: all squat variants → 97530
+- ✅ Eccentric Single Leg Squat - Heel Elevated, Wall Supported  — therapist rule: all squat variants → 97530
+- ✅ Eccentric Squat - Wall Supported, Swissball  — therapist rule: all squat variants → 97530
+- ✅ Face The Wall Squat  — therapist rule: all squat variants → 97530
+- ✅ Front Squat - Barbell  — therapist rule: all squat variants → 97530
+- ✅ Front Squat - Barbell, Cross Grip  — therapist rule: all squat variants → 97530
+- ✅ Front Squat - Kettlebell  — therapist rule: all squat variants → 97530
+- ✅ Front Squat - Kettlebell, Single Arm  — therapist rule: all squat variants → 97530
+- ✅ Goblet Squat - Heels Elevated  — therapist rule: all squat variants → 97530
+- ✅ Goblet Squat - Kettlebell  — therapist rule: all squat variants → 97530
+- ✅ Goblet Squat - Kettlebell, Band  — therapist rule: all squat variants → 97530
+- ✅ Goblet Squat - Pelvic Floor Contract & Relax  — therapist rule: all squat variants → 97530
+- ✅ Goblet Squat - Wedge, Kettlebell  — therapist rule: all squat variants → 97530
+- ✅ Half Way Wall Squat  — therapist rule: all squat variants → 97530
+- ✅ Heartbeat Squat - Kettlebell  — therapist rule: all squat variants → 97530
+- ✅ Heel Raise - Wall Squat  — therapist rule: all squat variants → 97530
+- ✅ Improve The Bottom Of Your Squat With Sit Squat Isometrics  — therapist rule: all squat variants → 97530
+- ✅ Isometric Knee to Post Split Squat  — therapist rule: all squat variants → 97530
+- ✅ Isometric Squat  — therapist rule: all squat variants → 97530
+- ✅ Isometric Squat - Band  — therapist rule: all squat variants → 97530
+- ✅ Jump Squat - Band  — therapist rule: all squat variants → 97530
+- ✅ Jump Squat - Dumbbell  — therapist rule: all squat variants → 97530
+- ✅ Jump Squat - Hex Bar  — therapist rule: all squat variants → 97530
+- ✅ Jump Squat - TRX  — therapist rule: all squat variants → 97530
+- ✅ Knee to Post Split Squat  — therapist rule: all squat variants → 97530
+- ✅ Landmine Squat to Shoulder Press  — therapist rule: all squat variants → 97530
+- ✅ Lateral Split Squat - Landmine  — therapist rule: all squat variants → 97530
+- ✅ Mini Squat  — therapist rule: all squat variants → 97530
+- ✅ Mini Squat - Wall Supported  — therapist rule: all squat variants → 97530
+- ✅ Overhead Press-Split Squat, Kettlebell  — therapist rule: all squat variants → 97530
+- ✅ Overhead Squat - Barbell  — therapist rule: all squat variants → 97530
+- ✅ Overhead Squat - TRX  — therapist rule: all squat variants → 97530
+- ✅ Pause Back Squat - Barbell  — therapist rule: all squat variants → 97530
+- ✅ Pause Front Squat - Barbell  — therapist rule: all squat variants → 97530
+- ✅ Pistol Squat  — therapist rule: all squat variants → 97530
+- ✅ Pistol Squat - TRX  — therapist rule: all squat variants → 97530
+- ✅ Rear Foot Elevated Split Squat - Isometric  — therapist rule: all squat variants → 97530
+- ✅ Rear Foot Elevated Squat - TRX  — therapist rule: all squat variants → 97530
+- ✅ Roll To Single Leg Squat  — therapist rule: all squat variants → 97530
+- ✅ Roll To Squat  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Anterior to Posterior Squat - Squat Rack  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Box Squat  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Eccentric Box Squat  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Heel Raise - Wall Squat  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Pistol Squat  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Spanish Squat  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat - Ankle Dorsiflexion Bias, Wall Supported  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat - Band  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat - Band Around Knees  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat - BOSU Black Side  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat - Heel Elevated  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat - Heel Raise  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat - Supported  — therapist rule: all squat variants → 97530
+- ⚠️ Single Leg Squat - Terminal Knee Extension  — squat + TKE — the TKE-exclude rule currently wins and leaves it unmoved
+- ✅ Single Leg Squat - TRX  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat + Row  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat Catch - BOSU  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat Catch - Wall, Medicine Ball  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat Drop Catch - Medicine Ball  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Squat Pallof  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Step Down - Isometric Squat Rack, Weight Behind Back  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Wall Spanish Squat  — therapist rule: all squat variants → 97530
+- ✅ Single Leg Wall Squat - Swiss Ball  — therapist rule: all squat variants → 97530
+- ✅ Sissy Squat  — therapist rule: all squat variants → 97530
+- ✅ Sit Squat  — therapist rule: all squat variants → 97530
+- ✅ Sit Squat Isometric  — therapist rule: all squat variants → 97530
+- ✅ Spanish Squat  — therapist rule: all squat variants → 97530
+- ✅ Spanish Squat Isometrics  — therapist rule: all squat variants → 97530
+- ✅ Split Squat - Foam Roller, Tap  — therapist rule: all squat variants → 97530
+- ✅ Split Squat - Overcoming Isometric, Kettlebell  — therapist rule: all squat variants → 97530
+- ✅ Split Squat Drop Catch - Medicine Ball  — therapist rule: all squat variants → 97530
+- ✅ Split Squat Jump - Low Depth  — therapist rule: all squat variants → 97530
+- ✅ Split Squat Lunges With Band  — therapist rule: all squat variants → 97530
+- ✅ Squat - Anti-rotation  — therapist rule: all squat variants → 97530
+- ✅ Squat - Band  — therapist rule: all squat variants → 97530
+- ✅ Squat - BOSU Ball  — therapist rule: all squat variants → 97530
+- ✅ Squat - Heels Elevated  — therapist rule: all squat variants → 97530
+- ✅ Squat - Heels Elevated, Band Around Knees  — therapist rule: all squat variants → 97530
+- ✅ Squat - Hex Bar  — therapist rule: all squat variants → 97530
+- ✅ Squat - Kickstand  — therapist rule: all squat variants → 97530
+- ✅ Squat - Landmine  — therapist rule: all squat variants → 97530
+- ✅ Squat - Lateral Step  — therapist rule: all squat variants → 97530
+- ✅ Squat - RNT  — therapist rule: all squat variants → 97530
+- ⚠️ Squat - TKE  — squat + TKE — the TKE-exclude rule currently wins and leaves it unmoved
+- ✅ Squat - TRX  — therapist rule: all squat variants → 97530
+- ✅ Squat - Wedge  — therapist rule: all squat variants → 97530
+- ✅ Squat Catch - Wall, Medicine Ball  — therapist rule: all squat variants → 97530
+- ✅ Squat Drop Catch - Medicine Ball  — therapist rule: all squat variants → 97530
+- ✅ Squat Hold - Heel Raise  — therapist rule: all squat variants → 97530
+- ✅ Squat Jack  — therapist rule: all squat variants → 97530
+- ✅ Squat Jump - Low Depth  — therapist rule: all squat variants → 97530
+- ✅ Squat Jumps  — therapist rule: all squat variants → 97530
+- ✅ Squat Jumps - Pelvic Floor Contraction  — therapist rule: all squat variants → 97530
+- ✅ Squat Medball Slam - In Front  — therapist rule: all squat variants → 97530
+- ✅ Squat Medball Slam - To Side, Alternating  — therapist rule: all squat variants → 97530
+- ✅ Squat Medball Throw - Sideways  — therapist rule: all squat variants → 97530
+- ✅ Squat Pulse  — therapist rule: all squat variants → 97530
+- ✅ Squat Pulse - Heels Elevated, Band Around Knees  — therapist rule: all squat variants → 97530
+- ✅ Squat Running - In Place  — therapist rule: all squat variants → 97530
+- ✅ Squat to Overhead Press  — therapist rule: all squat variants → 97530
+- ✅ Squat to Row - TRX  — therapist rule: all squat variants → 97530
+- ✅ Squat Towel Slam  — therapist rule: all squat variants → 97530
+- ✅ Squat Towel Slam - To Side, Alternating  — therapist rule: all squat variants → 97530
+- ✅ Squat Weight Shift  — therapist rule: all squat variants → 97530
+- ✅ Staggered Box Squat  — therapist rule: all squat variants → 97530
+- ✅ Standing Posterior Sling Split Squat - Split Squat to Shoulder Extension  — therapist rule: all squat variants → 97530
+- ✅ Stork Squat - Chop  — therapist rule: all squat variants → 97530
+- ✅ Sumo Squat - Dumbbell  — therapist rule: all squat variants → 97530
+- ✅ Surfer Squat - Band  — therapist rule: all squat variants → 97530
+- ✅ Surrender Squat  — therapist rule: all squat variants → 97530
+- ✅ Tempo Deep Squat - TRX  — therapist rule: all squat variants → 97530
+- ✅ Tempo Squat  — therapist rule: all squat variants → 97530
+- ✅ Tempo Squat - Band  — therapist rule: all squat variants → 97530
+- ✅ Tempo Squat - Band (DO NOT USE)  — therapist rule: all squat variants → 97530
+- ✅ Triple Extension To Drop Squat  — therapist rule: all squat variants → 97530
+- ✅ Triple Extension To Drop Squat With Mini Landing  — therapist rule: all squat variants → 97530
+- ✅ Wall Squat  — therapist rule: all squat variants → 97530
+- ✅ Wall Squat - Single Leg  — therapist rule: all squat variants → 97530
+- ✅ Wall Squat - Swissball  — therapist rule: all squat variants → 97530
+- ✅ World's Greatest Squat Warm Up  — therapist rule: all squat variants → 97530
+- ✅ Zombie Front Squat - Barbell  — therapist rule: all squat variants → 97530
+
+Should arguably match Squat but is not caught:
+
+- ➕ Single Leg Wall Sit
+- ➕ Single Leg Wall Sit - Band
+- ➕ Single Leg Wall Sit - Heel Elevated
+- ➕ Single Leg Wall Sit - On Toes
+- ➕ Wall Sit - 45 deg
+- ➕ Wall Sit - 90 Deg
+- ➕ Wall Sit - March
+- ➕ Wall Sit - Offset
+- ➕ Wall Sit - On Toes
+- ➕ Wall Sit - Toe Lifts
+
+### Step down  (18)
+
+- ✅ Anterior Step Down
+- ✅ Anterior Step Down - RNT
+- ✅ Anterior Step Down - Wedge
+- ✅ Anterior Step Down - Wedge, Kettlebell
+- ✅ Anterior Step Down To Posterior Lunge
+- ✅ Anterior Step Down to Reverse Step Up
+- ⚠️ Anterior Step Down To Single Leg Balance  — step + balance — ambiguous 97530 vs 97112
+- ✅ Anterior to Posterior Step Down
+- ✅ Curtsey Step Down
+- ⚠️ Curtsey Step Down To Single Leg Balance  — step + balance — ambiguous 97530 vs 97112
+- ✅ Deep Lateral Step Down - Assisted
+- ✅ Lateral Step Down
+- ⚠️ Lateral Step Down To Single Leg Balance  — step + balance — ambiguous 97530 vs 97112
+- ✅ Posterior Step Down
+- ✅ Posterior Step Down - RNT
+- ⚠️ Posterior Step Down To Single Leg Balance  — step + balance — ambiguous 97530 vs 97112
+- ✅ Single Leg Step Down - Isometric Squat Rack, Weight Behind Back
+- ✅ Step Downs: Does direction matter?
+
+### Step up  (21)
+
+- ✅ Anterior Step Down to Reverse Step Up
+- ✅ Anterior Step Up
+- ✅ Anterior Step Up to Reverse Lunge
+- ⚠️ Anterior Step Up To Single Leg Balance  — step + balance — ambiguous 97530 vs 97112
+- ✅ Anterior Step Up with Weight- Pelvic Floor Contraction, Kettlebell
+- ✅ Curtsey Step Up
+- ⚠️ Deficit Posterior Lunge - Step Up, Single Leg Balance  — step + balance — ambiguous 97530 vs 97112
+- ✅ Forward Step Up - Hop, Knee Drive
+- ✅ Heel Raise - Half Kneeling to Step Up
+- ✅ Lateral Step Up
+- ⚠️ Lateral Step Up To Single Leg Balance  — step + balance — ambiguous 97530 vs 97112
+- ✅ Reverse Step Up
+- ⚠️ Standing Posterior Sling Step Up - Step Up to Shoulder Extension  — compound with a shoulder movement
+- ✅ Step Up - 4 Way
+- ✅ Step Up - Continuous
+- ✅ Step Up - High Box, Weight
+- ✅ Step Up - Overhead Reach
+- ✅ Step Up & Over
+- ✅ Step Up- Overcoming Isometric, Kettlebell
+- ✅ Toe Off to Step Up
+- ✅ Transverse Step Up
+
+## Left alone (not moved)
+
+### TKE (leave alone)  (18)
+
+- ❌ Double Leg Heel Raise - TKE  — compound movement — leaving it alone blocks its real category (squat/lunge/etc.)
+- ❌ Downward Dog Terminal Knee Extension  — compound movement — leaving it alone blocks its real category (squat/lunge/etc.)
+- ❌ Downward Dog Terminal Knee Extension - Band  — compound movement — leaving it alone blocks its real category (squat/lunge/etc.)
+- ✅ Gaining Terminal Knee Extension  — standalone TKE — correctly left alone
+- ❌ Plank Terminal Knee Extension  — compound movement — leaving it alone blocks its real category (squat/lunge/etc.)
+- ❌ Plank Terminal Knee Extension - Elevated  — compound movement — leaving it alone blocks its real category (squat/lunge/etc.)
+- ✅ Prone Terminal Knee Extension - Hips Down  — standalone TKE — correctly left alone
+- ✅ Seated Overpressure Terminal Knee Extension - Kettlebel  — standalone TKE — correctly left alone
+- ❌ Single Leg Balance - Terminal Knee Extension, Band  — compound movement — leaving it alone blocks its real category (squat/lunge/etc.)
+- ❌ Single Leg Heel Raise - TKE  — compound movement — leaving it alone blocks its real category (squat/lunge/etc.)
+- ❌ Single Leg Plank Terminal Knee Extension - Elevated  — compound movement — leaving it alone blocks its real category (squat/lunge/etc.)
+- ❌ Single Leg Squat - Terminal Knee Extension  — compound movement — leaving it alone blocks its real category (squat/lunge/etc.)
+- ❌ Split Stance Lunge - TKE  — compound movement — leaving it alone blocks its real category (squat/lunge/etc.)
+- ❌ Squat - TKE  — compound movement — leaving it alone blocks its real category (squat/lunge/etc.)
+- ✅ Standing Terminal Knee Extension TKEs  — standalone TKE — correctly left alone
+- ✅ Terminal Knee Extension  — standalone TKE — correctly left alone
+- ✅ Terminal Knee Extension - 3 Way  — standalone TKE — correctly left alone
+- ✅ Terminal Knee Extension - Step Assist  — standalone TKE — correctly left alone
+
+## Additional "should match but not caught" candidates
+
+### Balance (97112)
+
+- ➕ Anterior & Posterior Step Over - BOSU
+- ➕ Feet Together Balance - Eyes Closed
+- ➕ Feet Together Balance - Foam Pad
+- ➕ Feet Together Balance - Foam Pad, Eyes Closed
+- ➕ Forward Bound On BOSU
+- ➕ Forward Hop On BOSU
+- ➕ In-line Balance - Half Kneeling
+- ➕ In-Line Balance - Half Kneeling, Eyes Closed
+- ➕ Lateral Bound On Bosu
+- ➕ Lateral Hop And Stick With Bosu
+- ➕ Plank - On Knees, BOSU
+- ➕ Plyometric Push Up - Bosu
+- ➕ Plyometric Push Up - BOSU Blue Side
+- ➕ Push Up - Bosu
+- ➕ Standing Balance - Horizontal Head Turn
+- ➕ Tall Plank - BOSU
+- ➕ Tall Plank Circles - BOSU
+- ➕ Y Balance Exercise
+- ➕ Y Balance Exercise - Foam Pad
+
+### Stretch (97110)
+
+- ➕ Adductor Mobility Flow In Quadruped
+- ➕ Ankle Mobility Drills and Tips and Tricks
+- ➕ Chest Opener - Hands Behind Head
+- ➕ Do You Need Mobility Work or Strength Work?
+- ➕ Dynamic Hip Mobility Drill
+- ➕ Finger Opener - Hand Exerciser
+- ➕ Half Kneeling Groin Opener
+- ➕ Lower Extremity Dynamic Flexibility Warm Up
+- ➕ Rearfoot & Midfoot Mobility & Stability Exercises
+- ➕ Tri-planar Hip Mobility Flow
+
+### Squat (97530)
+
+- ➕ Single Leg Wall Sit
+- ➕ Single Leg Wall Sit - Band
+- ➕ Single Leg Wall Sit - Heel Elevated
+- ➕ Single Leg Wall Sit - On Toes
+- ➕ Wall Sit - 45 deg
+- ➕ Wall Sit - 90 Deg
+- ➕ Wall Sit - March
+- ➕ Wall Sit - Offset
+- ➕ Wall Sit - On Toes
+- ➕ Wall Sit - Toe Lifts

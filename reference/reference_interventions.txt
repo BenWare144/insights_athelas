@@ -1,0 +1,199 @@
+reference_interventions.
+Note, Only the first line of each needs to be matched.
+
+===
+
+### All results for FRS:
+
+FRS Left Lumbar
+FRSL
+
+FRS Right Lumbar
+FRSR
+
+FRS Left Thoracic
+FRSL
+
+FRS Left Cervical
+FRSL
+
+FRS Right Thoracic
+FRSR
+
+FRS Right Cervical
+FRSR
+
+===
+
+### All results for ERS:
+
+ERS Left Lumbar
+ERSL
+
+ERS Right Lumbar
+ERSR
+
+ERS Left Thoracic
+ERSL
+
+ERS Left Cervical
+ERSL
+
+ERS Right Thoracic
+ERSR
+
+ERS Right Cervical
+ERSR Cervical
+
+===
+### First 50 results for MET:
+
+MET for posteriorly subluxed rib
+MET for posteriorly subluxed rib
+
+MET to restore left/right backward torsional motion (R/R correction)
+MET to restore left/right backward torsional motion (R/R correction)
+
+MET to restore left/left forward torsional motion (R/L correction)
+MET to restore left/left forward torsional motion (R/L correction)
+
+MET-Scapula
+Scapula
+
+MET-GH Joint
+GH joint
+
+MET-SC Joint
+SC Joint
+
+MET-AC Joint
+AC
+
+MET, TFL (prone)
+MET, TFL
+
+MET-Tibial IR
+IR
+
+MET-Tibial ER
+ER
+
+MET, OA Flexion
+MET
+
+MET, OA Extension
+MET
+
+MET, Right Rotation
+MET
+
+MET, Left Rotation
+MET
+
+MET, spinal flexion
+MET
+
+MET for left upslip
+MET for left upslip
+
+MET, iliopsoas (prone)
+MET, psoas
+
+MET for right upslip
+MET for right upslip
+
+MET, spinal extension
+MET
+
+MET, Left Lateral Flexion
+MET
+
+MET for elevated 1st rib
+MET for elevated 1st rib
+
+MET, spinal right rotation
+MET
+
+MET, spinal left rotation
+MET
+
+MET, Right Lateral Flexion
+MET
+
+Muscle Energy Technique (MET)
+MET
+
+MET for rib AP compression
+MET for rib AP compression
+
+MET, spinal left sidebending
+MET
+
+MET-Posterior Fibular Head
+Fibular Head
+
+MET for laterally flexed rib
+MET for laterally flexed rib
+
+MET, spinal right sidebending
+MET
+
+MET for anteriorly subluxed rib
+MET for anteriorly subluxed rib
+
+MET for internally torsioned rib
+MET for internally torsioned rib
+
+MET for externally torsioned rib
+MET for externally torsioned rib
+
+MET, anterior rotation left ilium
+MET
+
+MET, anterior rotation right ilium
+MET
+
+MET, posterior rotation right ilium
+MET
+
+MET, posterior rotation left ilium
+MET
+
+MET for R. unilateral flexed sacrum correction
+MET for R. unilateral flexed sacrum correction
+
+MET for L. unilateral flexed sacrum correction
+MET for L. unilateral flexed sacrum correction
+
+MET for R. unilateral extended sacrum correction
+MET for R. unilateral extended sacrum correction
+
+MET for L. unilateral extended sacrum-correction
+MET for L. unilateral extended sacrum-correction
+
+MET to restore right/right forward torsional motion (L/R correction)
+MET to restore right/right forward torsional motion (L/R correction)
+
+MET to restore right/left backward torsional motion (L/L correction)
+MET to restore right/left backward torsional motion (L/L correction)
+
+MET to restore posterior rotation of right innominate (ant. innominate correction)
+MET to restore posterior rotation of right innominate (ant. innominate correction)
+
+MET to restore posterior rotation of left innominate (ant. innominate correction)
+MET to restore posterior rotation of left innominate (ant. innominate correction)
+
+MET to restore anterior rotation of right innominate (post. innominate correction)
+MET to restore anterior rotation of right innominate (post. innominate correction)
+
+MET to restore anterior rotation of left innominate (post. innominate correction)
+MET to restore anterior rotation of left innominate (post. innominate correction)
+
+MET to restore superior shear of right sacrum (R. unilateral flexed sacrum correction)
+MET to restore superior shear of right sacrum (R. unilateral flexed sacrum correction)
+
+MET to restore superior shear of left sacrum (L. unilateral flexed sacrum correction)
+MET to restore superior shear of left sacrum (L. unilateral flexed sacrum correction)
+
+MET to restore superior shear of right pubic ramus (inf. pubic symphyseal correction)
+MET to restore superior shear of right pubic ramus (inf. pubic symphyseal correction)
