@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.14.0
+// @version      15.14.1
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
 // @run-at       document-start
 // @grant        GM_addStyle
 // @grant        window.onurlchange
+// @icon         https://raw.githubusercontent.com/BenWare144/insights_athelas/main/athelas-insights-helper-extension/icons/icon128.png
 // ==/UserScript==
 
 (function () {

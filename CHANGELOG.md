@@ -1,5 +1,10 @@
 # Changelog
 
+## 15.14.1 — 2026-07-31
+
+- App icon: the knee-chip icon is now the extension icon at all sizes (16/32/48/128, built to Chrome Web Store spec — 96px artwork + 16px padding on the 128). The userscript header gained an `@icon` pointing at the raw GitHub icon128.png, so Tampermonkey shows it too. No behavior change.
+- Housekeeping: userscript moved into its own `userscript/` dir; build guard (`GM_HEADER_LINES`) and regenerate command updated for the extra header line.
+
 ## 15.14.0 — 2026-07-28
 
 - Fix Procedures now only operates on interventions marked **"Done"** (per therapist request), matching Fix Private Pay. Un-checked items are left where they are, even if misplaced.

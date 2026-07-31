@@ -5,7 +5,6 @@
 
 # --- whitelisted ---
 !.gitignore
-!athelas-insights-helper.user.js
 !AGENTS.md
 !CHANGELOG.md
 !DEPLOYMENT.md
@@ -13,6 +12,10 @@
 
 !athelas-insights-helper-extension/
 !athelas-insights-helper-extension/**
+
+# source-of-truth Tampermonkey userscript
+!userscript/
+!userscript/**
 
 !tests/
 !tests/**

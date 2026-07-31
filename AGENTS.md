@@ -10,7 +10,7 @@ Shipped two ways, same code:
 
 | Artifact | File | Status |
 |---|---|---|
-| Tampermonkey userscript | `athelas-insights-helper.user.js` | **Source of truth.** Currently installed on the therapist's machine. |
+| Tampermonkey userscript | `userscript/athelas-insights-helper.user.js` | **Source of truth.** Currently installed on the therapist's machine. |
 | Chrome extension (MV3) | `athelas-insights-helper-extension/` | Generated from the userscript. Target for clinic-wide deployment. |
 
 ## Dual-artifact rule (important)
@@ -27,7 +27,7 @@ The extension runs the script in the **MAIN world** — required, because the on
 
 ## Repo map
 
-- `athelas-insights-helper.user.js` — the script. Modules are independent, booted at the bottom of the IIFE. Verbose `[athelas:tag]` console logging throughout; keep that style.
+- `userscript/athelas-insights-helper.user.js` — the script (source of truth). Modules are independent, booted at the bottom of the IIFE. Verbose `[athelas:tag]` console logging throughout; keep that style.
 - `athelas-insights-helper-extension/` — MV3 packaging (see its README).
 - `matching/` — the **canonical procedure-matching engine** `procedure-matching.js` (source of truth for the userscript's `Proc` engine; the only module with exports) + `procedure-matching.test.js`, plus the decision docs (`procedure-audit.md`, `procedure-matching-QUESTIONS.md`, `BRIDGES-review.md`) and the research trail in `analysis/`.
 - `reference/` — source data behind the rules: the canonical `Stuff for EMR.xlsx` and exercise-name lists. Exercise names only, **not PHI**.

@@ -1,6 +1,6 @@
 # Athelas Insights Helper — Chrome extension
 
-Chrome-extension packaging of `../athelas-insights-helper.user.js`. Same features, same code: the one-click **Fix Procedures** and **Fix Private Pay** helpers (with a per-change review dialog), jump-to-Flowsheet on load, and a minor compact-layout pass in the background.
+Chrome-extension packaging of `../userscript/athelas-insights-helper.user.js`. Same features, same code: the one-click **Fix Procedures** and **Fix Private Pay** helpers (with a per-change review dialog), jump-to-Flowsheet on load, and a minor compact-layout pass in the background.
 
 ## Why the odd manifest settings
 
@@ -14,7 +14,7 @@ The userscript is the source of truth. To regenerate after changing it:
 
 ```bash
 # from the repo root — keeps the 8-line banner, swaps in the fresh body
-{ head -n 8 athelas-insights-helper-extension/content.js; tail -n +12 athelas-insights-helper.user.js; } > /tmp/c.js \
+{ head -n 8 athelas-insights-helper-extension/content.js; tail -n +13 userscript/athelas-insights-helper.user.js; } > /tmp/c.js \
   && mv /tmp/c.js athelas-insights-helper-extension/content.js
 ```
 
