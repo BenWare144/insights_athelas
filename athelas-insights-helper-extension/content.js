@@ -1,10 +1,10 @@
-// Athelas Insights - Compact Mode + Chart Note Helpers (Chrome extension build)
-// v15.14.0 - ported verbatim from athelas-appointments-compact.user.js (the
+// Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
+// v15.14.0 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
-// Runs in the MAIN world (see manifest.json) so the Fix-MET module can reach
+// Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
-// GM_addStyle is undefined here, so applyCompactCss() takes its <style>
-// injection fallback path - intentional, no shim needed.
+// GM_addStyle is undefined here, so the compact CSS falls back to <style>
+// injection - intentional background feature, no shim needed.
 
 
 (function () {
@@ -857,7 +857,7 @@
                The v14 site rework replaced the interventions DataGrid with
                dnd-kit sortable cards - no .MuiDataGrid-* elements exist on the
                page anymore. Historical notes live in
-               athelas-appointments-compact.archive.js (featureSimpleGridHeight). */
+               athelas-insights-helper.archive.js (featureSimpleGridHeight). */
 
             /* ============================================================
                v15 Phase 1: horizontal space reclaim. CSS only - nothing is
@@ -1182,7 +1182,7 @@
 
     // =====================================================================
     // Disabled/legacy modules moved to companion file:
-    //   athelas-appointments-compact.archive.js
+    //   athelas-insights-helper.archive.js
     //
     // Includes featureAutofillInterventions, featureFocusInterventionsSearch,
     // featureMinsColumnHelpers, featureMoveToBottom, featureForceEditMode,
@@ -2480,7 +2480,7 @@
     // is exactly what makes them survive SPA navigation into a chart note. CSS and
     // jump-to-flowsheet are (re)applied per-navigation via onUrlChange.
     // Legacy modules disabled in the v14 site rework live in
-    // athelas-appointments-compact.archive.js (see note above MODULE 9).
+    // athelas-insights-helper.archive.js (see note above MODULE 9).
     // =====================================================================
     applyCompactCss();
     featureFixMisplacedMET();

@@ -2,7 +2,7 @@
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
 // @version      15.14.0
-// @description  One-click chart-note helpers for Athelas Insights: Fix Procedures (move "Done" interventions to the correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet; compact layout. Verbose logging.
+// @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
 // @run-at       document-start
@@ -860,7 +860,7 @@
                The v14 site rework replaced the interventions DataGrid with
                dnd-kit sortable cards - no .MuiDataGrid-* elements exist on the
                page anymore. Historical notes live in
-               athelas-appointments-compact.archive.js (featureSimpleGridHeight). */
+               athelas-insights-helper.archive.js (featureSimpleGridHeight). */
 
             /* ============================================================
                v15 Phase 1: horizontal space reclaim. CSS only - nothing is
@@ -1185,7 +1185,7 @@
 
     // =====================================================================
     // Disabled/legacy modules moved to companion file:
-    //   athelas-appointments-compact.archive.js
+    //   athelas-insights-helper.archive.js
     //
     // Includes featureAutofillInterventions, featureFocusInterventionsSearch,
     // featureMinsColumnHelpers, featureMoveToBottom, featureForceEditMode,
@@ -2483,7 +2483,7 @@
     // is exactly what makes them survive SPA navigation into a chart note. CSS and
     // jump-to-flowsheet are (re)applied per-navigation via onUrlChange.
     // Legacy modules disabled in the v14 site rework live in
-    // athelas-appointments-compact.archive.js (see note above MODULE 9).
+    // athelas-insights-helper.archive.js (see note above MODULE 9).
     // =====================================================================
     applyCompactCss();
     featureFixMisplacedMET();
