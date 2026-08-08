@@ -5,9 +5,11 @@
 // canonical rules (Stuff for EMR.xlsx + therapist markup on procedure-audit.md).
 //
 // resolveProcedure(name) -> null  (no rule; leave alone)
-//                         | { label, code, justification, justMode, rename?, exclude? }
+//                         | { label, code, justification, justMode, rename?, met?, exclude? }
 //   code        target CPT the item belongs under ('97110'|'97112'|'97530')
-//   justMode    'replace' (MET) | 'append' (has canonical text) | 'none' (move only)
+//   justMode    'append' (add canonical text, keep existing) | 'none' (move only)
+//               NOTE: per therapist request every justification is append-only now
+//               (no 'replace'); MET included. The Fixer joins with a single "\n".
 //   justification  text to write (null when justMode==='none' or MET-name-spliced)
 //   rename      if present, the item's name should be changed to this first
 //   exclude     true => explicitly leave alone (don't move/justify)
@@ -102,11 +104,11 @@ const RULES = [
   // 5. Rib Mobilization -> RENAME to "MET - Rib" and treat as MET.
   //    Exclude "first rib" — the therapist says "First Rib Mobilization - Strap"
   //    must NOT be treated as MET.
-  { label: 'Rib -> MET - Rib', code: '97112', justMode: 'replace', met: true, rename: 'MET - Rib',
+  { label: 'Rib -> MET - Rib', code: '97112', justMode: 'append', met: true, rename: 'MET - Rib',
     test: (n) => _has(n, 'rib mobilization') && !_has(n, 'first rib') },
 
-  // 6. MET family -> 97112, name-spliced justification (replace). Junk names ignored.
-  { label: 'MET', code: '97112', justMode: 'replace', met: true,
+  // 6. MET family -> 97112, name-spliced justification (append). Junk names ignored.
+  { label: 'MET', code: '97112', justMode: 'append', met: true,
     test: (n) => (_word(n, 'met') || _has(n, 'muscle energy')) },
 
   // 7. Balance family -> 97112 (glute-med justification). Broadened per therapist:
@@ -175,6 +177,7 @@ function resolveProcedure(name) {
       justification,
       justMode: r.justMode,
       rename: r.rename || null,
+      met: !!r.met,
     };
   }
   return null;

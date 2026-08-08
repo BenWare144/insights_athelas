@@ -1,5 +1,10 @@
 # Changelog
 
+## 15.16.0 — 2026-08-08
+
+- Justifications are now **append-only** for every rule, including MET (therapists' request). MET/Rib used to **replace** (overwrite) the Intervention details; they now append their canonical text and keep whatever the scribe wrote. Appended text is joined to the existing text with a **single newline**. In-place MET items are still standardized (the canonical MET text is added if missing), just via append instead of overwrite, and it's idempotent — re-running never duplicates. The per-change review dialog shows the existing text in grey and only the appended text in green.
+- Robustness: the "did it stick" read-back now compares whitespace-insensitively, since a newline may render as a paragraph/soft break in the rich-text field (whose textContent wouldn't contain the newline).
+
 ## 15.15.0 — 2026-08-08
 
 - Intersecting procedures: the **justification now follows the winning category**, not just the CPT code. A name matching two rules takes both its code and its justification from the same winning rule. Concretely, an "anterior step → single leg balance" (which files under 97530 as a step) now appends the step justification "Improve stair climbing ability" instead of moving with no justification. Lunge-into-balance and the other balance compounds were already correct (97112 + glute-med text); this closes the one remaining case that resolved on category alone. Every change is still shown in the review dialog before it's written.

@@ -150,6 +150,7 @@ item gets its canonical justification written into the "Intervention details" fi
 **replacing** whatever the scribe wrote.
 ▶ Overwrite justification for every matched procedure? **(YES / NO / only-if-blank)**
 BEN: Outside of the MET thing, append justification, don't replace.
+[Updated 2026-08-08: therapists asked for *all* justifications to be append-only, MET included — no rule uses replace anymore. Appended text is joined with a single newline. See CHANGELOG 15.16.0.]
 ---
 
 ## E. What I built while waiting on answers

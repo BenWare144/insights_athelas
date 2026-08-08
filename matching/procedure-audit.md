@@ -50,14 +50,14 @@
 | Wrist Skin and Joint Stretch | 97110 | Stretch | 97110 | no | none |  |
 | Single-Leg Balance - Left | 97112 | Balance | 97112 | no | append |  |
 | Tandem Stance, eyes open | 97112 | Balance | 97112 | no | append |  |
-| MET | 97110 | MET | 97112 | **YES** | replace |  |
-| MET | 97140 | MET | 97112 | **YES** | replace |  |
-| MET - CT Junction (FRS T1 and T2) | 97530 | MET | 97112 | **YES** | replace |  |
-| MET for posteriorly subluxed rib | 97112 | MET | 97112 | no | replace |  |
-| MET for posteriorly subluxed rib with IR | 97112 | MET | 97112 | no | replace |  |
-| MET to Superior Tib-Fib Joint | 97112 | MET | 97112 | no | replace |  |
-| Rib Mobilization | 97110 | Rib -> MET - Rib | 97112 | **YES** | replace | MET - Rib |
-| Rib Mobilization - Bilateral | 97140 | Rib -> MET - Rib | 97112 | **YES** | replace | MET - Rib |
+| MET | 97110 | MET | 97112 | **YES** | append |  |
+| MET | 97140 | MET | 97112 | **YES** | append |  |
+| MET - CT Junction (FRS T1 and T2) | 97530 | MET | 97112 | **YES** | append |  |
+| MET for posteriorly subluxed rib | 97112 | MET | 97112 | no | append |  |
+| MET for posteriorly subluxed rib with IR | 97112 | MET | 97112 | no | append |  |
+| MET to Superior Tib-Fib Joint | 97112 | MET | 97112 | no | append |  |
+| Rib Mobilization | 97110 | Rib -> MET - Rib | 97112 | **YES** | append | MET - Rib |
+| Rib Mobilization - Bilateral | 97140 | Rib -> MET - Rib | 97112 | **YES** | append | MET - Rib |
 | TKE on Cable column | 97530 | Cable column | 97530 | no | append |  |
 | Anterior Hip Stretch - Stride Lunge on Steps | 97110 | Lunge | 97530 | **YES** | append |  |
 | Chair squat | 97530 | Squat | 97530 | no | append |  |

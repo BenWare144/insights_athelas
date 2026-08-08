@@ -91,6 +91,19 @@ test('resolveProcedure: known real-world names map to expected outcome', () => {
     }
 });
 
+test('justifications are append-only: no rule uses replace mode (therapist request)', () => {
+    for (const r of RULES) {
+        assert.notEqual(r.justMode, 'replace', `rule "${r.label}" still uses replace mode`);
+    }
+    // MET + Rib used to be replace; they must now be append and still carry met:true.
+    const met = resolveProcedure('MET to Superior Tib-Fib Joint');
+    assert.equal(met.justMode, 'append');
+    assert.equal(met.met, true);
+    const rib = resolveProcedure('Rib Mobilization/Manipulation Right Ribs 1, 2, and 5');
+    assert.equal(rib.justMode, 'append');
+    assert.equal(rib.met, true);
+});
+
 test('first rule hit wins (Cable column outranks a later TKE-exclude / Squat)', () => {
     assert.equal(resolveProcedure('TKE on Cable column').code, '97530');
     assert.equal(resolveProcedure('MET squat tandem').label, 'MET');   // MET precedes Squat/Balance

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.15.0
+// @version      15.16.0
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -314,7 +314,9 @@
     //   | { label, exclude:true }                    (matched an "leave alone" rule)
     //   | { label, code, justification, justMode, rename }
     //     code       target CPT ('97110'|'97112'|'97530')
-    //     justMode   'replace' (MET) | 'append' (canonical text) | 'none' (move only)
+    //     justMode   'append' (add canonical text, keep existing) | 'none' (move only)
+    //                All justifications are append-only now (therapist request); MET
+    //                included. Existing text + "\n" + canonical text.
     //     rename     new name to set first (e.g. Rib -> "MET - Rib"), else null
     // First matching rule wins; order is deliberate.
     // =====================================================================
@@ -354,8 +356,8 @@
             { label: 'Bridges (under review — left alone)', exclude: true, test: (n) => _word(n, 'bridge') || _word(n, 'bridges') },
             { label: 'Curtsey step → balance (leave alone)', exclude: true, test: (n) => _has(n, 'curtsey') && _has(n, 'step') && _has(n, 'single leg balance') },
             { label: 'Anterior step → balance (97530)', code: '97530', just: J.stairs, justMode: 'append', test: (n) => _has(n, 'anterior') && _has(n, 'step') && _has(n, 'single leg balance') },   // justification follows the winning (step) category
-            { label: 'Rib -> MET - Rib', code: '97112', justMode: 'replace', met: true, rename: 'MET - Rib', test: (n) => _has(n, 'rib mobilization') && !_has(n, 'first rib') },
-            { label: 'MET', code: '97112', justMode: 'replace', met: true, test: (n) => (_word(n, 'met') || _has(n, 'muscle energy')) },
+            { label: 'Rib -> MET - Rib', code: '97112', justMode: 'append', met: true, rename: 'MET - Rib', test: (n) => _has(n, 'rib mobilization') && !_has(n, 'first rib') },
+            { label: 'MET', code: '97112', justMode: 'append', met: true, test: (n) => (_word(n, 'met') || _has(n, 'muscle energy')) },
             { label: 'Balance', code: '97112', just: J.gluteMed, justMode: 'append', test: (n) => _has(n, 'tandem') || _has(n, 'airex') || _has(n, 'bosu') || _has(n, 'balance') },
             { label: 'Lunge Hip Flexion Stretch', code: '97110', justMode: 'none', test: (n) => _has(n, 'lunge') && _has(n, 'hip flexion stretch') },
             { label: 'Lunge', code: '97530', just: J.squatrec, justMode: 'append', test: (n) => _has(n, 'lunge') },
@@ -386,7 +388,7 @@
                 // FINAL name (after any rename). Otherwise use the canonical text.
                 const finalName = r.rename || name;
                 const justification = r.met ? metJustification(finalName) : (r.just || null);
-                return { label: r.label, code: r.code, justification, justMode: r.justMode, rename: r.rename || null };
+                return { label: r.label, code: r.code, justification, justMode: r.justMode, rename: r.rename || null, met: !!r.met };
             }
             return null;
         };
@@ -527,7 +529,8 @@
                         const g = document.createElement('span'); g.textContent = r.appendText; g.style.color = '#127a2e'; line.appendChild(g);
                         c4.appendChild(line);
                     } else if (r.newJust) {
-                        // Replace (MET): old text struck through in red, new text in green.
+                        // Legacy replace fallback (no rule uses 'replace' now — all
+                        // justifications are append-only): old red strike-through, new green.
                         if (r.oldJust) {
                             const od = document.createElement('div'); const o = document.createElement('span');
                             o.textContent = r.oldJust; o.style.color = '#b3261e'; o.style.textDecoration = 'line-through'; od.appendChild(o); c4.appendChild(od);
@@ -631,15 +634,18 @@
             await sleep(20);
             return ok;
         }
+        // Compare "did it stick" whitespace-insensitively. We join justifications
+        // with "\n", but a Tiptap rich-text field may render that as a paragraph or
+        // soft break whose textContent has no "\n" (or a space). Collapsing all
+        // whitespace keeps the read-back check from failing on that alone.
+        const fxSameText = (a, b) => (a || '').replace(/\s+/g, '') === (b || '').replace(/\s+/g, '');
         async function fxWriteDetails(details, text, log) {
-            if ((details.textContent || '').trim() === text) return true;
+            if (fxSameText(details.textContent, text)) return true;
             for (let attempt = 1; attempt <= 3; attempt++) {
                 const usedTiptap = fxSetViaTiptap(details, text, log);
                 if (!usedTiptap) await fxSetViaExecCommand(details, text, log);
                 await sleep(150);
-                let now = (details.textContent || '').trim();
-                if (now === text) { await sleep(150); now = (details.textContent || '').trim(); }
-                if (now === text) return true;
+                if (fxSameText(details.textContent, text)) { await sleep(150); if (fxSameText(details.textContent, text)) return true; }
             }
             return false;
         }
@@ -653,8 +659,9 @@
             log && log.log('rename -> "' + newName + '": ' + (ok ? 'ok' : 'FAILED (value="' + (inp.value || '') + '")'));
             return ok;
         }
-        // Apply rename + justification. justMode: 'none' (leave), 'replace' (MET -
-        // overwrite), 'append' (add canonical text once, keep the scribe's text).
+        // Apply rename + justification. justMode: 'none' (leave), 'append' (add the
+        // canonical text once, keep the scribe's text). All justifications are
+        // append-only (therapist request); existing text + "\n" + canonical text.
         async function fxApplyItemFix(li, fix, log) {
             let renamed = false, justified = false;
             if (fix.rename && (nameOf(li) !== fix.rename)) renamed = await fxRenameItem(li, fix.rename, log);
@@ -662,9 +669,8 @@
             const details = li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
             if (!details) { log && log.warn('no "Intervention details" field for "' + nameOf(li) + '"'); return { renamed, justified }; }
             const existing = (details.textContent || '').trim();
-            let target;
-            if (fix.justMode === 'replace') { target = fix.justification; }
-            else { if (existing.includes(fix.justification)) return { renamed, justified: true }; target = existing ? (existing.replace(/\s+$/, '') + ' ' + fix.justification) : fix.justification; }
+            if (existing.includes(fix.justification)) return { renamed, justified: true };   // already present -> idempotent
+            const target = existing ? (existing.replace(/\s+$/, '') + '\n' + fix.justification) : fix.justification;
             justified = await fxWriteDetails(details, target, log);
             if (!justified && log) log.warn('justification for "' + nameOf(li) + '" did NOT stick');
             return { renamed, justified };
@@ -675,9 +681,8 @@
         }
         function fxComputeNewJust(fix, cur) {
             if (fix.justMode === 'none' || !fix.justification) return '';
-            if (fix.justMode === 'replace') return fix.justification;
             if (cur.includes(fix.justification)) return cur;
-            return cur ? (cur.replace(/\s+$/, '') + ' ' + fix.justification) : fix.justification;
+            return cur ? (cur.replace(/\s+$/, '') + '\n' + fix.justification) : fix.justification;
         }
         return { applyItemFix: fxApplyItemFix, currentDetailsText: fxCurrentDetailsText, computeNewJust: fxComputeNewJust };
     })();
@@ -1676,16 +1681,19 @@
             if (!r || r.exclude) return null;             // no rule, or "leave alone"
             const needsMove = r.code !== cardCode;
             const needsRename = !!r.rename && r.rename !== name;
-            // Standardize the MET/Rib justification even when it's already in the right
-            // card (this preserves the old Fix-MET behavior). We do NOT re-append the
-            // canonical text to already-correct 'append' items (avoids surprise edits to
-            // everything the scribe already placed & justified); those are fixed on move.
+            // Ensure the MET/Rib justification is present even when the item is already
+            // in the right card (this preserves the old Fix-MET behavior — MET items
+            // always carry the name-spliced MET text). Now append-only: we add it if
+            // it isn't already there, rather than overwriting. We still do NOT re-append
+            // the canonical text to already-correct non-MET 'append' items (avoids
+            // surprise edits to everything the scribe already placed); those are fixed
+            // on move.
             let needsJust = false;
             if (!needsMove && !needsRename) {
-                if (r.justMode === 'replace' && r.justification) {
+                if (r.met && r.justification) {
                     const details = li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
                     const cur = details ? (details.textContent || '').trim() : '';
-                    if (cur !== r.justification) needsJust = true;
+                    if (!cur.includes(r.justification)) needsJust = true;
                 }
                 if (!needsJust) return null;               // already correct, nothing to do
             }
