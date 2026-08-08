@@ -90,9 +90,13 @@ const RULES = [
   //    every other single-leg-balance ending (all the lunges, lateral/posterior
   //    steps) is Neuromuscular Reeducation (97112). These must beat Lunge/Step,
   //    so they sit above those rules.
+  //    Justification follows the WINNING category: because the anterior-step case
+  //    resolves as a step (97530), it carries the same stair-climbing text every
+  //    other Step rule uses (not move-only). See "justification also wins" note
+  //    in matching/analysis/matching-duplicates.md.
   { label: 'Curtsey step → balance (leave alone)', exclude: true,
     test: (n) => _has(n, 'curtsey') && _has(n, 'step') && _has(n, 'single leg balance') },
-  { label: 'Anterior step → balance (97530)', code: '97530', justMode: 'none',
+  { label: 'Anterior step → balance (97530)', code: '97530', just: J.stairs, justMode: 'append',
     test: (n) => _has(n, 'anterior') && _has(n, 'step') && _has(n, 'single leg balance') },
 
   // 5. Rib Mobilization -> RENAME to "MET - Rib" and treat as MET.

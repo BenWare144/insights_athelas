@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.14.1 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.15.0 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -349,7 +349,7 @@
             { label: 'TKE (leave alone)', exclude: true, test: (n) => _word(n, 'tke') || _has(n, 'terminal knee extension') },
             { label: 'Bridges (under review — left alone)', exclude: true, test: (n) => _word(n, 'bridge') || _word(n, 'bridges') },
             { label: 'Curtsey step → balance (leave alone)', exclude: true, test: (n) => _has(n, 'curtsey') && _has(n, 'step') && _has(n, 'single leg balance') },
-            { label: 'Anterior step → balance (97530)', code: '97530', justMode: 'none', test: (n) => _has(n, 'anterior') && _has(n, 'step') && _has(n, 'single leg balance') },
+            { label: 'Anterior step → balance (97530)', code: '97530', just: J.stairs, justMode: 'append', test: (n) => _has(n, 'anterior') && _has(n, 'step') && _has(n, 'single leg balance') },   // justification follows the winning (step) category
             { label: 'Rib -> MET - Rib', code: '97112', justMode: 'replace', met: true, rename: 'MET - Rib', test: (n) => _has(n, 'rib mobilization') && !_has(n, 'first rib') },
             { label: 'MET', code: '97112', justMode: 'replace', met: true, test: (n) => (_word(n, 'met') || _has(n, 'muscle energy')) },
             { label: 'Balance', code: '97112', just: J.gluteMed, justMode: 'append', test: (n) => _has(n, 'tandem') || _has(n, 'airex') || _has(n, 'bosu') || _has(n, 'balance') },

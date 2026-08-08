@@ -1,5 +1,10 @@
 # Changelog
 
+## 15.15.0 — 2026-08-08
+
+- Intersecting procedures: the **justification now follows the winning category**, not just the CPT code. A name matching two rules takes both its code and its justification from the same winning rule. Concretely, an "anterior step → single leg balance" (which files under 97530 as a step) now appends the step justification "Improve stair climbing ability" instead of moving with no justification. Lunge-into-balance and the other balance compounds were already correct (97112 + glute-med text); this closes the one remaining case that resolved on category alone. Every change is still shown in the review dialog before it's written.
+- Docs: `matching/analysis/matching-duplicates.md` now states the "justification also wins" principle; added regression tests for it.
+
 ## 15.14.1 — 2026-07-31
 
 - App icon: the knee-chip icon is now the extension icon at all sizes (16/32/48/128, built to Chrome Web Store spec — 96px artwork + 16px padding on the 128). The userscript header gained an `@icon` pointing at the raw GitHub icon128.png, so Tampermonkey shows it too. No behavior change.

@@ -2,6 +2,8 @@
 
 These 36 exercises satisfy two or more keyword rules, so they appear more than once in the raw analysis. In the live script only the FIRST matching rule wins (precedence order), shown as "→ resolves to". The others are why it shows up twice.
 
+**Justification also wins.** The winning rule supplies BOTH the CPT code and the justification — they always come from the same rule, never split. So a lunge-into-balance files under 97112 *and* gets the balance (glute-med) justification, not the lunge text; an anterior-step-into-balance files under 97530 *and* gets the step (stair-climbing) justification. (Earlier these intersections were resolved on category alone, which left the anterior-step case with no justification; that has been corrected.)
+
 
 - Anterior Lunge To Single Leg Balance
   - matches: Lunge [97530] , Balance [97112]
@@ -20,7 +22,7 @@ BEN: Correct
 
 - Anterior Step Down To Single Leg Balance
   - matches: Balance [97112] , Step down [97530]
-  - resolves to: Balance → 97112
+  - resolves to: Anterior step → balance → 97530 (step justification: "Improve stair climbing ability")
 BEN: This should be 97530
 
 - Anterior Step Up to Reverse Lunge
@@ -30,7 +32,7 @@ BEN: Correct
 
 - Anterior Step Up To Single Leg Balance
   - matches: Balance [97112] , Step up [97530]
-  - resolves to: Balance → 97112
+  - resolves to: Anterior step → balance → 97530 (step justification: "Improve stair climbing ability")
 BEN: This should be 97530
 
 - Body On Knee Flexion Stretch - PROM, Chair

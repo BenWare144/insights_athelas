@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.14.1
+// @version      15.15.0
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -353,7 +353,7 @@
             { label: 'TKE (leave alone)', exclude: true, test: (n) => _word(n, 'tke') || _has(n, 'terminal knee extension') },
             { label: 'Bridges (under review — left alone)', exclude: true, test: (n) => _word(n, 'bridge') || _word(n, 'bridges') },
             { label: 'Curtsey step → balance (leave alone)', exclude: true, test: (n) => _has(n, 'curtsey') && _has(n, 'step') && _has(n, 'single leg balance') },
-            { label: 'Anterior step → balance (97530)', code: '97530', justMode: 'none', test: (n) => _has(n, 'anterior') && _has(n, 'step') && _has(n, 'single leg balance') },
+            { label: 'Anterior step → balance (97530)', code: '97530', just: J.stairs, justMode: 'append', test: (n) => _has(n, 'anterior') && _has(n, 'step') && _has(n, 'single leg balance') },   // justification follows the winning (step) category
             { label: 'Rib -> MET - Rib', code: '97112', justMode: 'replace', met: true, rename: 'MET - Rib', test: (n) => _has(n, 'rib mobilization') && !_has(n, 'first rib') },
             { label: 'MET', code: '97112', justMode: 'replace', met: true, test: (n) => (_word(n, 'met') || _has(n, 'muscle energy')) },
             { label: 'Balance', code: '97112', just: J.gluteMed, justMode: 'append', test: (n) => _has(n, 'tandem') || _has(n, 'airex') || _has(n, 'bosu') || _has(n, 'balance') },

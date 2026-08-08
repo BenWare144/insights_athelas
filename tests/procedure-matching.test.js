@@ -106,3 +106,27 @@ test('justifications: append rules carry canonical text; MET is name-spliced', (
     assert.match(resolveProcedure('Rib Mobilization/Manipulation Right Ribs 1, 2, and 5').justification,
         /^Muscle energy technique applied to Rib,/);   // spliced from the RENAMED name
 });
+
+// When a name hits two rules, the WINNING rule decides BOTH the CPT code and the
+// justification — they never come from different rules. (Regression guard for the
+// corrected "justification also wins" principle; see matching-duplicates.md.)
+test('intersecting names: justification follows the winning category', () => {
+    // lunge + balance -> Balance wins: 97112 AND the glute-med balance text
+    // (NOT the lunge "squat and recover" text).
+    for (const name of ['Lateral Lunge to Single Leg Balance',
+                         'Posterior Lunge To Single Leg Balance',
+                         'Deficit Posterior Lunge - Step Up, Single Leg Balance']) {
+        const r = resolveProcedure(name);
+        assert.equal(r.code, '97112', `${name} should file under 97112`);
+        assert.equal(r.justification, J.gluteMed, `${name} should carry the balance justification`);
+        assert.notEqual(r.justification, J.squatrec, `${name} must NOT carry the lunge justification`);
+    }
+    // anterior step + balance -> Step wins: 97530 AND the stair-climbing text
+    // (previously move-only; justification now follows the winning step category).
+    for (const name of ['Anterior Step Up To Single Leg Balance',
+                        'Anterior Step Down To Single Leg Balance']) {
+        const r = resolveProcedure(name);
+        assert.equal(r.code, '97530', `${name} should file under 97530`);
+        assert.equal(r.justification, J.stairs, `${name} should carry the step justification`);
+    }
+});
