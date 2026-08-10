@@ -28,6 +28,10 @@
 !reference/
 !reference/**
 
+# canonical survey-scoring engine (functional-outcome features) + its tests
+!surveys/
+!surveys/**
+
 # Web Store deploy assets (the *.zip build artifact stays ignored via *.zip below)
 !deploy/
 !deploy/**

@@ -1,5 +1,15 @@
 # Changelog
 
+## 15.17.0 — 2026-08-10
+
+New initial-eval workflow features (present only on Initial/Eval notes; default present if the note type can't be read):
+
+- **Functional-Outcomes survey quick-add** — a floating 6-button panel above the Functional Outcomes heading (DHI, Modified Oswestry, NDI, LEFS, QuickDASH, KOS-ADLS). Each button drives the hover Autocomplete to add the survey. QoL: the "Add a functional outcome form" box is forced always-visible (no longer vanishes on mouse-move); added surveys auto-expand (best-effort); faint separators between question/answer rows; a "collapse + jump to top" control once a survey is scored.
+- **Goal from outcome score** — a button just above each completed survey's scores creates a goal the way therapists do (Plan → Goals → Create Goal; fills title, target date = POC end date, initial state, target state), behind the same per-change review dialog as Fix Procedures. Initial-state labels are family-aware and clinically correct: disability scales (DHI, Oswestry, NDI, QuickDASH) read as "% disability/handicap"; function scales (LEFS, KOS-ADLS) read as "% of full function", not disability. Target state is a family-aware stub until the real initial→target mapping is delivered.
+- New canonical, unit-tested engine `surveys/survey-scoring.js` (mirrored by the userscript `Surveys` module; `tests/surveys-sync.test.js` guards drift).
+
+Note: the DOM-driving parts (survey add, goal-form filling incl. the segmented date field, expand/collapse) are best-effort and pending live verification. DevTools hooks: `__athelasAddSurvey(key)`, `__athelasReadScores(key)`, `__athelasCreateGoal(key)`, `__athelasPocEndDate()`.
+
 ## 15.16.0 — 2026-08-08
 
 - Justifications are now **append-only** for every rule, including MET (therapists' request). MET/Rib used to **replace** (overwrite) the Intervention details; they now append their canonical text and keep whatever the scribe wrote. Appended text is joined to the existing text with a **single newline**. In-place MET items are still standardized (the canonical MET text is added if missing), just via append instead of overwrite, and it's idempotent — re-running never duplicates. The per-change review dialog shows the existing text in grey and only the appended text in green.

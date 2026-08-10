@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.16.0
+// @version      15.17.0
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -2484,6 +2484,335 @@
     }
 
     // =====================================================================
+    // SHARED: Surveys — functional-outcome scoring + goal strings.
+    // The pure block MIRRORS surveys/survey-scoring.js (keep in sync;
+    // surveys-sync.test.js compares them). DOM read/add wrappers below it.
+    // Used by MODULE 12 (survey quick-add) and MODULE 13 (goal-from-score).
+    // =====================================================================
+    const Surveys = (function () {
+        // ---- pure (MIRROR of surveys/survey-scoring.js) ----
+        const SURVEYS = [
+            { key: 'DHI',               auto: 'Dizziness Handicap Inventory (DHI)',      section: 'Dizziness Handicap Inventory (DHI)',      family: 'disability' },
+            { key: 'Modified Oswestry', auto: 'Modified Oswestry',                       section: 'Modified Oswestry',                       family: 'disability' },
+            { key: 'NDI',               auto: 'Neck Disability Index [NDI]',             section: 'Neck Disability Index [NDI]',             family: 'disability' },
+            { key: 'LEFS',              auto: 'Lower Extremity Functional Scale [LEFS]', section: 'Lower Extremity Functional Scale [LEFS]', family: 'function' },
+            { key: 'QuickDASH',         auto: 'QuickDASH',                               section: 'QuickDASH',                               family: 'disability' },
+            { key: 'KOS-ADLS',          auto: 'KOS - Activities of Daily Living',        section: 'KOS - Activities of Daily Living',        family: 'function' },
+        ];
+        const byKey = (k) => SURVEYS.find((s) => s.key === k) || null;
+        function parseScoreText(text) {
+            const out = {}; const re = /([A-Za-z][A-Za-z %/]*?)\s*:\s*(-?\d+(?:\.\d+)?)/g; let m;
+            while ((m = re.exec(text || ''))) out[m[1].trim()] = parseFloat(m[2]);
+            return out;
+        }
+        const fmtNum = (n) => (n === null || n === undefined || isNaN(n)) ? null : (Number.isInteger(n) ? String(n) : String(+n.toFixed(1)));
+        function scoreValues(key, pairs) {
+            pairs = pairs || {}; const pct = pairs['Score %'];
+            switch (key) {
+                case 'DHI':               return { points: pairs['DHI Total Score'] !== undefined ? pairs['DHI Total Score'] : pairs['Total Score'], max: 100 };
+                case 'Modified Oswestry': return { pct };
+                case 'NDI':               return { points: pairs['Score'], max: 50, pct };
+                case 'LEFS':              return { points: pairs['Score'], max: 80, pct };
+                case 'QuickDASH':         return { pct, max: 100 };
+                case 'KOS-ADLS':          return { pct: pairs['Total Score'] };
+                default:                  return {};
+            }
+        }
+        function initialStateText(key, pairs) {
+            const v = scoreValues(key, pairs); const P = fmtNum(v.points), C = fmtNum(v.pct);
+            switch (key) {
+                case 'DHI':               return P === null ? '' : `DHI score of ${P}/100`;
+                case 'Modified Oswestry': return C === null ? '' : `Modified Oswestry score of ${C}% disability`;
+                case 'NDI':               return (P === null && C === null) ? '' : `NDI score of ${P === null ? '?' : P}/50 (${C === null ? '?' : C}% disability)`;
+                case 'LEFS':              return (P === null && C === null) ? '' : `LEFS score of ${P === null ? '?' : P}/80 (${C === null ? '?' : C}% of full function)`;
+                case 'QuickDASH':         return C === null ? '' : `QuickDASH score of ${C}/100`;
+                case 'KOS-ADLS':          return C === null ? '' : `KOS-ADLS score of ${C}% of full function`;
+                default:                  return '';
+            }
+        }
+        const goalTitle = (key) => (byKey(key) ? `${key} score` : '');
+        function computeTargetState(key, pairs) {
+            const s = byKey(key); if (!s) return '';
+            const dir = s.family === 'function' ? 'improved function' : 'reduced disability';
+            return `Patient will have a ${key} score reflecting ${dir} for improved QOL. [TARGET TBD]`;
+        }
+        function isInitialEvalValue(v) { if (v === null || v === undefined || v === '') return true; return /\beval/i.test(v); }
+
+        // ---- DOM wrappers ----
+        const T = (s) => (s || '').trim();
+        const noteTypeValue = () => { const i = document.querySelector('input[aria-label="Clinical Note Type"]'); return i ? (i.value || '') : ''; };
+        const isInitialEval = () => isInitialEvalValue(noteTypeValue());
+        const foSection = () => document.querySelector('[data-section="functional_outcomes"]');
+        const goalsSection = () => document.querySelector('[data-section="goals"]');
+        const surveyRegion = (section) => [...document.querySelectorAll('[data-section]')].find((e) => T(e.getAttribute('data-section')) === T(section));
+        const scoresRegion = (section) => [...document.querySelectorAll('[aria-label^="Scores for "]')].find((e) => T(e.getAttribute('aria-label').replace(/^Scores for\s+/, '')) === T(section));
+        function readScores(key) { const s = byKey(key); if (!s) return null; const r = scoresRegion(s.section); return r ? parseScoreText(r.textContent || '') : null; }
+        function pocEndDate() {
+            const poc = document.querySelector('[data-section="plan_of_care"]') || document.body;
+            const m = (poc.textContent || '').match(/Plan of Care End Date:\s*(\d{2}\/\d{2}\/\d{4})/i);
+            return m ? m[1] : null;
+        }
+        async function addSurvey(key, log) {
+            const s = byKey(key); if (!s) { log && log.warn('unknown survey', key); return false; }
+            // The input is always in the DOM but CSS-hidden until hover; MODULE 12's
+            // CSS forces it visible so we can drive it directly.
+            const input = document.querySelector('input[placeholder="Add a functional outcome form"]');
+            if (!input) { log && log.warn('addSurvey: no "Add a functional outcome form" input'); return false; }
+            input.focus();
+            setReactValue(input, s.auto, log);
+            const want = T(s.auto).toLowerCase();
+            let option = null;
+            for (let i = 0; i < 40 && !option; i++) {
+                await sleep(80);
+                const opts = [...document.querySelectorAll('[role="listbox"] [role="option"]')];
+                option = opts.find((o) => T(o.textContent).toLowerCase() === want) || opts.find((o) => T(o.textContent).toLowerCase().startsWith(want));
+            }
+            if (!option) { log && log.warn('addSurvey: option not found for', s.auto); return false; }
+            simulateClick(option, log);
+            await sleep(200);
+            log && log.log('addSurvey: added', key);
+            return true;
+        }
+        return { SURVEYS, byKey, parseScoreText, fmtNum, scoreValues, initialStateText, goalTitle, computeTargetState, isInitialEvalValue, isInitialEval, noteTypeValue, foSection, goalsSection, surveyRegion, scoresRegion, readScores, pocEndDate, addSurvey };
+    })();
+
+    // small shared DOM utilities for the two new modules
+    function athInjectStyle(id, css) {
+        if (document.getElementById(id)) return;
+        try { if (typeof GM_addStyle === 'function') { const s = GM_addStyle(css); if (s && s.id !== undefined) s.id = id; return; } } catch (e) {}
+        const el = document.createElement('style'); el.id = id; el.textContent = css; (document.head || document.documentElement).appendChild(el);
+    }
+    function athObserveBody(cb, ms) {
+        let pending = null;
+        const run = () => { pending = null; try { cb(); } catch (e) {} };
+        const obs = new MutationObserver(() => { if (!pending) pending = setTimeout(run, ms || 300); });
+        const start = () => obs.observe(document.body, { childList: true, subtree: true });
+        if (document.body) start();
+        else new MutationObserver((_, o) => { if (document.body) { o.disconnect(); start(); } }).observe(document.documentElement, { childList: true });
+    }
+    function athFindButtonByText(root, text, preferLast) {
+        const want = (text || '').trim().toLowerCase();
+        const btns = [...(root || document).querySelectorAll('button, [role="button"]')].filter((b) => (b.textContent || '').trim().toLowerCase() === want);
+        return preferLast ? btns[btns.length - 1] : btns[0];
+    }
+
+    // Compact per-change review dialog for goal creation (styled like athConfirmMoves).
+    // fields = { title, date, initial, target }. Returns { confirmed, skip:Set }.
+    function athConfirmGoal(heading, fields) {
+        return new Promise((resolve) => {
+            const stop = (fn) => (ev) => { ev.preventDefault(); ev.stopPropagation(); fn(); };
+            const overlay = document.createElement('div');
+            Object.assign(overlay.style, { position: 'fixed', inset: '0', background: 'rgba(0,0,0,.35)', zIndex: 2147483600, display: 'flex', alignItems: 'center', justifyContent: 'center' });
+            const panel = document.createElement('div');
+            Object.assign(panel.style, { background: '#fff', borderRadius: '8px', maxWidth: '560px', width: '92%', maxHeight: '80vh', overflow: 'auto', font: '13px/1.45 system-ui, sans-serif', boxShadow: '0 10px 40px rgba(0,0,0,.3)' });
+            const head = document.createElement('div'); head.textContent = heading;
+            Object.assign(head.style, { padding: '14px 18px', borderBottom: '1px solid #e5e5e5', fontWeight: '700' });
+            panel.appendChild(head);
+            const body = document.createElement('div'); Object.assign(body.style, { padding: '10px 18px' });
+            const rows = [
+                { k: 'title', label: 'Goal title', val: fields.title, checkable: false },
+                { k: 'date', label: 'Target date (POC end)', val: fields.date || '(none found — will skip)', checkable: false },
+                { k: 'initial', label: 'Initial state', val: fields.initial, checkable: true },
+                { k: 'target', label: 'Target state', val: fields.target, checkable: true },
+            ];
+            const checks = {};
+            for (const r of rows) {
+                const line = document.createElement('div'); Object.assign(line.style, { display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '7px 0', borderBottom: '1px solid #f0f0f0' });
+                const left = document.createElement('div'); Object.assign(left.style, { width: '150px', color: '#666', flex: '0 0 auto' });
+                left.textContent = r.label;
+                const right = document.createElement('div'); right.style.flex = '1'; right.textContent = r.val || '(empty)';
+                if (r.checkable) {
+                    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true; checks[r.k] = cb;
+                    const wrap = document.createElement('label'); Object.assign(wrap.style, { display: 'flex', gap: '6px', flex: '1', alignItems: 'flex-start' });
+                    wrap.appendChild(cb); wrap.appendChild(right); line.appendChild(left); line.appendChild(wrap);
+                } else { line.appendChild(left); line.appendChild(right); }
+                body.appendChild(line);
+            }
+            panel.appendChild(body);
+            const foot = document.createElement('div'); Object.assign(foot.style, { padding: '12px 18px', borderTop: '1px solid #e5e5e5', display: 'flex', justifyContent: 'flex-end', gap: '10px' });
+            const cancel = document.createElement('button'); cancel.textContent = 'Cancel'; Object.assign(cancel.style, { padding: '6px 14px', cursor: 'pointer' });
+            const ok = document.createElement('button'); ok.textContent = 'Create goal'; Object.assign(ok.style, { padding: '6px 14px', cursor: 'pointer', background: '#1d4ed8', color: '#fff', border: '1px solid #1a3fae', borderRadius: '4px', fontWeight: '600' });
+            foot.appendChild(cancel); foot.appendChild(ok); panel.appendChild(foot);
+            overlay.appendChild(panel); document.body.appendChild(overlay);
+            const close = (confirmed) => {
+                const skip = new Set(); Object.keys(checks).forEach((k) => { if (!checks[k].checked) skip.add(k); });
+                overlay.remove(); document.removeEventListener('keydown', onKey); resolve({ confirmed, skip });
+            };
+            const onKey = (ev) => { if (ev.key === 'Escape') stop(() => close(false))(ev); };
+            cancel.addEventListener('click', stop(() => close(false)));
+            ok.addEventListener('click', stop(() => close(true)));
+            overlay.addEventListener('click', (ev) => { if (ev.target === overlay) stop(() => close(false))(ev); });
+            document.addEventListener('keydown', onKey);
+        });
+    }
+
+    // =====================================================================
+    // MODULE 12: Functional-Outcomes survey quick-add panel + QoL fixes.
+    // A floating 6-button panel above the Functional Outcomes heading (below
+    // Objective). Buttons drive the hover Autocomplete. QoL: persistent add box
+    // (CSS), expand-added-survey, faint Q/A separators, collapse+jump control.
+    // Initial/eval notes only (Surveys.isInitialEval); default present if unknown.
+    // NOTE: expand/separator/collapse are best-effort and may need selector
+    // tuning once verified against the live collapsed-survey markup.
+    // =====================================================================
+    function featureSurveyQuickAdd() {
+        const log = makeLogger('surveys');
+        athInjectStyle('ath-surveys-css', `
+            /* Keep the "Add a functional outcome form" toolbar visible so it does
+               not vanish on mouse-move (Ben's request). It is normally hover-only
+               (md:tr-invisible -> group-hover:tr-visible). */
+            [data-section="functional_outcomes"] .md\\:tr-invisible { visibility: visible !important; }
+            /* Faint separator between question/answer rows inside a survey region.
+               Targets direct flex/grid rows; refine once the live row markup is seen. */
+            [data-section="functional_outcomes"] [role="region"] .MuiBox-root > .MuiBox-root + .MuiBox-root { border-top: 1px solid rgba(0,0,0,.06); }
+            .ath-survey-panel { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+            .ath-survey-btn { padding: 4px 10px; background: #0f766e; color: #fff; border: 1px solid #0b5c55; border-radius: 4px; font: 600 12px/1.2 system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
+            .ath-survey-btn:hover { background: #0b5c55; }
+            .ath-survey-btn:disabled { opacity: .6; cursor: default; }
+            .ath-collapse-btn { margin: 4px 0 4px 8px; padding: 2px 8px; background: #eee; color: #333; border: 1px solid #ccc; border-radius: 4px; font: 500 11px/1.2 system-ui, sans-serif; cursor: pointer; }
+        `);
+
+        async function expandSurvey(section) {
+            const r = Surveys.surveyRegion(section); if (!r) return;
+            const tog = r.querySelector('[aria-expanded="false"]');
+            if (tog) { simulateClick(tog, log); log.log('expanded survey', section); }
+        }
+        function injectPanel() {
+            if (!Surveys.isInitialEval()) return;
+            const fo = Surveys.foSection(); if (!fo) return;
+            if (fo.querySelector('.ath-survey-panel')) return;
+            const panel = document.createElement('div'); panel.className = 'ath-survey-panel';
+            for (const s of Surveys.SURVEYS) {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'ath-survey-btn'; b.textContent = s.key;
+                b.title = 'Add "' + s.auto + '" to Functional Outcomes';
+                b.addEventListener('click', async (ev) => {
+                    ev.preventDefault(); ev.stopPropagation();
+                    b.disabled = true; const old = b.textContent; b.textContent = '…';
+                    try { const okAdd = await Surveys.addSurvey(s.key, log); b.textContent = okAdd ? '✓' : '!'; if (okAdd) { await sleep(400); await expandSurvey(s.section); } }
+                    catch (e) { log.error('addSurvey failed', e); b.textContent = 'err'; }
+                    finally { setTimeout(() => { b.textContent = old; b.disabled = false; }, 1500); }
+                });
+                panel.appendChild(b);
+            }
+            fo.insertBefore(panel, fo.firstChild);
+            log.log('survey quick-add panel injected');
+        }
+        function injectCollapseControls() {
+            for (const s of Surveys.SURVEYS) {
+                const r = Surveys.surveyRegion(s.section); if (!r) continue;
+                const sc = Surveys.scoresRegion(s.section); if (!sc) continue;     // only once it's scored
+                if (r.querySelector('.ath-collapse-btn')) continue;
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'ath-collapse-btn';
+                b.textContent = '⤒ collapse'; b.title = 'Collapse this survey and jump to its top';
+                b.addEventListener('click', (ev) => {
+                    ev.preventDefault(); ev.stopPropagation();
+                    const tog = r.querySelector('[aria-expanded="true"]'); if (tog) simulateClick(tog, log);
+                    r.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+                sc.parentNode.insertBefore(b, sc);
+            }
+        }
+        const tick = () => { try { injectPanel(); injectCollapseControls(); } catch (e) { log.error(e); } };
+        tick(); athObserveBody(tick, 300);
+        window.__athelasAddSurvey = (k) => Surveys.addSurvey(k, log);
+        window.__athelasReadScores = (k) => Surveys.readScores(k);
+        window.__athelasSurveys = Surveys;
+        log.log('survey quick-add ready. Hooks: __athelasAddSurvey(key), __athelasReadScores(key).');
+    }
+
+    // =====================================================================
+    // MODULE 13: Goal-from-score. A button just above each completed survey's
+    // scores creates a goal the way therapists do (Plan -> Goals -> Create Goal,
+    // fill title/target-date/initial/target states), behind the per-change review
+    // dialog. Target state is a family-aware STUB (Surveys.computeTargetState)
+    // until Ben delivers the real mapping.
+    // NOTE: the Create-Goal form driving (open, +state chips, segmented date typing,
+    // submit) is best-effort and should be verified live; run window.__athelasCreateGoal(key).
+    // =====================================================================
+    function featureGoalFromScore() {
+        const log = makeLogger('goals');
+
+        function findAddChip(labelText) {
+            // The "+ Initial State" / "+ Target State" add-buttons are MuiChips with
+            // an AddIcon, sitting near a label span with that text.
+            const label = [...document.querySelectorAll('span, label, div')].find((e) => e.children.length === 0 && (e.textContent || '').trim() === labelText);
+            const scope = label ? (label.closest('.MuiBox-root') || label.parentElement) : document;
+            let chip = (scope || document).querySelector('[role="button"].MuiChip-root, .MuiChip-root[role="button"]');
+            if (!chip) { const add = (scope || document).querySelector('svg[data-testid="AddIcon"]'); chip = add ? add.closest('[role="button"], button, .MuiChip-root') : null; }
+            return chip;
+        }
+        async function typeDate(el, mmddyyyy, log) {
+            const digits = (mmddyyyy || '').replace(/\D/g, ''); if (!digits) return false;
+            el.focus(); el.click();
+            setReactValue(el, mmddyyyy, log);          // try the simple path first
+            await sleep(60);
+            if ((el.value || '').replace(/\D/g, '') === digits) return true;
+            // segmented MUI date field: type digit by digit (MM DD YYYY)
+            for (const ch of digits) {
+                el.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
+                el.dispatchEvent(new KeyboardEvent('keypress', { key: ch, bubbles: true }));
+                el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
+                await sleep(20);
+            }
+            return (el.value || '').replace(/\D/g, '').includes(digits.slice(0, 4));
+        }
+        async function createGoal(fields, skip, log, prog) {
+            const goals = Surveys.goalsSection(); if (!goals) throw new Error('no goals section');
+            goals.scrollIntoView({ block: 'center' }); await sleep(150);
+            const openBtn = athFindButtonByText(goals, 'Create Goal') || athFindButtonByText(document, 'Create Goal');
+            if (!openBtn) throw new Error('no "Create Goal" button'); simulateClick(openBtn, log); await sleep(450);
+            const title = await waitFor('input[name="name"]', { timeoutMs: 5000, log }); setReactValue(title, fields.title, log); await sleep(120);
+            if (fields.date) { const d = document.querySelector('input[name="due_date"]'); if (d) { prog && prog.update('Setting target date…'); await typeDate(d, fields.date, log); } else log.warn('no due_date field'); }
+            if (!skip.has('initial') && fields.initial) {
+                prog && prog.update('Adding initial state…');
+                const chip = findAddChip('Initial State'); if (chip) { simulateClick(chip, log); await sleep(300); }
+                const iv = document.querySelector('input[name="initial_value"]'); if (iv) setReactValue(iv, fields.initial, log); else log.warn('no initial_value input');
+            }
+            if (!skip.has('target') && fields.target) {
+                prog && prog.update('Adding target state…');
+                const chip = findAddChip('Target State'); if (chip) { simulateClick(chip, log); await sleep(300); }
+                const tv = document.querySelector('input[name="end_goal_value"]'); if (tv) setReactValue(tv, fields.target, log); else log.warn('no end_goal_value input');
+            }
+            await sleep(150);
+            const submit = athFindButtonByText(document, 'Create Goal', true);
+            if (submit) { simulateClick(submit, log); log.log('submitted Create Goal'); } else log.warn('no submit "Create Goal" button');
+        }
+        async function runGoal(s, btn) {
+            const scores = Surveys.readScores(s.key) || {};
+            const fields = { title: Surveys.goalTitle(s.key), date: Surveys.pocEndDate(), initial: Surveys.initialStateText(s.key, scores), target: Surveys.computeTargetState(s.key, scores) };
+            log.log('goal fields for', s.key, fields);
+            const { confirmed, skip } = await athConfirmGoal('Create goal — ' + s.key, fields);
+            if (!confirmed) { log.log('goal cancelled'); return; }
+            if (btn && btn.dataset) { btn.disabled = true; }
+            const prog = athToast('Creating ' + s.key + ' goal…', { ttl: 0 });
+            try { await createGoal(fields, skip, log, prog); prog.update('Goal created — review before saving'); prog.arm && prog.arm(3000); if (btn) btn.textContent = '✓ created'; }
+            catch (e) { log.error('createGoal failed', e); prog.update('Goal failed — see console'); prog.arm && prog.arm(3000); if (btn) btn.textContent = 'error'; }
+            finally { if (btn) setTimeout(() => { btn.textContent = 'Create ' + s.key + ' goal'; btn.disabled = false; }, 3000); }
+        }
+        function injectGoalButtons() {
+            if (!Surveys.isInitialEval()) return;
+            for (const s of Surveys.SURVEYS) {
+                const sc = Surveys.scoresRegion(s.section); if (!sc) continue;
+                if (sc.parentNode.querySelector('.ath-goal-btn[data-k="' + s.key + '"]')) continue;
+                const init = Surveys.initialStateText(s.key, Surveys.parseScoreText(sc.textContent || ''));
+                if (!init) continue;   // only once the survey has a real score
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'ath-goal-btn'; b.dataset.k = s.key;
+                Object.assign(b.style, { display: 'inline-block', margin: '4px 0', padding: '4px 10px', background: '#1d4ed8', color: '#fff', border: '1px solid #1a3fae', borderRadius: '4px', font: '600 12px/1.2 system-ui, sans-serif', cursor: 'pointer' });
+                b.textContent = 'Create ' + s.key + ' goal';
+                b.addEventListener('mouseenter', () => { b.style.background = '#1a3fae'; });
+                b.addEventListener('mouseleave', () => { b.style.background = '#1d4ed8'; });
+                b.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); runGoal(s, b); });
+                sc.parentNode.insertBefore(b, sc);   // just ABOVE the scores
+            }
+        }
+        const tick = () => { try { injectGoalButtons(); } catch (e) { log.error(e); } };
+        tick(); athObserveBody(tick, 400);
+        window.__athelasCreateGoal = (k) => { const s = Surveys.byKey(k); if (s) return runGoal(s, null); log.warn('unknown survey', k); };
+        window.__athelasPocEndDate = () => Surveys.pocEndDate();
+        log.log('goal-from-score ready. Hooks: __athelasCreateGoal(key), __athelasPocEndDate().');
+    }
+
+    // =====================================================================
     // Boot: run each module in turn. They're independent.
     //
     // The button/preview features are observer-driven and self-heal, so we
@@ -2498,6 +2827,8 @@
     featureFixMisplacedMET();
     featureFixPrivatePay();
     featureProcedureMatchPreview();
+    featureSurveyQuickAdd();
+    featureGoalFromScore();
 
     // Jump to the flowsheet only when we ENTER a new chart note (its patient +
     // appointment id changes) - NOT on same-note section clicks, which also change
