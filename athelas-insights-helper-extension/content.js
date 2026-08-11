@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.20.1 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.20.2 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -2682,7 +2682,7 @@
             const overlay = document.createElement('div');
             Object.assign(overlay.style, { position: 'fixed', inset: '0', background: 'rgba(0,0,0,.35)', zIndex: 2147483600, display: 'flex', alignItems: 'center', justifyContent: 'center' });
             const panel = document.createElement('div');
-            Object.assign(panel.style, { background: '#fff', borderRadius: '8px', maxWidth: '580px', width: '92%', maxHeight: '85vh', overflow: 'auto', font: '13px/1.5 system-ui, sans-serif', boxShadow: '0 10px 40px rgba(0,0,0,.3)' });
+            Object.assign(panel.style, { background: '#fff', borderRadius: '8px', maxWidth: '860px', width: '94%', maxHeight: '88vh', overflow: 'auto', font: '13px/1.5 system-ui, sans-serif', boxShadow: '0 10px 40px rgba(0,0,0,.3)' });
             const head = document.createElement('div'); head.textContent = heading;
             Object.assign(head.style, { padding: '14px 18px', borderBottom: '1px solid #e5e5e5', fontWeight: '700' });
             panel.appendChild(head);
@@ -2711,7 +2711,7 @@
             // Full survey description (what the score means) in a bubble at the BOTTOM.
             if (description) {
                 const d = document.createElement('div');
-                Object.assign(d.style, { background: '#f5f7ff', border: '1px solid #e0e6ff', borderRadius: '6px', padding: '10px 12px', color: '#334', fontSize: '12px', lineHeight: '1.5', marginTop: '14px', whiteSpace: 'pre-wrap', maxHeight: '260px', overflow: 'auto' });
+                Object.assign(d.style, { background: '#f5f7ff', border: '1px solid #e0e6ff', borderRadius: '6px', padding: '12px 14px', color: '#334', fontSize: '12.5px', lineHeight: '1.55', marginTop: '14px', whiteSpace: 'pre-wrap' });
                 d.textContent = description;
                 bodyEl.appendChild(d);
             }
@@ -2810,8 +2810,8 @@
         const log = makeLogger('goals');
         athInjectStyle('ath-goal-css', `
             .ath-survey-status {
-                margin-left: auto; padding: 7px 16px; border: none; border-radius: 6px;
-                font: 700 13px/1.2 system-ui, sans-serif; cursor: pointer; white-space: nowrap; color: #fff;
+                align-self: flex-end; margin: 8px 0 4px; padding: 9px 20px; border: none; border-radius: 6px;
+                font: 700 14px/1.2 system-ui, sans-serif; cursor: pointer; white-space: nowrap; color: #fff;
             }
             .ath-survey-status.is-incomplete { background: #dc2626; }
             .ath-survey-status.is-incomplete:hover { background: #b91c1c; }
@@ -2940,7 +2940,6 @@
             if (!Surveys.isInitialEval()) return;
             for (const s of Surveys.SURVEYS) {
                 const region = Surveys.surveyRegion(s.section); if (!region) continue;
-                const heading = region.querySelector('[role="heading"]'); if (!heading || !heading.parentElement) continue;
                 let btn = region.querySelector('.ath-survey-status');
                 if (!btn) {
                     btn = document.createElement('button'); btn.type = 'button'; btn.className = 'ath-survey-status';
@@ -2950,7 +2949,7 @@
                         collapseAndJump(rgn);
                         if (btn.dataset.state === 'complete') runGoal(s, null);
                     });
-                    heading.parentElement.appendChild(btn);   // right side of the header row (margin-left:auto)
+                    region.appendChild(btn);   // BOTTOM of the survey (original spot), right-aligned via align-self:flex-end
                 }
                 const scores = Surveys.readScores(s.key);
                 const complete = !!(scores && Surveys.initialStateText(s.key, scores));

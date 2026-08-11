@@ -1,5 +1,10 @@
 # Changelog
 
+## 15.20.2 — 2026-08-11
+
+- Survey status button back to the **bottom of the survey (its original spot), right-aligned** via align-self:flex-end — not the header row. In the rework it had been put in the header and pushed right with margin-left:auto, but that header row is shrink-wrapped so it only moved next to the name. Also made it bigger.
+- Goal dialog is wider (860px) and taller (88vh) and the description bubble no longer has its own scrollbar — the full text fits in the larger dialog.
+
 ## 15.20.1 — 2026-08-11
 
 Corrections to 15.20.0:
