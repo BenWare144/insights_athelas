@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.20.0
+// @version      15.20.1
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -2511,12 +2511,12 @@
         // Condensed score reminders (from reference/reference_surveys.txt) shown in
         // the goal dialog so the therapist recalls what the number means.
         const DESCRIPTIONS = {
-            'QuickDASH': 'QuickDASH — 11-item measure of upper-extremity (arm/shoulder/hand) symptoms & function, 0–100. Higher = more disability (0 = none, 100 = greatest); a lower score at follow-up = improvement.',
-            'LEFS': 'LEFS — 20-item measure of lower-extremity function (walking, stairs, squatting…), 0–80. Higher = better function (80 = no limitation, 0 = extreme limitation).',
-            'NDI': 'NDI — 10-section measure of neck-pain disability, 0–50 raw (also shown as %). Higher = more disability. 0–4 none, 5–14 mild, 15–24 moderate, 25–34 severe, 35–50 complete.',
-            'Modified Oswestry': 'Modified Oswestry (ODI) — low-back disability as a % (raw 0–50 → %). Higher = more disability. 0–20% minimal, 21–40% moderate, 41–60% severe, 61–80% very severe, 81–100% bedbound.',
-            'DHI': 'DHI — 25-item measure of the physical, functional & emotional effect of dizziness, 0–100. Higher = greater handicap. 0–14 none, 16–34 mild, 36–52 moderate, 54–100 severe.',
-            'KOS-ADLS': 'KOS-ADLS — 14-item measure of knee symptoms & daily function as a % (raw 0–70 → %). Higher = better function (100% = no limitation); lower = greater limitation.',
+            "QuickDASH": "The Quick Disabilities of the Arm, Shoulder and Hand questionnaire, or QuickDASH, is a standardized 11-item patient-reported outcome measure used to assess symptoms and functional limitations involving the upper extremity. It evaluates the patient's ability to perform common daily activities and the degree to which pain, tingling, weakness, and stiffness affect function.\n\nThe QuickDASH is scored from 0 to 100. A score of 0 indicates no upper-extremity disability, while a score of 100 indicates the greatest possible disability. A decrease in the score indicates improving function, while an increase indicates worsening symptoms or disability. At subsequent evaluations, changes in the QuickDASH score will be used to assess the patient's response to treatment.\n\nInterpretation:\n0 indicates no upper-extremity disability.\n100 indicates the greatest possible upper-extremity disability.\nHigher scores indicate greater symptoms and functional limitation.",
+            "LEFS": "The Lower Extremity Functional Scale, or LEFS, is a standardized 20-item patient-reported outcome measure used to assess difficulty performing activities associated with lower-extremity function. The questionnaire addresses activities such as walking, stair negotiation, squatting, running, household tasks, work activities, and recreational activities.\n\nEach item is scored from 0 to 4, with a maximum possible score of 80 points. A higher score indicates better lower-extremity function, while a lower score indicates greater functional limitation. At subsequent evaluations, the LEFS Score Change will be reported to demonstrate improvement or decline from the patient's previous score.\n\nInterpretation:\n0 indicates extreme functional limitation.\n80 indicates no functional limitation.\nHigher scores indicate better lower-extremity function.\nLower scores indicate greater functional limitation.",
+            "NDI": "The Neck Disability Index, or NDI, is a standardized patient-reported outcome measure used to assess self-rated disability associated with neck pain. It evaluates the effect of the patient's symptoms on pain intensity, personal care, lifting, reading, headaches, concentration, work, driving, sleeping, and recreation.\n\nThe NDI contains 10 sections. Each section is scored from 0 to 5, producing a maximum raw score of 50 points. The raw score may also be converted to a percentage by dividing the patient's score by 50 and multiplying by 100. A higher score indicates greater neck-related disability. A decrease in the score indicates improving function, while an increase indicates worsening disability.\n\nInterpretation:\n0-4 No disability\n5-14 Mild disability\n15-24 Moderate disability\n25-34 Severe disability\n35-50 Complete disability",
+            "Modified Oswestry": "The Modified Oswestry Disability Index, or Modified ODI, is a standardized patient-reported outcome measure used to assess the degree to which low-back pain interferes with daily function. It is one of the principal condition-specific outcome measures used in the evaluation and management of spinal disorders.\n\nThe questionnaire evaluates pain intensity and the effect of the patient's condition on activities such as personal care, lifting, walking, sitting, standing, sleeping, social activities, traveling, and employment or homemaking activities. Each section is scored from 0 to 5, producing a maximum raw score of 50 points.\n\nWhen all 10 sections are completed, the maximum raw score is 50 points. The raw score is converted to a percentage by dividing the score by the maximum possible score and multiplying by 100. If a section is not answered, the percentage must be calculated using the maximum possible score for the completed sections.\n\nA higher score indicates greater disability.\n\nInterpretation:\n0-20% Minimal disability\n21-40% Moderate disability\n41-60% Severe disability\n61-80% Very severe disability\n81-100% Bedbound or possible symptom exaggeration",
+            "DHI": "The Dizziness Handicap Inventory, or DHI, is a standardized 25-item patient-reported outcome measure used to evaluate the perceived effect of dizziness or balance impairment on the patient's daily life. It assesses physical, functional, and emotional consequences associated with dizziness.\n\nEach item is answered as “yes,” “sometimes,” or “no” and is scored as 4, 2, or 0 points, respectively. The total score ranges from 0 to 100. A score of 0 indicates no perceived dizziness-related handicap, while a higher score indicates a greater perceived effect on daily function. A decrease in the score indicates improvement, while an increase indicates worsening dizziness-related disability.\n\nInterpretation:\n0-14 No handicap\n16-34 Mild handicap\n36-52 Moderate handicap\n54-100 Severe handicap",
+            "KOS-ADLS": "The Knee Outcome Survey–Activities of Daily Living Scale, or KOS-ADLS, is a standardized patient-reported outcome measure used to assess symptoms and functional limitations associated with knee disorders. The questionnaire evaluates the patient's experience during common activities of daily living.\n\nThe KOS-ADLS contains 14 scored items. Six items evaluate symptoms such as pain, stiffness, swelling, instability, weakness, and limping. Eight items evaluate functional activities such as walking, ascending and descending stairs, standing, kneeling, squatting, sitting with the knee bent, and rising from a chair.\n\nEach item is scored from 0 to 5, producing a maximum raw score of 70 points. The raw score is divided by 70 and multiplied by 100 to produce a percentage. A score of 100% indicates no knee-related symptoms or functional limitations. A higher percentage reflects a higher level of function, while a lower percentage indicates greater symptoms or functional limitation. An increase in the score indicates improvement, while a decrease indicates worsening function.\n\nInterpretation:\n0% indicates the greatest possible knee-related symptoms and functional limitation.\n100% indicates no knee-related symptoms or functional limitation.\nHigher percentages indicate better knee function.\nLower percentages indicate greater symptoms and functional limitation.",
         };
         const description = (k) => DESCRIPTIONS[k] || '';
         function parseScoreText(text) {
@@ -2691,12 +2691,6 @@
             Object.assign(head.style, { padding: '14px 18px', borderBottom: '1px solid #e5e5e5', fontWeight: '700' });
             panel.appendChild(head);
             const bodyEl = document.createElement('div'); Object.assign(bodyEl.style, { padding: '12px 18px' });
-            if (description) {
-                const d = document.createElement('div');
-                Object.assign(d.style, { background: '#f5f7ff', border: '1px solid #e0e6ff', borderRadius: '6px', padding: '8px 10px', color: '#334', fontSize: '12px', marginBottom: '12px' });
-                d.textContent = description;
-                bodyEl.appendChild(d);
-            }
             const getters = {};
             function line(label, text, editKey) {
                 const wrap = document.createElement('div'); Object.assign(wrap.style, { display: 'flex', gap: '10px', alignItems: 'baseline', padding: '8px 0', borderBottom: '1px solid #f0f0f0' });
@@ -2718,6 +2712,13 @@
             line('Target date (POC end)', fields.date || '(none found — will skip)', null);
             line('Initial state', fields.initial, 'initial');
             line('Target state', fields.target, 'target');
+            // Full survey description (what the score means) in a bubble at the BOTTOM.
+            if (description) {
+                const d = document.createElement('div');
+                Object.assign(d.style, { background: '#f5f7ff', border: '1px solid #e0e6ff', borderRadius: '6px', padding: '10px 12px', color: '#334', fontSize: '12px', lineHeight: '1.5', marginTop: '14px', whiteSpace: 'pre-wrap', maxHeight: '260px', overflow: 'auto' });
+                d.textContent = description;
+                bodyEl.appendChild(d);
+            }
             panel.appendChild(bodyEl);
             const foot = document.createElement('div'); Object.assign(foot.style, { padding: '12px 18px', borderTop: '1px solid #e5e5e5', display: 'flex', justifyContent: 'flex-end', gap: '10px' });
             const cancel = document.createElement('button'); cancel.textContent = 'Cancel'; Object.assign(cancel.style, { padding: '6px 14px', cursor: 'pointer' });
@@ -2754,7 +2755,9 @@
             /* Faint separator between question/answer rows inside a survey region.
                Targets direct flex/grid rows; refine once the live row markup is seen. */
             [data-section="functional_outcomes"] [role="region"] .MuiBox-root > .MuiBox-root + .MuiBox-root { border-top: 1px solid rgba(0,0,0,.06); }
-            .ath-survey-panel { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+            /* The FO section is a flex column with align-items:flex-start, so a child
+               won't stretch; align-self:flex-end (not justify-content) right-aligns it. */
+            .ath-survey-panel { display: flex; align-self: flex-end; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
             .ath-survey-btn { padding: 4px 10px; background: #0f766e; color: #fff; border: 1px solid #0b5c55; border-radius: 4px; font: 600 12px/1.2 system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
             .ath-survey-btn:hover { background: #0b5c55; }
             .ath-survey-btn:disabled { opacity: .6; cursor: default; }
@@ -2965,7 +2968,25 @@
                 }
             }
         }
-        const tick = () => { try { injectStatusButtons(); } catch (e) { log.error(e); } };
+        // The original blue "Create <survey> goal" button above the scores (kept
+        // alongside the header status button, which ALSO creates the goal on click).
+        function injectGoalButtons() {
+            if (!Surveys.isInitialEval()) return;
+            for (const s of Surveys.SURVEYS) {
+                const sc = Surveys.scoresRegion(s.section); if (!sc) continue;
+                if (sc.parentNode.querySelector('.ath-goal-btn[data-k="' + s.key + '"]')) continue;
+                const init = Surveys.initialStateText(s.key, Surveys.parseScoreText(sc.textContent || ''));
+                if (!init) continue;   // only once the survey has a real score
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'ath-goal-btn'; b.dataset.k = s.key;
+                Object.assign(b.style, { display: 'inline-block', margin: '4px 0', padding: '4px 10px', background: '#1d4ed8', color: '#fff', border: '1px solid #1a3fae', borderRadius: '4px', font: '600 12px/1.2 system-ui, sans-serif', cursor: 'pointer' });
+                b.textContent = 'Create ' + s.key + ' goal';
+                b.addEventListener('mouseenter', () => { b.style.background = '#1a3fae'; });
+                b.addEventListener('mouseleave', () => { b.style.background = '#1d4ed8'; });
+                b.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); runGoal(s, b); });
+                sc.parentNode.insertBefore(b, sc);   // just ABOVE the scores
+            }
+        }
+        const tick = () => { try { injectStatusButtons(); injectGoalButtons(); } catch (e) { log.error(e); } };
         tick(); athObserveBody(tick, 400);
         window.__athelasCreateGoal = (k) => { const s = Surveys.byKey(k); if (s) return runGoal(s, null); log.warn('unknown survey', k); };
         window.__athelasPocEndDate = () => Surveys.pocEndDate();

@@ -1,5 +1,13 @@
 # Changelog
 
+## 15.20.1 — 2026-08-11
+
+Corrections to 15.20.0:
+
+- **Restored the "Create <survey> goal" button** above the scores — it should not have been removed. Both it and the header status button create the goal; the status button additionally collapses the survey.
+- **Goal dialog description:** now shows the full survey description (from reference_surveys.txt), moved to the bottom (below the fields) in the same bubble.
+- **Survey panel right-alignment fixed for real:** the Functional Outcomes section is a flex column with align-items:flex-start, so the panel wasn't stretching and justify-content did nothing. Using align-self:flex-end, the panel now sits on the right, above the input.
+
 ## 15.20.0 — 2026-08-11
 
 Survey status button + goal dialog rework:
