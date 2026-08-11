@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.19.4
+// @version      15.20.0
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -2508,6 +2508,17 @@
             { key: 'KOS-ADLS',          auto: 'KOS - Activities of Daily Living',        section: 'KOS - Activities of Daily Living',        family: 'function' },
         ];
         const byKey = (k) => SURVEYS.find((s) => s.key === k) || null;
+        // Condensed score reminders (from reference/reference_surveys.txt) shown in
+        // the goal dialog so the therapist recalls what the number means.
+        const DESCRIPTIONS = {
+            'QuickDASH': 'QuickDASH — 11-item measure of upper-extremity (arm/shoulder/hand) symptoms & function, 0–100. Higher = more disability (0 = none, 100 = greatest); a lower score at follow-up = improvement.',
+            'LEFS': 'LEFS — 20-item measure of lower-extremity function (walking, stairs, squatting…), 0–80. Higher = better function (80 = no limitation, 0 = extreme limitation).',
+            'NDI': 'NDI — 10-section measure of neck-pain disability, 0–50 raw (also shown as %). Higher = more disability. 0–4 none, 5–14 mild, 15–24 moderate, 25–34 severe, 35–50 complete.',
+            'Modified Oswestry': 'Modified Oswestry (ODI) — low-back disability as a % (raw 0–50 → %). Higher = more disability. 0–20% minimal, 21–40% moderate, 41–60% severe, 61–80% very severe, 81–100% bedbound.',
+            'DHI': 'DHI — 25-item measure of the physical, functional & emotional effect of dizziness, 0–100. Higher = greater handicap. 0–14 none, 16–34 mild, 36–52 moderate, 54–100 severe.',
+            'KOS-ADLS': 'KOS-ADLS — 14-item measure of knee symptoms & daily function as a % (raw 0–70 → %). Higher = better function (100% = no limitation); lower = greater limitation.',
+        };
+        const description = (k) => DESCRIPTIONS[k] || '';
         function parseScoreText(text) {
             const out = {}; const re = /([A-Za-z][A-Za-z %/]*?)\s*:\s*(-?\d+(?:\.\d+)?)/g; let m;
             while ((m = re.exec(text || ''))) out[m[1].trim()] = parseFloat(m[2]);
@@ -2641,7 +2652,7 @@
             log && log.log('addSurvey: added', key);
             return true;
         }
-        return { SURVEYS, byKey, parseScoreText, fmtNum, scoreValues, initialStateText, goalTitle, computeTargetState, isInitialEvalValue, isInitialEval, noteTypeValue, foSection, goalsSection, surveyRegion, scoresRegion, readScores, pocEndDate, addSurvey };
+        return { SURVEYS, byKey, description, parseScoreText, fmtNum, scoreValues, initialStateText, goalTitle, computeTargetState, isInitialEvalValue, isInitialEval, noteTypeValue, foSection, goalsSection, surveyRegion, scoresRegion, readScores, pocEndDate, addSurvey };
     })();
 
     // small shared DOM utilities for the two new modules
@@ -2664,47 +2675,58 @@
         return preferLast ? btns[btns.length - 1] : btns[0];
     }
 
-    // Compact per-change review dialog for goal creation (styled like athConfirmMoves).
-    // fields = { title, date, initial, target }. Returns { confirmed, skip:Set }.
-    function athConfirmGoal(heading, fields) {
+    // Goal review dialog. fields = { title, date, initial, target }; `description`
+    // reminds the therapist what the score means. The score number in the initial
+    // and target sentences is editable (first number in each). No checkboxes -
+    // both states are always applied. Returns { confirmed, initial, target } with
+    // the (possibly edited) sentences.
+    function athConfirmGoal(heading, fields, description) {
         return new Promise((resolve) => {
             const stop = (fn) => (ev) => { ev.preventDefault(); ev.stopPropagation(); fn(); };
             const overlay = document.createElement('div');
             Object.assign(overlay.style, { position: 'fixed', inset: '0', background: 'rgba(0,0,0,.35)', zIndex: 2147483600, display: 'flex', alignItems: 'center', justifyContent: 'center' });
             const panel = document.createElement('div');
-            Object.assign(panel.style, { background: '#fff', borderRadius: '8px', maxWidth: '560px', width: '92%', maxHeight: '80vh', overflow: 'auto', font: '13px/1.45 system-ui, sans-serif', boxShadow: '0 10px 40px rgba(0,0,0,.3)' });
+            Object.assign(panel.style, { background: '#fff', borderRadius: '8px', maxWidth: '580px', width: '92%', maxHeight: '85vh', overflow: 'auto', font: '13px/1.5 system-ui, sans-serif', boxShadow: '0 10px 40px rgba(0,0,0,.3)' });
             const head = document.createElement('div'); head.textContent = heading;
             Object.assign(head.style, { padding: '14px 18px', borderBottom: '1px solid #e5e5e5', fontWeight: '700' });
             panel.appendChild(head);
-            const body = document.createElement('div'); Object.assign(body.style, { padding: '10px 18px' });
-            const rows = [
-                { k: 'title', label: 'Goal title', val: fields.title, checkable: false },
-                { k: 'date', label: 'Target date (POC end)', val: fields.date || '(none found — will skip)', checkable: false },
-                { k: 'initial', label: 'Initial state', val: fields.initial, checkable: true },
-                { k: 'target', label: 'Target state', val: fields.target, checkable: true },
-            ];
-            const checks = {};
-            for (const r of rows) {
-                const line = document.createElement('div'); Object.assign(line.style, { display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '7px 0', borderBottom: '1px solid #f0f0f0' });
-                const left = document.createElement('div'); Object.assign(left.style, { width: '150px', color: '#666', flex: '0 0 auto' });
-                left.textContent = r.label;
-                const right = document.createElement('div'); right.style.flex = '1'; right.textContent = r.val || '(empty)';
-                if (r.checkable) {
-                    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true; checks[r.k] = cb;
-                    const wrap = document.createElement('label'); Object.assign(wrap.style, { display: 'flex', gap: '6px', flex: '1', alignItems: 'flex-start' });
-                    wrap.appendChild(cb); wrap.appendChild(right); line.appendChild(left); line.appendChild(wrap);
-                } else { line.appendChild(left); line.appendChild(right); }
-                body.appendChild(line);
+            const bodyEl = document.createElement('div'); Object.assign(bodyEl.style, { padding: '12px 18px' });
+            if (description) {
+                const d = document.createElement('div');
+                Object.assign(d.style, { background: '#f5f7ff', border: '1px solid #e0e6ff', borderRadius: '6px', padding: '8px 10px', color: '#334', fontSize: '12px', marginBottom: '12px' });
+                d.textContent = description;
+                bodyEl.appendChild(d);
             }
-            panel.appendChild(body);
+            const getters = {};
+            function line(label, text, editKey) {
+                const wrap = document.createElement('div'); Object.assign(wrap.style, { display: 'flex', gap: '10px', alignItems: 'baseline', padding: '8px 0', borderBottom: '1px solid #f0f0f0' });
+                const l = document.createElement('div'); Object.assign(l.style, { width: '140px', color: '#666', flex: '0 0 auto' }); l.textContent = label;
+                const r = document.createElement('div'); r.style.flex = '1';
+                if (editKey && text) {
+                    const m = text.match(/(\d+(?:\.\d+)?)/);   // first number -> editable input
+                    if (m) {
+                        const before = text.slice(0, m.index), after = text.slice(m.index + m[0].length);
+                        r.appendChild(document.createTextNode(before));
+                        const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'ath-num-input'; inp.value = m[0];
+                        r.appendChild(inp); r.appendChild(document.createTextNode(after));
+                        getters[editKey] = () => before + (inp.value || '').trim() + after;
+                    } else { r.textContent = text; getters[editKey] = () => text; }
+                } else { r.textContent = text || '(none)'; }
+                wrap.appendChild(l); wrap.appendChild(r); bodyEl.appendChild(wrap);
+            }
+            line('Goal title', fields.title, null);
+            line('Target date (POC end)', fields.date || '(none found — will skip)', null);
+            line('Initial state', fields.initial, 'initial');
+            line('Target state', fields.target, 'target');
+            panel.appendChild(bodyEl);
             const foot = document.createElement('div'); Object.assign(foot.style, { padding: '12px 18px', borderTop: '1px solid #e5e5e5', display: 'flex', justifyContent: 'flex-end', gap: '10px' });
             const cancel = document.createElement('button'); cancel.textContent = 'Cancel'; Object.assign(cancel.style, { padding: '6px 14px', cursor: 'pointer' });
             const ok = document.createElement('button'); ok.textContent = 'Create goal'; Object.assign(ok.style, { padding: '6px 14px', cursor: 'pointer', background: '#1d4ed8', color: '#fff', border: '1px solid #1a3fae', borderRadius: '4px', fontWeight: '600' });
             foot.appendChild(cancel); foot.appendChild(ok); panel.appendChild(foot);
             overlay.appendChild(panel); document.body.appendChild(overlay);
             const close = (confirmed) => {
-                const skip = new Set(); Object.keys(checks).forEach((k) => { if (!checks[k].checked) skip.add(k); });
-                overlay.remove(); document.removeEventListener('keydown', onKey); resolve({ confirmed, skip });
+                overlay.remove(); document.removeEventListener('keydown', onKey);
+                resolve({ confirmed, initial: getters.initial ? getters.initial() : fields.initial, target: getters.target ? getters.target() : fields.target });
             };
             const onKey = (ev) => { if (ev.key === 'Escape') stop(() => close(false))(ev); };
             cancel.addEventListener('click', stop(() => close(false)));
@@ -2717,11 +2739,10 @@
     // =====================================================================
     // MODULE 12: Functional-Outcomes survey quick-add panel + QoL fixes.
     // A floating 6-button panel above the Functional Outcomes heading (below
-    // Objective). Buttons drive the hover Autocomplete. QoL: persistent add box
-    // (CSS), expand-added-survey, faint Q/A separators, collapse+jump control.
+    // Objective, right-aligned). Buttons drive the hover Autocomplete. QoL:
+    // persistent add box (CSS), expand-added-survey, faint Q/A separators.
     // Initial/eval notes only (Surveys.isInitialEval); default present if unknown.
-    // NOTE: expand/separator/collapse are best-effort and may need selector
-    // tuning once verified against the live collapsed-survey markup.
+    // (The per-survey status button + goal creation live in MODULE 13.)
     // =====================================================================
     function featureSurveyQuickAdd() {
         const log = makeLogger('surveys');
@@ -2737,7 +2758,6 @@
             .ath-survey-btn { padding: 4px 10px; background: #0f766e; color: #fff; border: 1px solid #0b5c55; border-radius: 4px; font: 600 12px/1.2 system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
             .ath-survey-btn:hover { background: #0b5c55; }
             .ath-survey-btn:disabled { opacity: .6; cursor: default; }
-            .ath-collapse-btn { margin: 4px 0 4px 8px; padding: 2px 8px; background: #eee; color: #333; border: 1px solid #ccc; border-radius: 4px; font: 500 11px/1.2 system-ui, sans-serif; cursor: pointer; }
         `);
 
         async function expandSurvey(section) {
@@ -2768,46 +2788,9 @@
             fo.insertBefore(panel, fo.firstChild);
             log.log('survey quick-add panel injected');
         }
-        function surveyExpanded(r) {
-            // Prefer an aria-expanded toggle tied to the region; else fall back to
-            // height (a scored+expanded survey is tall; a collapsed one is a short header).
-            const cand = r.querySelector('[aria-expanded]')
-                || (r.previousElementSibling && r.previousElementSibling.querySelector && r.previousElementSibling.querySelector('[aria-expanded]'))
-                || (r.parentElement && r.parentElement.querySelector('[aria-expanded]'));
-            if (cand) return cand.getAttribute('aria-expanded') !== 'false';
-            return r.getBoundingClientRect().height > 140;
-        }
-        function scrollRegionToTop(r) {
-            const OFFSET = 8;   // leave the survey's top near the top of the visible page
-            const sp = athFindScrollParent(r);
-            if (sp && sp !== document.documentElement && sp !== document.body) {
-                const top = sp.scrollTop + (r.getBoundingClientRect().top - sp.getBoundingClientRect().top) - OFFSET;
-                sp.scrollTo({ top, behavior: 'smooth' });
-            } else {
-                window.scrollTo({ top: window.scrollY + r.getBoundingClientRect().top - OFFSET, behavior: 'smooth' });
-            }
-        }
-        function injectCollapseControls() {
-            for (const s of Surveys.SURVEYS) {
-                const r = Surveys.surveyRegion(s.section); if (!r) continue;
-                const existing = r.querySelector('.ath-collapse-btn');
-                // Show ONLY on a scored, currently-EXPANDED survey; remove otherwise
-                // (no point offering "collapse" on an already-collapsed one).
-                if (!Surveys.scoresRegion(s.section) || !surveyExpanded(r)) { if (existing) existing.remove(); continue; }
-                if (existing) continue;
-                const b = document.createElement('button'); b.type = 'button'; b.className = 'ath-collapse-btn';
-                b.textContent = '⤒ collapse survey'; b.title = 'Collapse this survey and jump back to its top';
-                b.addEventListener('click', (ev) => {
-                    ev.preventDefault(); ev.stopPropagation();
-                    const tog = r.querySelector('[aria-expanded="true"]'); if (tog) simulateClick(tog, log);
-                    // Delay the jump ~220ms so the collapse and the scroll read as two
-                    // separate actions instead of one confusing motion.
-                    setTimeout(() => scrollRegionToTop(r), 220);
-                });
-                r.appendChild(b);   // bottom of the survey
-            }
-        }
-        const tick = () => { try { injectPanel(); injectCollapseControls(); } catch (e) { log.error(e); } };
+        // (The old bottom "collapse survey" button is gone — collapsing + goal
+        // creation is now the per-survey status button in MODULE 13.)
+        const tick = () => { try { injectPanel(); } catch (e) { log.error(e); } };
         tick(); athObserveBody(tick, 300);
         window.__athelasAddSurvey = (k) => Surveys.addSurvey(k, log);
         window.__athelasReadScores = (k) => Surveys.readScores(k);
@@ -2826,6 +2809,21 @@
     // =====================================================================
     function featureGoalFromScore() {
         const log = makeLogger('goals');
+        athInjectStyle('ath-goal-css', `
+            .ath-survey-status {
+                margin-left: auto; padding: 7px 16px; border: none; border-radius: 6px;
+                font: 700 13px/1.2 system-ui, sans-serif; cursor: pointer; white-space: nowrap; color: #fff;
+            }
+            .ath-survey-status.is-incomplete { background: #dc2626; }
+            .ath-survey-status.is-incomplete:hover { background: #b91c1c; }
+            .ath-survey-status.is-complete { background: #16a34a; }
+            .ath-survey-status.is-complete:hover { background: #15803d; }
+            /* editable score inputs in the goal dialog */
+            .ath-num-input {
+                width: 3.5em; padding: 1px 4px; margin: 0 1px; text-align: center;
+                border: 1px solid #1d4ed8; border-radius: 4px; font: inherit; color: #127a2e; font-weight: 600;
+            }
+        `);
 
         function findAddChip(labelText, root) {
             // The add-buttons are MuiChips whose OWN text is the field name. The goal
@@ -2874,7 +2872,7 @@
             }
             return (el.value || '').replace(/\D/g, '').includes(digits.slice(0, 4));
         }
-        async function createGoal(fields, skip, log, prog) {
+        async function createGoal(fields, log, prog) {
             const goals = Surveys.goalsSection(); if (!goals) throw new Error('no goals section');
             goals.scrollIntoView({ block: 'center' }); await sleep(150);
             // Open a fresh goal form UNLESS an empty one is already open. Target the
@@ -2893,12 +2891,12 @@
             const q = (sel) => form.querySelector(sel) || document.querySelector(sel);
             setReactValue(title, fields.title, log); await sleep(120);
             if (fields.date) { const d = q('input[name="due_date"]'); if (d) { prog && prog.update('Setting target date…'); await typeDate(d, fields.date, log); } else log.warn('no due_date field'); }
-            if (!skip.has('initial') && fields.initial) {
+            if (fields.initial) {
                 prog && prog.update('Adding initial state…');
                 const chip = findAddChip('Initial State', form); if (chip) { simulateClick(chip, log); await sleep(300); }
                 const iv = q('input[name="initial_value"]'); if (iv) setReactValue(iv, fields.initial, log); else log.warn('no initial_value input');
             }
-            if (!skip.has('target') && fields.target) {
+            if (fields.target) {
                 prog && prog.update('Adding target state…');
                 const chip = findAddChip('Target State', form); if (chip) { simulateClick(chip, log); await sleep(300); }
                 const tv = q('input[name="end_goal_value"]'); if (tv) setReactValue(tv, fields.target, log); else log.warn('no end_goal_value input');
@@ -2912,31 +2910,62 @@
             const scores = Surveys.readScores(s.key) || {};
             const fields = { title: Surveys.goalTitle(s.key), date: Surveys.pocEndDate(), initial: Surveys.initialStateText(s.key, scores), target: Surveys.computeTargetState(s.key, scores) };
             log.log('goal fields for', s.key, fields);
-            const { confirmed, skip } = await athConfirmGoal('Create goal — ' + s.key, fields);
-            if (!confirmed) { log.log('goal cancelled'); return; }
-            if (btn && btn.dataset) { btn.disabled = true; }
+            // Dialog returns the (possibly edited) initial/target sentences.
+            const res = await athConfirmGoal('Create goal — ' + s.key, fields, Surveys.description(s.key));
+            if (!res.confirmed) { log.log('goal cancelled'); return; }
+            const finalFields = { title: fields.title, date: fields.date, initial: res.initial, target: res.target };
+            if (btn && btn.dataset) btn.disabled = true;
             const prog = athToast('Creating ' + s.key + ' goal…', { ttl: 0 });
-            try { await createGoal(fields, skip, log, prog); prog.update('Goal created — review before saving'); prog.done(3500); if (btn) btn.textContent = '✓ created'; }
-            catch (e) { log.error('createGoal failed', e); prog.update('Goal failed — see console'); prog.done(4000); if (btn) btn.textContent = 'error'; }
-            finally { if (btn) setTimeout(() => { btn.textContent = 'Create ' + s.key + ' goal'; btn.disabled = false; }, 3000); }
+            try { await createGoal(finalFields, log, prog); prog.update('Goal created — review before saving'); prog.done(3500); }
+            catch (e) { log.error('createGoal failed', e); prog.update('Goal failed — see console'); prog.done(4000); }
+            finally { if (btn) setTimeout(() => { btn.disabled = false; }, 3000); }
         }
-        function injectGoalButtons() {
-            if (!Surveys.isInitialEval()) return;
-            for (const s of Surveys.SURVEYS) {
-                const sc = Surveys.scoresRegion(s.section); if (!sc) continue;
-                if (sc.parentNode.querySelector('.ath-goal-btn[data-k="' + s.key + '"]')) continue;
-                const init = Surveys.initialStateText(s.key, Surveys.parseScoreText(sc.textContent || ''));
-                if (!init) continue;   // only once the survey has a real score
-                const b = document.createElement('button'); b.type = 'button'; b.className = 'ath-goal-btn'; b.dataset.k = s.key;
-                Object.assign(b.style, { display: 'inline-block', margin: '4px 0', padding: '4px 10px', background: '#1d4ed8', color: '#fff', border: '1px solid #1a3fae', borderRadius: '4px', font: '600 12px/1.2 system-ui, sans-serif', cursor: 'pointer' });
-                b.textContent = 'Create ' + s.key + ' goal';
-                b.addEventListener('mouseenter', () => { b.style.background = '#1a3fae'; });
-                b.addEventListener('mouseleave', () => { b.style.background = '#1d4ed8'; });
-                b.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); runGoal(s, b); });
-                sc.parentNode.insertBefore(b, sc);   // just ABOVE the scores
+        function scrollRegionToTop(r) {
+            const OFFSET = 8;
+            const sp = athFindScrollParent(r);
+            if (sp && sp !== document.documentElement && sp !== document.body) {
+                sp.scrollTo({ top: sp.scrollTop + (r.getBoundingClientRect().top - sp.getBoundingClientRect().top) - OFFSET, behavior: 'smooth' });
+            } else {
+                window.scrollTo({ top: window.scrollY + r.getBoundingClientRect().top - OFFSET, behavior: 'smooth' });
             }
         }
-        const tick = () => { try { injectGoalButtons(); } catch (e) { log.error(e); } };
+        function collapseAndJump(r) {
+            const tog = r.querySelector('[aria-expanded="true"]'); if (tog) simulateClick(tog, log);
+            setTimeout(() => scrollRegionToTop(r), 220);   // delay so the two motions read separately
+        }
+        // Per-survey status button in the survey HEADER (stays visible when collapsed),
+        // right-aligned. Tracks completion: red "Survey incomplete" until the survey is
+        // scored, then green "Survey Complete! Create Goal?". Click collapses the survey
+        // and jumps to its top; when complete it also fills out the goal.
+        function injectStatusButtons() {
+            if (!Surveys.isInitialEval()) return;
+            for (const s of Surveys.SURVEYS) {
+                const region = Surveys.surveyRegion(s.section); if (!region) continue;
+                const heading = region.querySelector('[role="heading"]'); if (!heading || !heading.parentElement) continue;
+                let btn = region.querySelector('.ath-survey-status');
+                if (!btn) {
+                    btn = document.createElement('button'); btn.type = 'button'; btn.className = 'ath-survey-status';
+                    btn.addEventListener('click', (ev) => {
+                        ev.preventDefault(); ev.stopPropagation();
+                        const rgn = Surveys.surveyRegion(s.section) || region;
+                        collapseAndJump(rgn);
+                        if (btn.dataset.state === 'complete') runGoal(s, null);
+                    });
+                    heading.parentElement.appendChild(btn);   // right side of the header row (margin-left:auto)
+                }
+                const scores = Surveys.readScores(s.key);
+                const complete = !!(scores && Surveys.initialStateText(s.key, scores));
+                const want = complete ? 'complete' : 'incomplete';
+                if (btn.dataset.state !== want) {
+                    btn.dataset.state = want;
+                    btn.classList.toggle('is-complete', complete);
+                    btn.classList.toggle('is-incomplete', !complete);
+                    btn.textContent = complete ? 'Survey Complete! Create Goal?' : 'Survey incomplete';
+                    btn.title = complete ? 'Collapse this survey and fill out the goal' : 'Survey not scored yet — click to collapse';
+                }
+            }
+        }
+        const tick = () => { try { injectStatusButtons(); } catch (e) { log.error(e); } };
         tick(); athObserveBody(tick, 400);
         window.__athelasCreateGoal = (k) => { const s = Surveys.byKey(k); if (s) return runGoal(s, null); log.warn('unknown survey', k); };
         window.__athelasPocEndDate = () => Surveys.pocEndDate();

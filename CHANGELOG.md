@@ -1,5 +1,13 @@
 # Changelog
 
+## 15.20.0 — 2026-08-11
+
+Survey status button + goal dialog rework:
+
+- The bottom "collapse survey" button and the separate blue "Create goal" button are replaced by one **status button in each survey's header** (right-aligned, bigger, stays visible when collapsed). It tracks completion: **red "Survey incomplete"** until the survey is scored, then **green "Survey Complete! Create Goal?"**. Clicking collapses the survey and jumps to its top; when complete it also opens the goal dialog.
+- **Goal dialog:** dropped the per-field checkboxes (both states are always wanted). The score number in the Initial and Target sentences is now an **editable text box** (e.g. edit the 56 in "DHI score of 56/100", or the 34 in the target), and the edited value is used when the goal is created.
+- The dialog now shows a **description of the survey** (what the score means, from reference/reference_surveys.txt) as a reminder.
+
 ## 15.19.4 — 2026-08-11
 
 - Survey quick-add panel: put it back to its own row at the top of the Functional Outcomes section (right-aligned so it sits above the "Add a functional outcome form" input), instead of inside the header row where it was shifting the input box (15.18.2).

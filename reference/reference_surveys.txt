@@ -1,0 +1,120 @@
+## QuickDASH
+Minimum change: 8 points.
+Maximum score: 100 points.
+Description:
+"""
+The Quick Disabilities of the Arm, Shoulder and Hand questionnaire, or QuickDASH, is a standardized 11-item patient-reported outcome measure used to assess symptoms and functional limitations involving the upper extremity. It evaluates the patient's ability to perform common daily activities and the degree to which pain, tingling, weakness, and stiffness affect function.
+
+The QuickDASH is scored from 0 to 100. A score of 0 indicates no upper-extremity disability, while a score of 100 indicates the greatest possible disability. A decrease in the score indicates improving function, while an increase indicates worsening symptoms or disability. At subsequent evaluations, changes in the QuickDASH score will be used to assess the patient's response to treatment.
+
+Interpretation:
+0 indicates no upper-extremity disability.
+100 indicates the greatest possible upper-extremity disability.
+Higher scores indicate greater symptoms and functional limitation.
+"""
+
+
+---
+
+## LEFS
+Minimum change: 9 points.
+Maximum score: 80 points.
+Description:
+"""
+The Lower Extremity Functional Scale, or LEFS, is a standardized 20-item patient-reported outcome measure used to assess difficulty performing activities associated with lower-extremity function. The questionnaire addresses activities such as walking, stair negotiation, squatting, running, household tasks, work activities, and recreational activities.
+
+Each item is scored from 0 to 4, with a maximum possible score of 80 points. A higher score indicates better lower-extremity function, while a lower score indicates greater functional limitation. At subsequent evaluations, the LEFS Score Change will be reported to demonstrate improvement or decline from the patient's previous score.
+
+Interpretation:
+0 indicates extreme functional limitation.
+80 indicates no functional limitation.
+Higher scores indicate better lower-extremity function.
+Lower scores indicate greater functional limitation.
+"""
+
+---
+
+## NDI
+Minimum change: 7.5 points or 15%.
+Maximum score: 50 points or 100%.
+Description:
+"""
+The Neck Disability Index, or NDI, is a standardized patient-reported outcome measure used to assess self-rated disability associated with neck pain. It evaluates the effect of the patient's symptoms on pain intensity, personal care, lifting, reading, headaches, concentration, work, driving, sleeping, and recreation.
+
+The NDI contains 10 sections. Each section is scored from 0 to 5, producing a maximum raw score of 50 points. The raw score may also be converted to a percentage by dividing the patient's score by 50 and multiplying by 100. A higher score indicates greater neck-related disability. A decrease in the score indicates improving function, while an increase indicates worsening disability.
+
+Interpretation:
+0-4 No disability
+5-14 Mild disability
+15-24 Moderate disability
+25-34 Severe disability
+35-50 Complete disability
+"""
+
+
+---
+
+
+## Modified Oswestry
+Minimum change: 5 points or 10%.
+Maximum score: 50 points or 100%.
+Description:
+"""
+The Modified Oswestry Disability Index, or Modified ODI, is a standardized patient-reported outcome measure used to assess the degree to which low-back pain interferes with daily function. It is one of the principal condition-specific outcome measures used in the evaluation and management of spinal disorders.
+
+The questionnaire evaluates pain intensity and the effect of the patient's condition on activities such as personal care, lifting, walking, sitting, standing, sleeping, social activities, traveling, and employment or homemaking activities. Each section is scored from 0 to 5, producing a maximum raw score of 50 points.
+
+When all 10 sections are completed, the maximum raw score is 50 points. The raw score is converted to a percentage by dividing the score by the maximum possible score and multiplying by 100. If a section is not answered, the percentage must be calculated using the maximum possible score for the completed sections.
+
+A higher score indicates greater disability.
+
+Interpretation:
+0-20% Minimal disability
+21-40% Moderate disability
+41-60% Severe disability
+61-80% Very severe disability
+81-100% Bedbound or possible symptom exaggeration
+"""
+
+
+---
+
+
+
+## DHI
+Minimum change: 10 points.
+Maximum score: 100 points.
+Description:
+"""
+The Dizziness Handicap Inventory, or DHI, is a standardized 25-item patient-reported outcome measure used to evaluate the perceived effect of dizziness or balance impairment on the patient's daily life. It assesses physical, functional, and emotional consequences associated with dizziness.
+
+Each item is answered as “yes,” “sometimes,” or “no” and is scored as 4, 2, or 0 points, respectively. The total score ranges from 0 to 100. A score of 0 indicates no perceived dizziness-related handicap, while a higher score indicates a greater perceived effect on daily function. A decrease in the score indicates improvement, while an increase indicates worsening dizziness-related disability.
+
+Interpretation:
+0-14 No handicap
+16-34 Mild handicap
+36-52 Moderate handicap
+54-100 Severe handicap
+"""
+
+
+---
+
+
+## KOS-ADLS:
+Minimum change: 7 points or 10%.
+Maximum score: 70 points or 100%.
+Description:
+"""
+The Knee Outcome Survey–Activities of Daily Living Scale, or KOS-ADLS, is a standardized patient-reported outcome measure used to assess symptoms and functional limitations associated with knee disorders. The questionnaire evaluates the patient's experience during common activities of daily living.
+
+The KOS-ADLS contains 14 scored items. Six items evaluate symptoms such as pain, stiffness, swelling, instability, weakness, and limping. Eight items evaluate functional activities such as walking, ascending and descending stairs, standing, kneeling, squatting, sitting with the knee bent, and rising from a chair.
+
+Each item is scored from 0 to 5, producing a maximum raw score of 70 points. The raw score is divided by 70 and multiplied by 100 to produce a percentage. A score of 100% indicates no knee-related symptoms or functional limitations. A higher percentage reflects a higher level of function, while a lower percentage indicates greater symptoms or functional limitation. An increase in the score indicates improvement, while a decrease indicates worsening function.
+
+Interpretation:
+0% indicates the greatest possible knee-related symptoms and functional limitation.
+100% indicates no knee-related symptoms or functional limitation.
+Higher percentages indicate better knee function.
+Lower percentages indicate greater symptoms and functional limitation.
+"""
