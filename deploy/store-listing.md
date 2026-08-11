@@ -25,10 +25,18 @@ Athelas Insights Helper streamlines documentation for physical-therapy clinician
 Features:
 • One click "Fix Procedures" button — reviews the interventions marked "Done" against the clinic's procedure rules and, with one click, moves any that are filed under the wrong CPT code to the correct one and appends the standard justification. Every change is shown in a confirmation dialog first, with a checkbox per change, so nothing happens without the clinician's approval.
 • One click "Fix Private Pay" button — for self-pay visits, collects the interventions marked "Done" into the private-pay section, applying the same justifications, again after a review dialog.
+• NEW — Functional-outcome survey quick-add: on an initial evaluation, a one-click panel adds the clinic's common self-report outcome surveys (DHI, Modified Oswestry, NDI, LEFS, QuickDASH, KOS-ADLS) to the Functional Outcomes section, replacing the fiddly hover-and-type step.
+• NEW — Create goal from outcome score: once a survey is scored, one click drafts a matching goal — title, target date pulled from the Plan of Care end date, and the initial and target states filled from the score — shown in a per-change review dialog before anything is entered.
 • Jump to Flowsheet — on opening a chart note, scrolls straight to the Interventions flowsheet where clinicians do most of their work.
 • Compact layout — tightens spacing on the Appointments and Chart Note pages so more of the flowsheet fits on screen, with no loss of information.
 
 The extension is a display and workflow aid only. It does not collect, store, or transmit any data — all processing happens locally in the browser, and it requests no permissions. Intended for authorized clinic staff.
+
+Recent updates:
+• v15.18 — New: functional-outcome survey quick-add panel and one-click "Create goal from outcome score" on initial evaluations, both behind a review dialog.
+• v15.16 — Justifications are now append-only: the standard text is added alongside whatever the clinician already wrote, never overwriting it.
+• v15.15 — When an intervention matches two rules, both its CPT category and its justification now come from the same winning rule.
+• v15.14 — New app icon.
 
 ---
 
@@ -39,7 +47,7 @@ The extension is a display and workflow aid only. It does not collect, store, or
 - Data usage — check NOTHING. The extension collects no user data. Certify the disclosures.
   - Also confirm: not sold to third parties; not used for purposes unrelated to the single purpose; not used to determine creditworthiness / lending.
 
-- Host permission justification (REQUIRED — triggered by the content_scripts match pattern https://insights.athelas.com/*): "This extension runs only on Athelas Insights (insights.athelas.com), the physical-therapy EHR that clinic staff use for charting. The single host match pattern https://insights.athelas.com/* is required so the content script can load on the Appointments and Chart Note pages and provide its only functions: one-click chart-note helpers (Fix Procedures and Fix Private Pay, each gated behind a per-change review dialog), a jump-to-Flowsheet scroll on note open, and minor layout tightening. It matches all paths under that host because chart notes and appointment views are served under many different URL paths within the app. The extension requests no other host access and no API permissions. All processing happens locally in the browser; it collects, stores, and transmits no data. The host access is used solely to fulfill the extension's single purpose for authorized clinic staff."
+- Host permission justification (REQUIRED — triggered by the content_scripts match pattern https://insights.athelas.com/*): "This extension runs only on Athelas Insights (insights.athelas.com), the physical-therapy EHR that clinic staff use for charting. The single host match pattern https://insights.athelas.com/* is required so the content script can load on the Appointments and Chart Note pages and provide its only functions: one-click chart-note helpers (Fix Procedures and Fix Private Pay, each gated behind a per-change review dialog), adding functional-outcome surveys and drafting goals from their scores on initial evaluations (also behind a review dialog), a jump-to-Flowsheet scroll on note open, and minor layout tightening. It matches all paths under that host because chart notes and appointment views are served under many different URL paths within the app. The extension requests no other host access and no API permissions. All processing happens locally in the browser; it collects, stores, and transmits no data. The host access is used solely to fulfill the extension's single purpose for authorized clinic staff."
 
 - Are you using remote code? → No, I am not using remote code. (All JS is bundled in content.js; no external <script> src, no CDN, no eval. The Justification field under this question stays blank — it only applies if you answer Yes.)
 
