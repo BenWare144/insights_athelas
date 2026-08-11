@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.17.0
+// @version      15.17.1
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -97,28 +97,31 @@
      *  sufficient for React onClick handlers to fire. */
     function simulateClick(el, log) {
         if (!el) { log && log.warn('simulateClick: element is null'); return false; }
-        // Always run the native click first - it's the most reliable path for MUI buttons
-        // and won't throw under a sandboxed window. Dispatch the MouseEvent afterwards
-        // for handlers that listen for the synthetic event specifically.
-        let nativeOk = false;
+        // ONE activation only. React/MUI listen for the native click via event
+        // delegation on the document root, so el.click() (a real bubbling click) is
+        // enough. Previously we ALSO dispatched a synthetic MouseEvent afterwards,
+        // which fired the handler a SECOND time - harmless on idempotent targets
+        // (checkboxes self-correct) but it double-added rows/surveys on "add" chips
+        // and autocomplete options. Native first; synthetic only as a fallback when
+        // native isn't available or throws.
         try {
             if (typeof el.click === 'function') {
                 el.click();
-                nativeOk = true;
-                log && log.log('simulateClick: native .click() called');
+                log && log.log('simulateClick: native .click() called', el);
+                return true;
             }
         } catch (err) {
-            log && log.error('simulateClick: native .click() threw', err);
+            log && log.error('simulateClick: native .click() threw, falling back to dispatch', err);
         }
         try {
             const ev = new MouseEvent('click', { bubbles: true, cancelable: true });
-            ev.simulated = true; // React15 used this; harmless otherwise
+            ev.simulated = true;
             const dispatched = el.dispatchEvent(ev);
-            log && log.log(`simulateClick: dispatched MouseEvent -> defaultPrevented=${ev.defaultPrevented}, dispatched=${dispatched}`, el);
+            log && log.log(`simulateClick: dispatched MouseEvent (fallback) -> defaultPrevented=${ev.defaultPrevented}, dispatched=${dispatched}`, el);
             return true;
         } catch (err) {
             log && log.error('simulateClick: dispatch threw', err);
-            return nativeOk;
+            return false;
         }
     }
 
@@ -2548,9 +2551,26 @@
         const scoresRegion = (section) => [...document.querySelectorAll('[aria-label^="Scores for "]')].find((e) => T(e.getAttribute('aria-label').replace(/^Scores for\s+/, '')) === T(section));
         function readScores(key) { const s = byKey(key); if (!s) return null; const r = scoresRegion(s.section); return r ? parseScoreText(r.textContent || '') : null; }
         function pocEndDate() {
-            const poc = document.querySelector('[data-section="plan_of_care"]') || document.body;
-            const m = (poc.textContent || '').match(/Plan of Care End Date:\s*(\d{2}\/\d{2}\/\d{4})/i);
-            return m ? m[1] : null;
+            const DATE = /(\d{1,2}\/\d{1,2}\/\d{2,4})/;
+            // 1) find the "Plan of Care End Date:" label element, read the date from its
+            //    nearest following sibling span (label + value are separate spans).
+            const labels = [...document.querySelectorAll('span, div, p, label')]
+                .filter((e) => /Plan of Care End Date/i.test(e.textContent || '') && e.querySelectorAll('*').length <= 1);
+            for (const lab of labels) {
+                let sib = lab.nextElementSibling;
+                for (let i = 0; i < 4 && sib; i++, sib = sib.nextElementSibling) {
+                    const mm = (sib.textContent || '').match(DATE); if (mm) return mm[1];
+                }
+                const host = lab.parentElement || lab;
+                const mh = (host.textContent || '').match(/Plan of Care End Date:?[^\d]{0,8}(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+                if (mh) return mh[1];
+            }
+            // 2) whole-page text fallback (label + value are adjacent in textContent)
+            const m2 = (document.body.textContent || '').match(/Plan of Care End Date:?[^\d]{0,8}(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+            if (m2) return m2[1];
+            // 3) editable POC end-date input fallback
+            const inp = document.querySelector('[data-section="plan_of_care"] input[placeholder="MM/DD/YYYY"]');
+            return inp && inp.value ? inp.value : null;
         }
         async function addSurvey(key, log) {
             const s = byKey(key); if (!s) { log && log.warn('unknown survey', key); return false; }
@@ -2700,16 +2720,19 @@
         function injectCollapseControls() {
             for (const s of Surveys.SURVEYS) {
                 const r = Surveys.surveyRegion(s.section); if (!r) continue;
-                const sc = Surveys.scoresRegion(s.section); if (!sc) continue;     // only once it's scored
+                if (!Surveys.scoresRegion(s.section)) continue;   // only once it's scored
                 if (r.querySelector('.ath-collapse-btn')) continue;
                 const b = document.createElement('button'); b.type = 'button'; b.className = 'ath-collapse-btn';
-                b.textContent = '⤒ collapse'; b.title = 'Collapse this survey and jump to its top';
+                b.textContent = '⤒ collapse survey'; b.title = 'Collapse this survey and jump back to its top';
                 b.addEventListener('click', (ev) => {
                     ev.preventDefault(); ev.stopPropagation();
                     const tog = r.querySelector('[aria-expanded="true"]'); if (tog) simulateClick(tog, log);
                     r.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 });
-                sc.parentNode.insertBefore(b, sc);
+                // Put it at the BOTTOM of the survey (after the long list of answers),
+                // where a collapse control is actually useful - the top can already be
+                // collapsed from the header.
+                r.appendChild(b);
             }
         }
         const tick = () => { try { injectPanel(); injectCollapseControls(); } catch (e) { log.error(e); } };
@@ -2733,13 +2756,14 @@
         const log = makeLogger('goals');
 
         function findAddChip(labelText) {
-            // The "+ Initial State" / "+ Target State" add-buttons are MuiChips with
-            // an AddIcon, sitting near a label span with that text.
-            const label = [...document.querySelectorAll('span, label, div')].find((e) => e.children.length === 0 && (e.textContent || '').trim() === labelText);
-            const scope = label ? (label.closest('.MuiBox-root') || label.parentElement) : document;
-            let chip = (scope || document).querySelector('[role="button"].MuiChip-root, .MuiChip-root[role="button"]');
-            if (!chip) { const add = (scope || document).querySelector('svg[data-testid="AddIcon"]'); chip = add ? add.closest('[role="button"], button, .MuiChip-root') : null; }
-            return chip;
+            // The add-buttons are MuiChips whose OWN text is the field name. The goal
+            // form has four ("Initial State", "Current State", "Target State",
+            // "Status"), so match the chip's exact text - matching a shared container
+            // returned the first chip (Current State) instead of the one we wanted.
+            const want = labelText.trim().toLowerCase();
+            const chips = [...document.querySelectorAll('.MuiChip-root[role="button"], [role="button"].MuiChip-root')];
+            return chips.find((c) => (c.textContent || '').trim().toLowerCase() === want)
+                || chips.find((c) => (c.textContent || '').trim().toLowerCase().startsWith(want));
         }
         async function typeDate(el, mmddyyyy, log) {
             const digits = (mmddyyyy || '').replace(/\D/g, ''); if (!digits) return false;

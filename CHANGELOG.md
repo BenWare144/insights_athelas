@@ -1,5 +1,14 @@
 # Changelog
 
+## 15.17.1 — 2026-08-10
+
+Fixes from first live test of the initial-eval features:
+
+- **Everything happened twice** (survey added twice; goal states added twice). Root cause was the shared `simulateClick`, which fired a native `el.click()` *and* a synthetic MouseEvent — two activations. It now does one (native; synthetic only as a fallback). This was the "general problem" and also removes a latent double-click across the older features.
+- **Goal added "Current State" instead of "Target State."** The goal form has four add-chips (Initial State, Current State, Target State, Status); `findAddChip` matched a shared container and grabbed the first chip. It now matches a chip by its own exact text.
+- **POC end date not found.** It's a `<span>` value next to the "Plan of Care End Date:" label (not one text node), so the target date came back null. `pocEndDate` now reads the label's sibling span, with whole-page and input-value fallbacks.
+- **Collapse control moved to the bottom** of the survey it collapses (the top can already be collapsed from the header).
+
 ## 15.17.0 — 2026-08-10
 
 New initial-eval workflow features (present only on Initial/Eval notes; default present if the note type can't be read):
