@@ -1,5 +1,10 @@
 # Changelog
 
+## 15.18.0 — 2026-08-10
+
+- **Goal target states are now real** (no more stub). Each survey looks up its score in the therapist's target table and writes a family-aware target sentence, e.g. LEFS 34/80 → "Patient will have a LEFS score of >60/80 (>75% of full function) for improved QOL."; DHI 60 → target 34/100; Oswestry/NDI raw 23/21 → 10/50 (20% disability); QuickDASH 22.7 → <10/100. KOS-ADLS converts the displayed % to raw /70 for the lookup (per therapist), so 62.9% → target >86%.
+- Initial-state tweaks to match the mapping's display notes: DHI now reads "DHI total score of X/100"; Modified Oswestry now shows both raw and percent (X/50 (Y% disability)), since the app exposes its raw score.
+
 ## 15.17.2 — 2026-08-10
 
 More initial-eval fixes from live testing:
