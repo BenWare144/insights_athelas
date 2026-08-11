@@ -65,8 +65,8 @@ function initialStateText(key, pairs) {
   const v = scoreValues(key, pairs);
   const P = fmtNum(v.points), C = fmtNum(v.pct);
   switch (key) {
-    case 'DHI':               return P === null ? '' : `DHI total score of ${P}/100`;
-    case 'Modified Oswestry': return (P === null && C === null) ? '' : `Modified Oswestry score of ${P === null ? '?' : P}/50 (${C === null ? '?' : C}% disability)`;
+    case 'DHI':               return P === null ? '' : `DHI score of ${P}/100`;
+    case 'Modified Oswestry': return C === null ? '' : `Modified Oswestry score of ${C}% disability`;
     case 'NDI':               return (P === null && C === null) ? '' : `NDI score of ${P === null ? '?' : P}/50 (${C === null ? '?' : C}% disability)`;
     case 'LEFS':              return (P === null && C === null) ? '' : `LEFS score of ${P === null ? '?' : P}/80 (${C === null ? '?' : C}% of full function)`;
     case 'QuickDASH':         return C === null ? '' : `QuickDASH score of ${C}/100`;
@@ -123,9 +123,9 @@ function tokenPct(tok, max) {
 function targetPhrase(key, T) {
   switch (key) {
     case 'QuickDASH':         return `QuickDASH score of ${T}/100`;
-    case 'DHI':               return `DHI total score of ${T}/100`;
+    case 'DHI':               return `DHI score of ${T}/100`;
     case 'LEFS':              return `LEFS score of ${T}/80 (${tokenPct(T, 80)}% of full function)`;
-    case 'Modified Oswestry': return `Modified Oswestry score of ${T}/50 (${tokenPct(T, 50)}% disability)`;
+    case 'Modified Oswestry': return `Modified Oswestry score of ${tokenPct(T, 50)}% disability`;
     case 'NDI':               return `NDI score of ${T}/50 (${tokenPct(T, 50)}% disability)`;
     case 'KOS-ADLS':          return `KOS-ADLS score of ${tokenPct(T, 70)}% of full function`;
     default:                  return '';
