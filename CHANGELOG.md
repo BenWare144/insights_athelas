@@ -1,5 +1,14 @@
 # Changelog
 
+## 15.19.0 — 2026-08-11
+
+New Calendar (/ehr/calendar) helpers:
+
+- Auto-switch the calendar from Day to Week view once on load (leaves it alone if you're already on Week/Month or switch back to Day yourself).
+- A persistent "Note" button on each checked-in appointment cell, so therapists don't have to hover and find "Open Note". It only shows on checked-in patients (keyed on the cell's check_circle icon) and appears reactively whether the patient was already checked in or gets checked in later. Because the chart-note link only exists in the native hover menu, the button reveals that menu on click and follows its "Open Note" link.
+
+Note: the hover-reveal and the small on-cell button placement are best-effort and pending live verification. DevTools hooks: `__athelasCalendarWeek()`, `__athelasOpenNoteCells()`.
+
 ## 15.18.2 — 2026-08-10
 
 - Moved the survey quick-add panel to the right side of the Functional Outcomes header, next to the "Add a functional outcome form" input where therapists enter surveys (was full-width above the heading).

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.18.2
+// @version      15.19.0
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -24,6 +24,7 @@
         return {
             isAppointments: p.startsWith('/v3/appointments'),
             isChartNote: /^\/ehr\/v2\/patients\/[^/]+\/appointments\//.test(p),
+            isCalendar: p.startsWith('/ehr/calendar'),
         };
     }
     // Fire `cb` whenever the SPA changes the URL without a full reload. Combines
@@ -2951,6 +2952,106 @@
     }
 
     // =====================================================================
+    // MODULE 14: Calendar (/ehr/calendar) helpers.
+    //  (a) Auto-switch Day -> Week view once per calendar entry.
+    //  (b) A persistent "Note" button on each CHECKED-IN appointment cell (a cell
+    //      containing a check_circle icon). The chart-note URL lives ONLY in the
+    //      native hover menu (patient id isn't on the cell), so the button reveals
+    //      that menu on click and follows its "Open Note" link. Reactive: the button
+    //      appears whenever a cell becomes checked in.
+    //  NOTE: the hover-reveal and tiny-cell button placement are best-effort and
+    //  should be verified live (MUI tooltips can be finicky about synthetic hover).
+    // =====================================================================
+    function featureCalendar() {
+        const log = makeLogger('calendar');
+        athInjectStyle('ath-calendar-css', `
+            .ath-opennote-btn {
+                position: absolute; top: 2px; right: 2px; z-index: 5;
+                padding: 1px 5px; background: #0f766e; color: #fff;
+                border: 1px solid #0b5c55; border-radius: 3px;
+                font: 600 10px/1.3 system-ui, sans-serif; cursor: pointer; white-space: nowrap;
+            }
+            .ath-opennote-btn:hover { background: #0b5c55; }
+        `);
+
+        // ---- (a) Day -> Week -----------------------------------------------
+        let switchedForPath = null;
+        function viewSelect() {
+            return [...document.querySelectorAll('[role="combobox"][aria-haspopup="listbox"], .MuiSelect-select')]
+                .find((el) => /^(Day|Week|Month)$/i.test((el.textContent || '').trim()));
+        }
+        async function autoDayToWeek() {
+            if (switchedForPath === location.pathname) return;    // once per calendar entry
+            const sel = viewSelect(); if (!sel) return;           // not loaded yet -> retry next tick
+            const cur = (sel.textContent || '').trim();
+            switchedForPath = location.pathname;
+            if (!/^day$/i.test(cur)) return;                      // already Week/Month -> leave it
+            log.log('auto-switching Day -> Week');
+            simulateClick(sel, log);
+            const opt = await waitFor('[role="option"][data-value="week"]', { timeoutMs: 3000, log }).catch(() => null);
+            if (opt) simulateClick(opt, log); else log.warn('week option not found; left as Day');
+        }
+
+        // ---- (b) Open Note button ------------------------------------------
+        const cells = () => [...document.querySelectorAll('[data-calendar-event="true"]')];
+        const isCheckedIn = (cell) => !!cell.querySelector('[data-icon="check_circle"]');
+        function apptIdOf(cell) {
+            const nm = cell.querySelector('[data-name-text="true"][aria-label]');
+            const m = nm && nm.getAttribute('aria-label').match(/-(\d+)\s*$/);
+            return m ? m[1] : null;
+        }
+        async function openNoteFor(cell) {
+            const apptId = apptIdOf(cell);
+            // Reveal the native hover menu that holds the chart-note link.
+            const nm = cell.querySelector('[data-name-text="true"]') || cell;
+            for (const type of ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'mousemove']) {
+                cell.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+                nm.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+            }
+            const rx = apptId ? new RegExp('/ehr/v2/patients/\\d+/appointments/' + apptId + '\\b')
+                : /\/ehr\/v2\/patients\/\d+\/appointments\/\d+/;
+            let link = null;
+            for (let i = 0; i < 20 && !link; i++) {
+                await sleep(80);
+                link = [...document.querySelectorAll('a[href*="/appointments/"]')]
+                    .find((a) => rx.test(a.getAttribute('href') || '') && /open note/i.test(a.textContent || ''));
+            }
+            if (link) { log.log('opening note', link.getAttribute('href')); simulateClick(link, log); return true; }
+            log.warn('Open Note link did not appear for appt', apptId);
+            athToast('Could not open note — is the patient checked in?', { ttl: 3500 });
+            return false;
+        }
+        function injectOpenNoteButtons() {
+            for (const cell of cells()) {
+                const existing = cell.querySelector(':scope > .ath-opennote-btn');
+                if (!isCheckedIn(cell)) { if (existing) existing.remove(); continue; }  // only checked-in cells
+                if (existing) continue;
+                if (getComputedStyle(cell).position === 'static') cell.style.position = 'relative';
+                const b = document.createElement('button');
+                b.type = 'button'; b.className = 'ath-opennote-btn'; b.textContent = 'Note';
+                b.title = 'Open this patient’s note';
+                b.addEventListener('click', (ev) => {
+                    ev.preventDefault(); ev.stopPropagation();
+                    b.disabled = true; const old = b.textContent; b.textContent = '…';
+                    openNoteFor(cell).finally(() => setTimeout(() => { b.textContent = old; b.disabled = false; }, 1200));
+                });
+                cell.appendChild(b);
+            }
+        }
+
+        const tick = () => {
+            if (!pageType().isCalendar) return;
+            try { autoDayToWeek(); injectOpenNoteButtons(); } catch (e) { log.error(e); }
+        };
+        tick();
+        athObserveBody(tick, 400);
+        onUrlChange(() => { if (pageType().isCalendar) { switchedForPath = null; tick(); } });
+        window.__athelasCalendarWeek = () => { switchedForPath = null; return autoDayToWeek(); };
+        window.__athelasOpenNoteCells = () => cells().filter(isCheckedIn).length;
+        log.log('calendar helpers ready. Hooks: __athelasCalendarWeek(), __athelasOpenNoteCells().');
+    }
+
+    // =====================================================================
     // Boot: run each module in turn. They're independent.
     //
     // The button/preview features are observer-driven and self-heal, so we
@@ -2967,6 +3068,7 @@
     featureProcedureMatchPreview();
     featureSurveyQuickAdd();
     featureGoalFromScore();
+    featureCalendar();
 
     // Jump to the flowsheet only when we ENTER a new chart note (its patient +
     // appointment id changes) - NOT on same-note section clicks, which also change
