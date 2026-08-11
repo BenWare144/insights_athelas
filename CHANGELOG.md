@@ -1,5 +1,14 @@
 # Changelog
 
+## 15.19.1 — 2026-08-11
+
+Calendar fixes from live testing:
+
+- **Day → Week now works.** The view is a MUI Select that opens on mousedown, not click, so the old native-click never opened the option list. It now opens with mousedown and picks Week. Also switches once per calendar entry instead of re-firing on every date change.
+- **Open Note button reworked.** It's now a big blue "Open Note" button placed just after the cell's "Checked In" label (lower-left), instead of a tiny chip in the top-right that overlapped the status icons. Check-in is detected by the "Checked In" text (reliable), so the button only shows for checked-in patients and appears reactively when someone is checked in. The chart-note URL (which only exists in the hover popup) is harvested and cached as you hover cells, so clicking opens the note reliably from the live popup or the cache.
+
+Known/deferred: the native hover popup sometimes renders off-screen — that's the app's own positioning and needs its popup DOM to fix safely; deferred pending a capture.
+
 ## 15.19.0 — 2026-08-11
 
 New Calendar (/ehr/calendar) helpers:
