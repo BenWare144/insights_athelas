@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.17.1 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.17.2 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -433,7 +433,11 @@
         let timer = null;
         const fade = () => { b.style.opacity = '0'; b.style.transform = 'translateY(6px)'; setTimeout(() => b.remove(), 240); };
         const arm = (ms) => { if (timer) clearTimeout(timer); if (ms > 0) timer = setTimeout(fade, ms); };
-        if (opts.ttl !== 0) arm(opts.ttl || 2600);
+        // Always dismissible by click, and never truly stuck: even a ttl:0 "progress"
+        // toast gets a long safety cap so it can't linger forever if done() is missed.
+        b.style.pointerEvents = 'auto'; b.style.cursor = 'pointer'; b.title = 'Click to dismiss';
+        b.addEventListener('click', () => { if (timer) clearTimeout(timer); fade(); });
+        arm(opts.ttl === 0 ? 20000 : (opts.ttl || 2600));
         return {
             update: (t) => { b.textContent = t; if (opts.ttl !== 0) arm(opts.ttl || 2600); },
             done: (ms) => { arm(ms == null ? 900 : ms); },
@@ -2713,22 +2717,43 @@
             fo.insertBefore(panel, fo.firstChild);
             log.log('survey quick-add panel injected');
         }
+        function surveyExpanded(r) {
+            // Prefer an aria-expanded toggle tied to the region; else fall back to
+            // height (a scored+expanded survey is tall; a collapsed one is a short header).
+            const cand = r.querySelector('[aria-expanded]')
+                || (r.previousElementSibling && r.previousElementSibling.querySelector && r.previousElementSibling.querySelector('[aria-expanded]'))
+                || (r.parentElement && r.parentElement.querySelector('[aria-expanded]'));
+            if (cand) return cand.getAttribute('aria-expanded') !== 'false';
+            return r.getBoundingClientRect().height > 140;
+        }
+        function scrollRegionToTop(r) {
+            const OFFSET = 8;   // leave the survey's top near the top of the visible page
+            const sp = athFindScrollParent(r);
+            if (sp && sp !== document.documentElement && sp !== document.body) {
+                const top = sp.scrollTop + (r.getBoundingClientRect().top - sp.getBoundingClientRect().top) - OFFSET;
+                sp.scrollTo({ top, behavior: 'smooth' });
+            } else {
+                window.scrollTo({ top: window.scrollY + r.getBoundingClientRect().top - OFFSET, behavior: 'smooth' });
+            }
+        }
         function injectCollapseControls() {
             for (const s of Surveys.SURVEYS) {
                 const r = Surveys.surveyRegion(s.section); if (!r) continue;
-                if (!Surveys.scoresRegion(s.section)) continue;   // only once it's scored
-                if (r.querySelector('.ath-collapse-btn')) continue;
+                const existing = r.querySelector('.ath-collapse-btn');
+                // Show ONLY on a scored, currently-EXPANDED survey; remove otherwise
+                // (no point offering "collapse" on an already-collapsed one).
+                if (!Surveys.scoresRegion(s.section) || !surveyExpanded(r)) { if (existing) existing.remove(); continue; }
+                if (existing) continue;
                 const b = document.createElement('button'); b.type = 'button'; b.className = 'ath-collapse-btn';
                 b.textContent = '⤒ collapse survey'; b.title = 'Collapse this survey and jump back to its top';
                 b.addEventListener('click', (ev) => {
                     ev.preventDefault(); ev.stopPropagation();
                     const tog = r.querySelector('[aria-expanded="true"]'); if (tog) simulateClick(tog, log);
-                    r.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    // Delay the jump ~220ms so the collapse and the scroll read as two
+                    // separate actions instead of one confusing motion.
+                    setTimeout(() => scrollRegionToTop(r), 220);
                 });
-                // Put it at the BOTTOM of the survey (after the long list of answers),
-                // where a collapse control is actually useful - the top can already be
-                // collapsed from the header.
-                r.appendChild(b);
+                r.appendChild(b);   // bottom of the survey
             }
         }
         const tick = () => { try { injectPanel(); injectCollapseControls(); } catch (e) { log.error(e); } };
@@ -2751,15 +2776,37 @@
     function featureGoalFromScore() {
         const log = makeLogger('goals');
 
-        function findAddChip(labelText) {
+        function findAddChip(labelText, root) {
             // The add-buttons are MuiChips whose OWN text is the field name. The goal
             // form has four ("Initial State", "Current State", "Target State",
             // "Status"), so match the chip's exact text - matching a shared container
             // returned the first chip (Current State) instead of the one we wanted.
+            // Prefer chips within the open form's `root`, then fall back to the document.
             const want = labelText.trim().toLowerCase();
-            const chips = [...document.querySelectorAll('.MuiChip-root[role="button"], [role="button"].MuiChip-root')];
-            return chips.find((c) => (c.textContent || '').trim().toLowerCase() === want)
-                || chips.find((c) => (c.textContent || '').trim().toLowerCase().startsWith(want));
+            const pick = (arr) => arr.find((c) => (c.textContent || '').trim().toLowerCase() === want)
+                || arr.find((c) => (c.textContent || '').trim().toLowerCase().startsWith(want));
+            const sel = '.MuiChip-root[role="button"], [role="button"].MuiChip-root';
+            return (root && pick([...root.querySelectorAll(sel)])) || pick([...document.querySelectorAll(sel)]);
+        }
+        function findOpenGoalButton() {
+            // The button to open a new goal form. After the first goal exists its text
+            // may differ, so match "create/add/new goal" (not an exact string), and
+            // prefer a button inside the Goals section.
+            const rx = /\b(create|add|new)\s+goal\b/i;
+            const cands = [...document.querySelectorAll('button, [role="button"]')];
+            const goals = Surveys.goalsSection();
+            const inGoals = goals ? cands.filter((b) => goals.contains(b)) : [];
+            const pick = (arr) => arr.find((b) => rx.test((b.textContent || '').trim()));
+            return pick(inGoals) || pick(cands) || null;
+        }
+        async function waitForFreshNameInput(timeoutMs) {
+            const t0 = Date.now();
+            while (Date.now() - t0 < timeoutMs) {
+                const empty = [...document.querySelectorAll('input[name="name"]')].find((i) => !(i.value || '').trim());
+                if (empty) return empty;
+                await sleep(120);
+            }
+            return null;
         }
         async function typeDate(el, mmddyyyy, log) {
             const digits = (mmddyyyy || '').replace(/\D/g, ''); if (!digits) return false;
@@ -2779,22 +2826,35 @@
         async function createGoal(fields, skip, log, prog) {
             const goals = Surveys.goalsSection(); if (!goals) throw new Error('no goals section');
             goals.scrollIntoView({ block: 'center' }); await sleep(150);
-            const openBtn = athFindButtonByText(goals, 'Create Goal') || athFindButtonByText(document, 'Create Goal');
-            if (!openBtn) throw new Error('no "Create Goal" button'); simulateClick(openBtn, log); await sleep(450);
-            const title = await waitFor('input[name="name"]', { timeoutMs: 5000, log }); setReactValue(title, fields.title, log); await sleep(120);
-            if (fields.date) { const d = document.querySelector('input[name="due_date"]'); if (d) { prog && prog.update('Setting target date…'); await typeDate(d, fields.date, log); } else log.warn('no due_date field'); }
+            // Open a fresh goal form UNLESS an empty one is already open. Target the
+            // EMPTY Goal Title field - once a goal exists its own name/initial/target
+            // fields stay in the DOM, and grabbing the first one would overwrite it.
+            let title = [...document.querySelectorAll('input[name="name"]')].find((i) => !(i.value || '').trim());
+            if (!title) {
+                const openBtn = findOpenGoalButton();
+                if (!openBtn) throw new Error('no "Create/Add Goal" button (did it change after the first goal, or is a form already open?)');
+                simulateClick(openBtn, log); await sleep(450);
+                title = await waitForFreshNameInput(5000);
+            }
+            if (!title) throw new Error('no empty Goal Title field appeared');
+            // Scope everything to the open form so we never touch an existing goal.
+            const form = title.closest('form, [role="dialog"], .MuiDialog-container, .MuiModal-root, .MuiPaper-root') || goals;
+            const q = (sel) => form.querySelector(sel) || document.querySelector(sel);
+            setReactValue(title, fields.title, log); await sleep(120);
+            if (fields.date) { const d = q('input[name="due_date"]'); if (d) { prog && prog.update('Setting target date…'); await typeDate(d, fields.date, log); } else log.warn('no due_date field'); }
             if (!skip.has('initial') && fields.initial) {
                 prog && prog.update('Adding initial state…');
-                const chip = findAddChip('Initial State'); if (chip) { simulateClick(chip, log); await sleep(300); }
-                const iv = document.querySelector('input[name="initial_value"]'); if (iv) setReactValue(iv, fields.initial, log); else log.warn('no initial_value input');
+                const chip = findAddChip('Initial State', form); if (chip) { simulateClick(chip, log); await sleep(300); }
+                const iv = q('input[name="initial_value"]'); if (iv) setReactValue(iv, fields.initial, log); else log.warn('no initial_value input');
             }
             if (!skip.has('target') && fields.target) {
                 prog && prog.update('Adding target state…');
-                const chip = findAddChip('Target State'); if (chip) { simulateClick(chip, log); await sleep(300); }
-                const tv = document.querySelector('input[name="end_goal_value"]'); if (tv) setReactValue(tv, fields.target, log); else log.warn('no end_goal_value input');
+                const chip = findAddChip('Target State', form); if (chip) { simulateClick(chip, log); await sleep(300); }
+                const tv = q('input[name="end_goal_value"]'); if (tv) setReactValue(tv, fields.target, log); else log.warn('no end_goal_value input');
             }
             await sleep(150);
-            const submit = athFindButtonByText(document, 'Create Goal', true);
+            const submit = [...form.querySelectorAll('button, [role="button"]')].filter((b) => /create\s+goal/i.test((b.textContent || '').trim())).pop()
+                || athFindButtonByText(document, 'Create Goal', true);
             if (submit) { simulateClick(submit, log); log.log('submitted Create Goal'); } else log.warn('no submit "Create Goal" button');
         }
         async function runGoal(s, btn) {
@@ -2805,8 +2865,8 @@
             if (!confirmed) { log.log('goal cancelled'); return; }
             if (btn && btn.dataset) { btn.disabled = true; }
             const prog = athToast('Creating ' + s.key + ' goal…', { ttl: 0 });
-            try { await createGoal(fields, skip, log, prog); prog.update('Goal created — review before saving'); prog.arm && prog.arm(3000); if (btn) btn.textContent = '✓ created'; }
-            catch (e) { log.error('createGoal failed', e); prog.update('Goal failed — see console'); prog.arm && prog.arm(3000); if (btn) btn.textContent = 'error'; }
+            try { await createGoal(fields, skip, log, prog); prog.update('Goal created — review before saving'); prog.done(3500); if (btn) btn.textContent = '✓ created'; }
+            catch (e) { log.error('createGoal failed', e); prog.update('Goal failed — see console'); prog.done(4000); if (btn) btn.textContent = 'error'; }
             finally { if (btn) setTimeout(() => { btn.textContent = 'Create ' + s.key + ' goal'; btn.disabled = false; }, 3000); }
         }
         function injectGoalButtons() {

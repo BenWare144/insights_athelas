@@ -1,5 +1,13 @@
 # Changelog
 
+## 15.17.2 — 2026-08-10
+
+More initial-eval fixes from live testing:
+
+- **Progress toasts never closed and couldn't be dismissed.** The goal flow called `prog.arm()`, which doesn't exist (the API is `done()`), so the "Creating…" toast stuck. Toasts are now click-to-dismiss, auto-close on completion, and have a 20s safety cap so nothing lingers.
+- **Only the first goal could be created; the rest failed with "no Create Goal button."** Once a goal exists, its own name/initial/target fields stay in the DOM. The flow now targets the *empty* Goal Title field (so an existing goal is never overwritten), scopes all form-filling to the open form, and matches the open button by "create/add/new goal" instead of an exact string. (Best-effort — see note; send the multi-goal capture to finalize.)
+- **Collapse control now only shows on an expanded survey** (removed once collapsed), the jump waits ~220ms after collapsing so the two actions don't blur together, and it lands the survey's top near the top of the page instead of the upper-middle.
+
 ## 15.17.1 — 2026-08-10
 
 Fixes from first live test of the initial-eval features:
