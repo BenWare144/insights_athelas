@@ -1,5 +1,9 @@
 # Changelog
 
+## 15.19.3 — 2026-08-11
+
+- Hide the appointment-tooltip arrow when the popup is clamped back on-screen. After a nudge the arrow points away from the cell and its hit area was blocking interaction; it's now removed on clamp. Normally-placed tooltips keep their arrow.
+
 ## 15.19.2 — 2026-08-11
 
 - Keep the appointment hover popup on-screen. It's a MUI Tooltip positioned by an inline transform that sometimes lands partly off the top/edge; a clamp now nudges its transform so the popup sits fully in the viewport (idempotent — once in view it stops adjusting). The tooltip's little arrow may point slightly off after a big shift, but the content is fully visible.

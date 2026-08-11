@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.19.2 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.19.3 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -3059,7 +3059,12 @@
             if (r.left < M) dx = M - r.left; else if (r.right > innerWidth - M) dx = (innerWidth - M) - r.right;
             if (!dx && !dy) return;
             popper.style.transform = `translate(${parseFloat(m[1]) + dx}px, ${parseFloat(m[2]) + dy}px)`;
-            log.log('clamped appointment tooltip into view', { dx: Math.round(dx), dy: Math.round(dy) });
+            // Once clamped, the arrow points away from the cell and its hit area blocks
+            // interaction, so remove it. Each tooltip open mounts a fresh popper, so a
+            // normally-placed (unclamped) tooltip keeps its arrow.
+            const arrow = popper.querySelector('.MuiTooltip-arrow');
+            if (arrow) { arrow.style.display = 'none'; arrow.style.pointerEvents = 'none'; }
+            log.log('clamped appointment tooltip into view (arrow hidden)', { dx: Math.round(dx), dy: Math.round(dy) });
         }
 
         const tick = () => {

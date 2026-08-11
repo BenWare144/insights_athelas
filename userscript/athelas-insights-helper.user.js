@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.19.2
+// @version      15.19.3
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -3063,7 +3063,12 @@
             if (r.left < M) dx = M - r.left; else if (r.right > innerWidth - M) dx = (innerWidth - M) - r.right;
             if (!dx && !dy) return;
             popper.style.transform = `translate(${parseFloat(m[1]) + dx}px, ${parseFloat(m[2]) + dy}px)`;
-            log.log('clamped appointment tooltip into view', { dx: Math.round(dx), dy: Math.round(dy) });
+            // Once clamped, the arrow points away from the cell and its hit area blocks
+            // interaction, so remove it. Each tooltip open mounts a fresh popper, so a
+            // normally-placed (unclamped) tooltip keeps its arrow.
+            const arrow = popper.querySelector('.MuiTooltip-arrow');
+            if (arrow) { arrow.style.display = 'none'; arrow.style.pointerEvents = 'none'; }
+            log.log('clamped appointment tooltip into view (arrow hidden)', { dx: Math.round(dx), dy: Math.round(dy) });
         }
 
         const tick = () => {
