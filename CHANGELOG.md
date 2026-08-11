@@ -1,5 +1,9 @@
 # Changelog
 
+## 15.19.4 — 2026-08-11
+
+- Survey quick-add panel: put it back to its own row at the top of the Functional Outcomes section (right-aligned so it sits above the "Add a functional outcome form" input), instead of inside the header row where it was shifting the input box (15.18.2).
+
 ## 15.19.3 — 2026-08-11
 
 - Hide the appointment-tooltip arrow when the popup is clamped back on-screen. After a nudge the arrow points away from the cell and its hit area was blocking interaction; it's now removed on clamp. Normally-placed tooltips keep their arrow.
