@@ -1,5 +1,9 @@
 # Changelog
 
+## 15.18.2 — 2026-08-10
+
+- Moved the survey quick-add panel to the right side of the Functional Outcomes header, next to the "Add a functional outcome form" input where therapists enter surveys (was full-width above the heading).
+
 ## 15.18.1 — 2026-08-10
 
 - Reverted the two display changes from 15.18.0 that came from the target-mapping's notes (gathered a week earlier, so its display conventions are stale). Kept the app's established formats: DHI stays "DHI score of X/100" (not "total score"); Modified Oswestry stays percent-only ("X% disability", not raw+percent). The target-state values are unchanged — only the wording follows the app approach now (e.g. DHI → "DHI score of 34/100"; Oswestry → "20% disability").

@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.18.1 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.18.2 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -2728,7 +2728,7 @@
             /* Faint separator between question/answer rows inside a survey region.
                Targets direct flex/grid rows; refine once the live row markup is seen. */
             [data-section="functional_outcomes"] [role="region"] .MuiBox-root > .MuiBox-root + .MuiBox-root { border-top: 1px solid rgba(0,0,0,.06); }
-            .ath-survey-panel { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+            .ath-survey-panel { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; margin-right: 8px; }
             .ath-survey-btn { padding: 4px 10px; background: #0f766e; color: #fff; border: 1px solid #0b5c55; border-radius: 4px; font: 600 12px/1.2 system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
             .ath-survey-btn:hover { background: #0b5c55; }
             .ath-survey-btn:disabled { opacity: .6; cursor: default; }
@@ -2757,7 +2757,18 @@
                 });
                 panel.appendChild(b);
             }
-            fo.insertBefore(panel, fo.firstChild);
+            // Place the panel on the RIGHT of the section header, next to the
+            // "Add a functional outcome form" input (where therapists enter surveys).
+            // Insert it just before that input's hover toolbar; margin-left:auto
+            // pushes both to the right. Fall back to the top of the section.
+            const input = fo.querySelector('input[placeholder="Add a functional outcome form"]');
+            let toolbar = input;
+            while (toolbar && toolbar !== fo && !/group-hover\/child-section-container:tr-visible/.test(toolbar.className || '')) toolbar = toolbar.parentElement;
+            if (toolbar && toolbar !== fo && toolbar.parentNode) {
+                toolbar.parentNode.insertBefore(panel, toolbar);
+            } else {
+                fo.insertBefore(panel, fo.firstChild);
+            }
             log.log('survey quick-add panel injected');
         }
         function surveyExpanded(r) {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Athelas Insights Helper \u2014 Chart-Note Tools",
-  "version": "15.18.1",
+  "version": "15.18.2",
   "description": "One-click chart-note helpers for Athelas Insights: Fix Procedures & Fix Private Pay. No data collected.",
   "minimum_chrome_version": "111",
   "icons": {
