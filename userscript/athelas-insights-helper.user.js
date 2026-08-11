@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.19.1
+// @version      15.19.2
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -3044,16 +3044,47 @@
             }
         }
 
+        // ---- (c) keep the appointment hover popup on-screen ----------------
+        // The popup is a MUI Tooltip positioned by an inline transform on
+        // .MuiTooltip-popper; it sometimes lands partly off-screen. Nudge the
+        // transform so the tooltip box sits fully in the viewport. Idempotent
+        // (once in view it stops adjusting). Stable hook: aria-label="Appointment
+        // Tooltip" inside the popper.
+        function clampTooltip() {
+            const popper = [...document.querySelectorAll('.MuiTooltip-popper')]
+                .find((p) => p.querySelector('[aria-label="Appointment Tooltip"]'));
+            if (!popper) return;
+            const m = (popper.style.transform || '').match(/translate\(\s*([-\d.]+)px\s*,\s*([-\d.]+)px\s*\)/);
+            if (!m) return;
+            const box = popper.querySelector('.MuiTooltip-tooltip') || popper;
+            const r = box.getBoundingClientRect(); const M = 8;
+            let dx = 0, dy = 0;
+            if (r.top < M) dy = M - r.top; else if (r.bottom > innerHeight - M) dy = (innerHeight - M) - r.bottom;
+            if (r.left < M) dx = M - r.left; else if (r.right > innerWidth - M) dx = (innerWidth - M) - r.right;
+            if (!dx && !dy) return;
+            popper.style.transform = `translate(${parseFloat(m[1]) + dx}px, ${parseFloat(m[2]) + dy}px)`;
+            log.log('clamped appointment tooltip into view', { dx: Math.round(dx), dy: Math.round(dy) });
+        }
+
         const tick = () => {
             if (!pageType().isCalendar) { weekDone = false; return; }   // re-arm on leaving calendar
-            try { autoDayToWeek(); harvestNoteHrefs(); injectOpenNoteButtons(); } catch (e) { log.error(e); }
+            try { autoDayToWeek(); harvestNoteHrefs(); injectOpenNoteButtons(); clampTooltip(); } catch (e) { log.error(e); }
         };
         tick();
         athObserveBody(tick, 400);
+        // A faster, clamp-only observer so an off-screen popup snaps into view quickly.
+        let cPending = null;
+        const cObs = new MutationObserver(() => {
+            if (cPending) return;
+            cPending = setTimeout(() => { cPending = null; if (pageType().isCalendar) { try { clampTooltip(); } catch (e) {} } }, 60);
+        });
+        const startC = () => cObs.observe(document.body, { childList: true, subtree: true });
+        if (document.body) startC(); else new MutationObserver((_, o) => { if (document.body) { o.disconnect(); startC(); } }).observe(document.documentElement, { childList: true });
         onUrlChange(tick);
         window.__athelasCalendarWeek = () => { weekDone = false; return autoDayToWeek(); };
         window.__athelasNoteHrefs = () => noteHref;
-        log.log('calendar helpers ready. Hooks: __athelasCalendarWeek(), __athelasNoteHrefs().');
+        window.__athelasClampTooltip = clampTooltip;
+        log.log('calendar helpers ready. Hooks: __athelasCalendarWeek(), __athelasNoteHrefs(), __athelasClampTooltip().');
     }
 
     // =====================================================================
