@@ -32,6 +32,10 @@
 !surveys/
 !surveys/**
 
+# dev helper scripts (e.g. build-local.js)
+!scripts/
+!scripts/**
+
 # Web Store deploy assets (the *.zip build artifact stays ignored via *.zip below)
 !deploy/
 !deploy/**
@@ -48,6 +52,7 @@ node_modules/
 *.zip
 *.new
 *.tmp
+*.local.user.js
 
 # PHI captures live here (console logs, .mhtml page saves, chart-note DOM dumps).
 # Redundantly ignored as a whole folder in addition to the *.log/*.mhtml rules
