@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.20.2
+// @version      15.20.3
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -3114,7 +3114,9 @@
 
         const tick = () => {
             if (!pageType().isCalendar) { weekDone = false; return; }   // re-arm on leaving calendar
-            try { autoDayToWeek(); harvestNoteHrefs(); injectOpenNoteButtons(); clampTooltip(); } catch (e) { log.error(e); }
+            // Auto Day->Week is SHELVED for now (something misbehaves; disabled per Ben).
+            // Re-enable by putting autoDayToWeek() back in this try. Manual trigger: __athelasCalendarWeek().
+            try { harvestNoteHrefs(); injectOpenNoteButtons(); clampTooltip(); } catch (e) { log.error(e); }
         };
         tick();
         athObserveBody(tick, 400);

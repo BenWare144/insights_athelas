@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.20.2 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.20.3 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -3110,7 +3110,9 @@
 
         const tick = () => {
             if (!pageType().isCalendar) { weekDone = false; return; }   // re-arm on leaving calendar
-            try { autoDayToWeek(); harvestNoteHrefs(); injectOpenNoteButtons(); clampTooltip(); } catch (e) { log.error(e); }
+            // Auto Day->Week is SHELVED for now (something misbehaves; disabled per Ben).
+            // Re-enable by putting autoDayToWeek() back in this try. Manual trigger: __athelasCalendarWeek().
+            try { harvestNoteHrefs(); injectOpenNoteButtons(); clampTooltip(); } catch (e) { log.error(e); }
         };
         tick();
         athObserveBody(tick, 400);

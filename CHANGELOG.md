@@ -1,5 +1,9 @@
 # Changelog
 
+## 15.20.3 — 2026-08-11
+
+- Shelved the calendar auto Day→Week view switch (misbehaving; disabled per request). The rest of the calendar helpers stay: the Open Note button on checked-in appointments and the off-screen popup clamp. The switch code is still present and can be re-enabled; `__athelasCalendarWeek()` triggers it manually.
+
 ## 15.20.2 — 2026-08-11
 
 - Survey status button back to the **bottom of the survey (its original spot), right-aligned** via align-self:flex-end — not the header row. In the rework it had been put in the header and pushed right with margin-left:auto, but that header row is shrink-wrapped so it only moved next to the name. Also made it bigger.
