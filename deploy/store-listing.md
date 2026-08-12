@@ -34,6 +34,7 @@ Features:
 The extension is a display and workflow aid only. It does not collect, store, or transmit any data — all processing happens locally in the browser, and it requests no permissions. Intended for authorized clinic staff.
 
 Recent updates:
+• v15.21 — Settings gear (top-right): turn any individual feature on or off (with a master switch), so a site change that affects one feature never forces disabling the rest.
 • v15.20 — Each survey shows a completion status button (red until scored, green when complete) that collapses the survey and drafts the goal; the goal dialog now has editable score numbers and a description of what the score means.
 • v15.19 — Calendar: adds an "Open Note" button on checked-in appointments and keeps the appointment popup on-screen.
 • v15.18 — New: functional-outcome survey quick-add panel and one-click "Create goal from outcome score" on initial evaluations, both behind a review dialog.

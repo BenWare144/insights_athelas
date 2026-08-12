@@ -1,5 +1,9 @@
 # Changelog
 
+## 15.21.0 — 2026-08-11
+
+- **Feature toggles for robustness.** A small ⚙ gear (top-right, on every Athelas page) opens a settings panel where each major feature can be turned off — Fix Procedures, Fix Private Pay, the survey quick-add panel, the survey status/goal button, jump-to-Flowsheet, compact layout, and the calendar Open Note button — plus a master switch to disable everything at once. If a site update breaks a feature, you can switch just that one off instead of the whole extension. Toggles save to the page's localStorage (no permission, no data collected), work identically in the userscript and the extension, and apply immediately (no reload). The gear stays reachable even if a feature is off or broken.
+
 ## 15.20.3 — 2026-08-11
 
 - Shelved the calendar auto Day→Week view switch (misbehaving; disabled per request). The rest of the calendar helpers stay: the Open Note button on checked-in appointments and the off-screen popup clamp. The switch code is still present and can be re-enabled; `__athelasCalendarWeek()` triggers it manually.

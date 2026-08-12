@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.20.3 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.21.0 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -42,6 +42,37 @@
         window.addEventListener('popstate', fire);
         setInterval(fire, 600);   // safety net for SPAs that stash the original History refs
     }
+
+    // =====================================================================
+    // Feature toggles (robustness). Each major feature can be turned off from the
+    // in-page settings panel (top-right gear), so a site update that breaks one
+    // feature doesn't force disabling everything. Persisted in page localStorage
+    // (no permission, no data collection) - identical in the userscript and the
+    // MAIN-world extension. Features.enabled(id) gates each injector.
+    // =====================================================================
+    const Features = (function () {
+        const KEY = 'athelas-helper:features';
+        const MASTER = '__master';
+        const LIST = [
+            { id: 'fixProcedures',    label: 'Fix Procedures button' },
+            { id: 'fixPrivatePay',    label: 'Fix Private Pay button' },
+            { id: 'surveyPanel',      label: 'Survey quick-add panel (initial eval)' },
+            { id: 'goals',            label: 'Survey status button + Create Goal' },
+            { id: 'jumpFlowsheet',    label: 'Jump to Flowsheet on note open' },
+            { id: 'compactLayout',    label: 'Compact layout' },
+            { id: 'calendarOpenNote', label: 'Calendar: Open Note button' },
+        ];
+        let state = {};
+        try { state = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { state = {}; }
+        const listeners = [];
+        const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+        const masterOn = () => state[MASTER] !== false;                             // default ON
+        const isOn = (id) => (id === MASTER ? masterOn() : state[id] !== false);     // raw flag (default ON)
+        const enabled = (id) => masterOn() && state[id] !== false;                   // master-gated
+        const set = (id, val) => { state[id] = !!val; save(); listeners.forEach((fn) => { try { fn(); } catch (e) {} }); };
+        const onChange = (fn) => listeners.push(fn);
+        return { LIST, MASTER, masterOn, isOn, enabled, set, onChange };
+    })();
     // v14.15: calendar support removed entirely (dead since v11 - the page
     // ships its own in-product compact toggle, so the script did nothing there).
 
@@ -698,6 +729,7 @@
     // =====================================================================
     function applyCompactCss() {
         const log = makeLogger('compact');
+        if (!Features.enabled('compactLayout')) return;
         const cssAppointments = `
             .v2-advanced-table .q-table th,
             .v2-advanced-table .q-table td {
@@ -1082,7 +1114,7 @@
             applyCompactCss._done[key] = true;
             const styleId = 'athelas-compact-' + key;
             if (typeof GM_addStyle === 'function') {
-                GM_addStyle(css);
+                { const _cs = GM_addStyle(css); if (_cs) _cs.id = styleId; }
                 log.log(`applied ${key} via GM_addStyle (${css.length} chars)`);
             } else {
                 const inject = () => {
@@ -1836,6 +1868,7 @@
             );
         }
         function injectHeaderButton() {
+            if (!Features.enabled('fixProcedures')) { const _b = document.getElementById(HEADER_BTN_ID); if (_b) _b.remove(); return; }
             if (document.getElementById(HEADER_BTN_ID)) return;
             const row = findFlowsheetHeaderRow();
             if (!row) return;
@@ -2352,6 +2385,7 @@
         }
         // ---- button (above the private-pay section) ------------------------
         function injectButton() {
+            if (!Features.enabled('fixPrivatePay')) { const _b = document.getElementById(BTN_ID); if (_b) _b.remove(); return; }
             if (document.getElementById(BTN_ID)) return;
             const scope = getScope();
             if (!scope) return;
@@ -2765,6 +2799,7 @@
             if (tog) { simulateClick(tog, log); log.log('expanded survey', section); }
         }
         function injectPanel() {
+            if (!Features.enabled('surveyPanel')) { const _p = document.querySelector('.ath-survey-panel'); if (_p) _p.remove(); return; }
             if (!Surveys.isInitialEval()) return;
             const fo = Surveys.foSection(); if (!fo) return;
             if (fo.querySelector('.ath-survey-panel')) return;
@@ -2937,6 +2972,7 @@
         // scored, then green "Survey Complete! Create Goal?". Click collapses the survey
         // and jumps to its top; when complete it also fills out the goal.
         function injectStatusButtons() {
+            if (!Features.enabled('goals')) { document.querySelectorAll('.ath-survey-status').forEach((e) => e.remove()); return; }
             if (!Surveys.isInitialEval()) return;
             for (const s of Surveys.SURVEYS) {
                 const region = Surveys.surveyRegion(s.section); if (!region) continue;
@@ -2966,6 +3002,7 @@
         // The original blue "Create <survey> goal" button above the scores (kept
         // alongside the header status button, which ALSO creates the goal on click).
         function injectGoalButtons() {
+            if (!Features.enabled('goals')) { document.querySelectorAll('.ath-goal-btn').forEach((e) => e.remove()); return; }
             if (!Surveys.isInitialEval()) return;
             for (const s of Surveys.SURVEYS) {
                 const sc = Surveys.scoresRegion(s.section); if (!sc) continue;
@@ -3066,6 +3103,7 @@
             athToast('Hover the patient once, then click Open Note.', { ttl: 3500 });
         }
         function injectOpenNoteButtons() {
+            if (!Features.enabled('calendarOpenNote')) { document.querySelectorAll('.ath-opennote-btn').forEach((e) => e.remove()); return; }
             for (const cell of cells()) {
                 const ci = checkedInLabel(cell);          // check-in = the "Checked In" label
                 let btn = cell.querySelector('.ath-opennote-btn');
@@ -3142,6 +3180,66 @@
     // Legacy modules disabled in the v14 site rework live in
     // the removed v14-rework archive (see note above MODULE 9).
     // =====================================================================
+    // In-page settings: a top-right gear (always present, DECOUPLED from the
+    // features so it's reachable even if a feature breaks) opens a panel of
+    // per-feature toggles + a master switch. Persisted via Features (localStorage).
+    // =====================================================================
+    function featureSettingsPanel() {
+        athInjectStyle('ath-settings-css', `
+            .ath-gear { position: fixed; top: 10px; right: 10px; z-index: 2147483000; width: 30px; height: 30px; border-radius: 50%; background: rgba(28,28,38,.82); color: #fff; border: none; cursor: pointer; font: 16px/30px system-ui, sans-serif; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.25); opacity: .5; transition: opacity .15s; padding: 0; }
+            .ath-gear:hover { opacity: 1; }
+            .ath-set-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 2147483001; display: flex; align-items: center; justify-content: center; }
+            .ath-set-panel { background: #fff; border-radius: 8px; width: 420px; max-width: 92%; font: 13px/1.5 system-ui, sans-serif; box-shadow: 0 10px 40px rgba(0,0,0,.3); overflow: hidden; }
+            .ath-set-panel h3 { margin: 0; padding: 14px 18px; border-bottom: 1px solid #e5e5e5; font-size: 15px; }
+            .ath-set-body { padding: 8px 18px 6px; }
+            .ath-set-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+            .ath-set-row label { flex: 1; cursor: pointer; }
+            .ath-set-row input { width: 16px; height: 16px; cursor: pointer; }
+            .ath-set-master { border-bottom: 1px solid #eee; margin-bottom: 4px; padding-bottom: 8px; font-weight: 600; }
+            .ath-set-note { color: #888; font-size: 11px; padding: 4px 18px 12px; }
+            .ath-set-foot { padding: 10px 18px; border-top: 1px solid #e5e5e5; text-align: right; }
+            .ath-set-foot button { padding: 6px 14px; cursor: pointer; }
+        `);
+        function mkRow(id, label, master) {
+            const row = document.createElement('div'); row.className = 'ath-set-row' + (master ? ' ath-set-master' : '');
+            const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = Features.isOn(id); cb.id = 'ath-cb-' + id;
+            const l = document.createElement('label'); l.textContent = label; l.htmlFor = cb.id;
+            cb.addEventListener('change', () => Features.set(id, cb.checked));
+            row.appendChild(cb); row.appendChild(l);
+            return row;
+        }
+        function openPanel() {
+            if (document.querySelector('.ath-set-overlay')) return;
+            const overlay = document.createElement('div'); overlay.className = 'ath-set-overlay';
+            const panel = document.createElement('div'); panel.className = 'ath-set-panel';
+            const h = document.createElement('h3'); h.textContent = 'Athelas Helper — settings'; panel.appendChild(h);
+            const body = document.createElement('div'); body.className = 'ath-set-body';
+            body.appendChild(mkRow(Features.MASTER, 'All features (master switch)', true));
+            for (const ft of Features.LIST) body.appendChild(mkRow(ft.id, ft.label, false));
+            panel.appendChild(body);
+            const note = document.createElement('div'); note.className = 'ath-set-note';
+            note.textContent = 'Turn a feature off if a site update breaks it. Changes save automatically and apply right away.';
+            panel.appendChild(note);
+            const foot = document.createElement('div'); foot.className = 'ath-set-foot';
+            const close = document.createElement('button'); close.textContent = 'Close'; foot.appendChild(close); panel.appendChild(foot);
+            overlay.appendChild(panel); document.body.appendChild(overlay);
+            const doClose = () => overlay.remove();
+            close.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); doClose(); });
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) doClose(); });
+            document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { doClose(); document.removeEventListener('keydown', esc); } });
+        }
+        function injectGear() {
+            if (document.getElementById('ath-gear')) return;
+            const g = document.createElement('button'); g.id = 'ath-gear'; g.className = 'ath-gear'; g.type = 'button'; g.textContent = '⚙'; g.title = 'Athelas Helper settings';
+            g.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openPanel(); });
+            (document.body || document.documentElement).appendChild(g);
+        }
+        const tick = () => { try { injectGear(); } catch (e) {} };
+        tick(); athObserveBody(tick, 500);
+        window.__athelasSettings = { open: openPanel };
+    }
+
+    // =====================================================================
     applyCompactCss();
     featureFixMisplacedMET();
     featureFixPrivatePay();
@@ -3149,6 +3247,14 @@
     featureSurveyQuickAdd();
     featureGoalFromScore();
     featureCalendar();
+    featureSettingsPanel();
+
+    // Toggling a feature: reapply compact CSS directly, then wake the button
+    // observers with a throwaway mutation so gated injectors add/remove at once.
+    Features.onChange(() => {
+        try { if (Features.enabled('compactLayout')) applyCompactCss(); else { document.querySelectorAll('style[id^="athelas-compact-"]').forEach((e) => e.remove()); if (applyCompactCss._done) applyCompactCss._done = {}; } } catch (e) {}
+        try { const t = document.createElement('div'); (document.body || document.documentElement).appendChild(t); t.remove(); } catch (e) {}
+    });
 
     // Jump to the flowsheet only when we ENTER a new chart note (its patient +
     // appointment id changes) - NOT on same-note section clicks, which also change
@@ -3162,6 +3268,7 @@
     async function jumpOnNewChartNote() {
         const key = chartNoteKey();
         if (!key || key === lastChartKey || scrolling) return;   // not a note, same note, or busy
+        if (!Features.enabled('jumpFlowsheet')) return;
         lastChartKey = key;
         scrolling = true;
         try { await featureScrollToFlowsheet(); } finally { scrolling = false; }
