@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.21.0
+// @version      15.21.1
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -3184,14 +3184,15 @@
     // Legacy modules disabled in the v14 site rework live in
     // the removed v14-rework archive (see note above MODULE 9).
     // =====================================================================
-    // In-page settings: a top-right gear (always present, DECOUPLED from the
-    // features so it's reachable even if a feature breaks) opens a panel of
-    // per-feature toggles + a master switch. Persisted via Features (localStorage).
+    // In-page settings: an inline "Extension Settings" button placed next to a
+    // native control (left of "Clear All" on the calendar; left of Recently Viewed on
+    // a chart note) - DECOUPLED from our features so it's reachable even if one breaks.
+    // Inline (not an overlay) so it flows with the page. Opens a toggle panel.
     // =====================================================================
     function featureSettingsPanel() {
         athInjectStyle('ath-settings-css', `
-            .ath-gear { position: fixed; top: 10px; right: 10px; z-index: 2147483000; width: 30px; height: 30px; border-radius: 50%; background: rgba(28,28,38,.82); color: #fff; border: none; cursor: pointer; font: 16px/30px system-ui, sans-serif; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,.25); opacity: .5; transition: opacity .15s; padding: 0; }
-            .ath-gear:hover { opacity: 1; }
+            .ath-settings-btn { display: inline-flex; align-items: center; padding: 5px 12px; border-radius: 4px; background: #16a34a; color: #fff; border: 1px solid #128a3e; font: 600 12px/1.2 system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
+            .ath-settings-btn:hover { background: #15803d; }
             .ath-set-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 2147483001; display: flex; align-items: center; justify-content: center; }
             .ath-set-panel { background: #fff; border-radius: 8px; width: 420px; max-width: 92%; font: 13px/1.5 system-ui, sans-serif; box-shadow: 0 10px 40px rgba(0,0,0,.3); overflow: hidden; }
             .ath-set-panel h3 { margin: 0; padding: 14px 18px; border-bottom: 1px solid #e5e5e5; font-size: 15px; }
@@ -3232,13 +3233,19 @@
             overlay.addEventListener('click', (e) => { if (e.target === overlay) doClose(); });
             document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { doClose(); document.removeEventListener('keydown', esc); } });
         }
-        function injectGear() {
-            if (document.getElementById('ath-gear')) return;
-            const g = document.createElement('button'); g.id = 'ath-gear'; g.className = 'ath-gear'; g.type = 'button'; g.textContent = '⚙'; g.title = 'Athelas Helper settings';
-            g.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openPanel(); });
-            (document.body || document.documentElement).appendChild(g);
+        function settingsAnchor() {
+            return document.querySelector('[aria-label="Clear All Filters"]')       // calendar: left of "Clear All"
+                || document.querySelector('[aria-label="Recently Viewed Notes"]');  // chart note: left of recently-viewed
         }
-        const tick = () => { try { injectGear(); } catch (e) {} };
+        function injectSettingsButton() {
+            if (document.getElementById('ath-settings-btn')) return;
+            const anchor = settingsAnchor(); if (!anchor || !anchor.parentNode) return;
+            const b = document.createElement('button'); b.id = 'ath-settings-btn'; b.className = 'ath-settings-btn'; b.type = 'button';
+            b.textContent = 'Extension Settings'; b.title = 'Turn Athelas Helper features on/off';
+            b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openPanel(); });
+            anchor.parentNode.insertBefore(b, anchor);   // just to the LEFT of the anchor
+        }
+        const tick = () => { try { injectSettingsButton(); } catch (e) {} };
         tick(); athObserveBody(tick, 500);
         window.__athelasSettings = { open: openPanel };
     }

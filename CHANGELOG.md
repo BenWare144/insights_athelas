@@ -1,5 +1,9 @@
 # Changelog
 
+## 15.21.1 — 2026-08-11
+
+- Settings entry point is now an inline green **"Extension Settings"** button (styled like the other helper buttons) instead of a floating gear. It sits just left of "Clear All" on the calendar and just left of the Recently Viewed control on a chart note, so it flows with the page on resize. Still decoupled from the features (anchored to native controls), so it's reachable even if a feature breaks.
+
 ## 15.21.0 — 2026-08-11
 
 - **Feature toggles for robustness.** A small ⚙ gear (top-right, on every Athelas page) opens a settings panel where each major feature can be turned off — Fix Procedures, Fix Private Pay, the survey quick-add panel, the survey status/goal button, jump-to-Flowsheet, compact layout, and the calendar Open Note button — plus a master switch to disable everything at once. If a site update breaks a feature, you can switch just that one off instead of the whole extension. Toggles save to the page's localStorage (no permission, no data collected), work identically in the userscript and the extension, and apply immediately (no reload). The gear stays reachable even if a feature is off or broken.
