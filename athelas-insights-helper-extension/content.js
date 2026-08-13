@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.21.1 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.21.2 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -3235,11 +3235,18 @@
         }
         function injectSettingsButton() {
             if (document.getElementById('ath-settings-btn')) return;
-            const anchor = settingsAnchor(); if (!anchor || !anchor.parentNode) return;
+            const anchor = settingsAnchor(); if (!anchor) return;
+            // If the anchor sits in a responsive-hidden wrapper (calendar's "Clear All"
+            // is inside a `tr-hidden lg:tr-block` div that hides on small screens), put
+            // OUR button BEFORE that wrapper so it stays visible; else before the anchor.
+            let ref = anchor;
+            const p = anchor.parentElement;
+            if (p && (p.className || '').split(/\s+/).includes('tr-hidden')) ref = p;
+            if (!ref.parentNode) return;
             const b = document.createElement('button'); b.id = 'ath-settings-btn'; b.className = 'ath-settings-btn'; b.type = 'button';
             b.textContent = 'Extension Settings'; b.title = 'Turn Athelas Helper features on/off';
             b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openPanel(); });
-            anchor.parentNode.insertBefore(b, anchor);   // just to the LEFT of the anchor
+            ref.parentNode.insertBefore(b, ref);
         }
         const tick = () => { try { injectSettingsButton(); } catch (e) {} };
         tick(); athObserveBody(tick, 500);

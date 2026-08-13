@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.21.1
+// @version      15.21.2
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -3239,11 +3239,18 @@
         }
         function injectSettingsButton() {
             if (document.getElementById('ath-settings-btn')) return;
-            const anchor = settingsAnchor(); if (!anchor || !anchor.parentNode) return;
+            const anchor = settingsAnchor(); if (!anchor) return;
+            // If the anchor sits in a responsive-hidden wrapper (calendar's "Clear All"
+            // is inside a `tr-hidden lg:tr-block` div that hides on small screens), put
+            // OUR button BEFORE that wrapper so it stays visible; else before the anchor.
+            let ref = anchor;
+            const p = anchor.parentElement;
+            if (p && (p.className || '').split(/\s+/).includes('tr-hidden')) ref = p;
+            if (!ref.parentNode) return;
             const b = document.createElement('button'); b.id = 'ath-settings-btn'; b.className = 'ath-settings-btn'; b.type = 'button';
             b.textContent = 'Extension Settings'; b.title = 'Turn Athelas Helper features on/off';
             b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openPanel(); });
-            anchor.parentNode.insertBefore(b, anchor);   // just to the LEFT of the anchor
+            ref.parentNode.insertBefore(b, ref);
         }
         const tick = () => { try { injectSettingsButton(); } catch (e) {} };
         tick(); athObserveBody(tick, 500);

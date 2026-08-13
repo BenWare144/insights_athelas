@@ -1,5 +1,9 @@
 # Changelog
 
+## 15.21.2 — 2026-08-11
+
+- Calendar "Extension Settings" button now inserts *before* the `tr-hidden lg:tr-block` wrapper that holds "Clear All", instead of inside it — so it stays visible at smaller widths (the wrapper hides below the lg breakpoint).
+
 ## 15.21.1 — 2026-08-11
 
 - Settings entry point is now an inline green **"Extension Settings"** button (styled like the other helper buttons) instead of a floating gear. It sits just left of "Clear All" on the calendar and just left of the Recently Viewed control on a chart note, so it flows with the page on resize. Still decoupled from the features (anchored to native controls), so it's reachable even if a feature breaks.
