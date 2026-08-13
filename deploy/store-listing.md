@@ -25,7 +25,7 @@ Athelas Insights Helper streamlines documentation for physical-therapy clinician
 Features:
 • One click "Fix Procedures" button — reviews the interventions marked "Done" against the clinic's procedure rules and, with one click, moves any that are filed under the wrong CPT code to the correct one and appends the standard justification. Every change is shown in a confirmation dialog first, with a checkbox per change, so nothing happens without the clinician's approval.
 • One click "Fix Private Pay" button — for self-pay visits, collects the interventions marked "Done" into the private-pay section, applying the same justifications, again after a review dialog.
-• NEW — Functional-outcome survey quick-add: on an initial evaluation, a one-click panel adds the clinic's common self-report outcome surveys (DHI, Modified Oswestry, NDI, LEFS, QuickDASH, KOS-ADLS) to the Functional Outcomes section, replacing the fiddly hover-and-type step.
+• NEW — Functional-outcome survey quick-add: on an initial evaluation, a one-click panel adds the clinic's most-used self-report outcome surveys to the Functional Outcomes section, replacing the fiddly hover-and-type step.
 • NEW — Create goal from outcome score: once a survey is scored, one click drafts a matching goal — title, target date pulled from the Plan of Care end date, and the initial and target states filled from the score — shown in an editable review dialog (with a reminder of what the score means) before anything is entered.
 • NEW — Calendar helpers: adds an "Open Note" button directly on each checked-in appointment so clinicians don't have to hover to find it, and keeps the appointment hover popup from opening off-screen.
 • Jump to Flowsheet — on opening a chart note, scrolls straight to the Interventions flowsheet where clinicians do most of their work.
@@ -68,4 +68,5 @@ Visibility: **Unlisted**  (installable by link/ID, hidden from search, auto-upda
 
 ## Notes
 - The publisher/developer name shown on the listing comes from your Web Store account (Lake Region Consulting) — it is separate from the item name above.
-- The 32-char extension ID is assigned on first publish and never changes; that ID is what clinic IT uses to force-install (see DEPLOYMENT.md, Part D).
+- **Item / extension ID: `lnacagncbpglinobghcdeadaodonpjdf`** — assigned on first publish, never changes; this is what clinic IT uses to force-install (see DEPLOYMENT.md, Part D).
+- **Do NOT list the survey acronyms** (DHI, LEFS, QuickDASH, etc.) in the description — the 2026-08-11 submission was rejected for "Keyword Spam" over exactly that list (see deploy/store-review/2026-08-11-rejection-keyword-spam.eml). Describe the surveys generically instead.

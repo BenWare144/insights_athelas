@@ -1,0 +1,202 @@
+Delivered-To: lakeregiondev@gmail.com
+Received: by 2002:a17:505:b58:b0:1e48:17df:b962 with SMTP id xo24csp438140njb;
+        Tue, 11 Aug 2026 06:05:50 -0700 (PDT)
+X-Received: by 2002:a05:690c:6203:b0:80b:a6a3:937c with SMTP id 00721157ae682-82f2d2d09f6mr20910417b3.20.1786453550538;
+        Tue, 11 Aug 2026 06:05:50 -0700 (PDT)
+ARC-Seal: i=1; a=rsa-sha256; t=1786453550; cv=none;
+        d=google.com; s=arc-20260327;
+        b=AD7BcRh0yFreXKXXreXUMabZUvn8ukZae7EfptXymXW1b5PWXnfQ/Ro2gwCrfiiSqB
+         f0SYs0rKkOP64DW+2/ylPHnyyiBjTz8THEgT3ydtFiyUPP/8bxXLGOgYV6WDy+HnZpOY
+         jThsQmYdCWIjmOqKTvsDm1TuVTc8VbvBJfCdLXQtKoAzuVz6PuS4Ikhm8a0o5wnoL7y3
+         dDgAvBYPwq0S3bnRQcvNqxszleEtSnrfpNBz3Kb8GOt5pOojY7A9cdkTgO9MrZHBOQFQ
+         /UVDDZ/U+moS3DTDQN6RPV1wNJquTDf+SOdJyargN39nqNRFNU19jJhKqTemEVlMEK2N
+         T2Bg==
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20260327;
+        h=to:from:subject:message-id:gmsai:date:mime-version:dkim-signature;
+        bh=uX4UGgH3zggzNVBOEct8BNtVhHBArF5VYoZnFua0VmQ=;
+        fh=6FyN/z1IATzhq+mVzHjucTX6hOIpGvdShVzvi25Xepk=;
+        b=jjB1vhvFguaJmhINbCA376WXaQoYBi9fSnIfQgOoCa/Ck0Xr2EEsm6Hjb2DpOBzRqm
+         DUJWnPV+z8bnyTlWYU2rSo4C0z5fW5xkRCeEvEOYqj8KZkO1vZcbx4lr4CbF1jDjTe80
+         Y1BtersslwgwtcC8p3lW3g7ekDdR4l2f4MpBhM+SuVacHiXsuGN6cXw6SyGHjtgG+Eq8
+         8c97FtOyPwtp/o5CZfeNy9MfD97h8+HSwCd+Uw+ECgzljayTKokKq+KjBbd9Y8JeFz/a
+         mWmA9IlZwFyZb9Mr6fgTY1FRE+Iz3X9f7l8K90XI8MsFx5eyLZ1zluyyFVfR3iuy4ArA
+         uL1w==;
+        dara=google.com
+ARC-Authentication-Results: i=1; mx.google.com;
+       dkim=pass header.i=@google.com header.s=20251104 header.b=MShl7xEK;
+       spf=pass (google.com: domain of 3lh57ahykaletyifdvnvsjkfiv-efivgcpxffxcv.tfd@chime-notifications.bounces.google.com designates 209.85.220.69 as permitted sender) smtp.mailfrom=3Lh57ahYKALETYifdVnVSjkfiV-efiVgcpXffXcV.Tfd@chime-notifications.bounces.google.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=google.com;
+       dara=pass header.i=@gmail.com
+Return-Path: <3Lh57ahYKALETYifdVnVSjkfiV-efiVgcpXffXcV.Tfd@chime-notifications.bounces.google.com>
+Received: from mail-sor-f69.google.com (mail-sor-f69.google.com. [209.85.220.69])
+        by mx.google.com with SMTPS id 00721157ae682-82ebc80bdbasor20114047b3.7.2026.08.11.06.05.50
+        for <lakeregiondev@gmail.com>
+        (Google Transport Security);
+        Tue, 11 Aug 2026 06:05:50 -0700 (PDT)
+Received-SPF: pass (google.com: domain of 3lh57ahykaletyifdvnvsjkfiv-efivgcpxffxcv.tfd@chime-notifications.bounces.google.com designates 209.85.220.69 as permitted sender) client-ip=209.85.220.69;
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@google.com header.s=20251104 header.b=MShl7xEK;
+       spf=pass (google.com: domain of 3lh57ahykaletyifdvnvsjkfiv-efivgcpxffxcv.tfd@chime-notifications.bounces.google.com designates 209.85.220.69 as permitted sender) smtp.mailfrom=3Lh57ahYKALETYifdVnVSjkfiV-efiVgcpXffXcV.Tfd@chime-notifications.bounces.google.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=google.com;
+       dara=pass header.i=@gmail.com
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=google.com; s=20251104; t=1786453550; x=1787058350; dara=google.com;
+        h=content-type:to:from:subject:message-id:gmsai:date:mime-version
+         :from:to:cc:subject:date:message-id:reply-to:content-type;
+        bh=uX4UGgH3zggzNVBOEct8BNtVhHBArF5VYoZnFua0VmQ=;
+        b=MShl7xEKhjNdLGuPRdIVwAT80pFAsL1T2bmWFnWKiiU/znhUBGVqUmzJpcYIwYACux
+         CCUMP8/sZUBXn79lPhUMH0S3FlHvSDYVhJugHaUHsE9YpAjm4pJKAwUDhV9NRavX3u7R
+         9b/S+gBBH9TrxtVD9ozaNE1ESk/8899twYMVKuZwYrU9M42wjB8fno/KV3DSbAt4KZMl
+         yKWMTu5FeT08P6NPUimyLvFIn5TpFthPdkRPDIrvKIV9IStGz2nSGrQs1LBmLCkwvHQl
+         eAt0mBeFwgqGL7sli262Ln7EGViRfnknTShJ5MHXCJkIzhQPL2ss1DbC3UDwDp65ENfe
+         BQEg==
+X-Google-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=1e100.net; s=20251104; t=1786453550; x=1787058350;
+        h=content-type:to:from:subject:message-id:gmsai:date:mime-version
+         :x-gm-message-state:from:to:cc:subject:date:message-id:reply-to
+         :content-type;
+        bh=uX4UGgH3zggzNVBOEct8BNtVhHBArF5VYoZnFua0VmQ=;
+        b=R7v9jposPOp4++ePnCMQO/l/5NljdLy2rqecafC6ET4duCVrOnIKY85OcbV7KXuw8/
+         pK/9k6tNc81MVaq5BPGKJupki6Nx9Is+2IlveegpQU/yn96Cn+HW0DUOH+Sx17xOBg1u
+         RuSA2UAvWK+EJf2ArWjR3hmweZpx8sBfklERIHeCYq0Ef1d4kSx1VauEw3QIeOMQDt8R
+         1w+8bcOGEVWMcYVmLf2t37iFxqsuK3gn/lu89D4cijYNXI6QFQokX3LrL67l0jZHYMPo
+         7ctkwGKdueD8HcM5+6MWNkT2XUyAaUyakD738g3RBZ6MgN2nwcX2jbm9wPu+YWapb5B3
+         7GYw==
+X-Gm-Message-State: AOJu0Yw/TilqLyiivCQLYGBeo0UatjhDvittsG3TbOhu9aKx6ctY0ZSy
+	9Za8WHDOX6KMz5oFPfJHi1m5kvnK9a5pU4adhytV1VU8DvNDWcu4tVwzya68KwtC2HMkYdBj0pT
+	XzV0jXbVmZHDQL86vAH7fKV3XejY=
+MIME-Version: 1.0
+X-Received: by 2002:a05:690c:d19:b0:81d:c233:aea0 with SMTP id
+ 00721157ae682-82f2d2d082cmr22478127b3.18.1786453550137; Tue, 11 Aug 2026
+ 06:05:50 -0700 (PDT)
+Date: Tue, 11 Aug 2026 06:05:50 -0700
+gmsai: true
+X-Google-Notification-Metadata: CgISAA
+X-Notifications: c2c9c0b9501e0000
+X-Notifications-Bounce-Info: AWKoMQS5qqeZav-SQKLUITLV9KSkR5Dm28e-HjdeMerbdRL_uyd426wKu1YuMWXWMHIEUbWgt943QBOEc1HRZHQqmedjiO_HEPcnX1tE7LEouaagp51D-YfLiOPaVIZV_Ndi4-k4wRZ5sgaMvwy04rbvIVCQRdozgYCqu8yQn2c_0oBfZebbsGNGS5YmMcDf_tFPS9vHUqPmHDjd5wzE5Kkty22mXoOhNb5gpTV4cHuhNjAwNjA0MDQxNTM1NTk2OTMzMg
+Message-ID: <gyRMxmkjWXKAFVAcRy-f9w@notifications.google.com>
+Subject: =?UTF-8?Q?Chrome_Web_Store=3A_Rejection_notification_for_Athelas?=
+	=?UTF-8?Q?_Insights_Helper_=E2=80=94_Chart=2DNote_Tools?=
+From: Chrome Web Store <chromewebstore-noreply@google.com>
+To: lakeregiondev@gmail.com
+Content-Type: multipart/alternative; boundary="000000000000438af30658c521e8"
+
+--000000000000438af30658c521e8
+Content-Type: text/plain; charset="UTF-8"; format=flowed; delsp=yes
+Content-Transfer-Encoding: base64
+
+Q2hyb21lIFdlYiBTdG9yZQ0KDQoNCkhpIHRoZXJlLA0KDQpXZSByZWdyZXQgdG8gaW5mb3JtIHlv
+dSB0aGF0IHRoZSBtb3N0IHJlY2VudCBzdWJtaXNzaW9uIG9mIHlvdXIgaXRlbSB3YXMgIA0KcmVq
+ZWN0ZWQuIFBsZWFzZSBmaW5kIHRoZSBkZXRhaWxzIGJlbG93Lg0KDQoNCkl0ZW0gbmFtZTogQXRo
+ZWxhcyBJbnNpZ2h0cyBIZWxwZXIg4oCUIENoYXJ0LU5vdGUgVG9vbHMNCg0KSXRlbSBJRDogbG5h
+Y2FnbmNicGdsaW5vYmdoY2RlYWRhb2RvbnBqZGYNCg0KVmlvbGF0aW9uKHMpOg0KDQpLZXl3b3Jk
+IFNwYW06DQoNCg0KVmlvbGF0aW9uIHJlZmVyZW5jZSBJRDogWWVsbG93IEFyZ29uDQpWaW9sYXRp
+b246DQpIYXZpbmcgZXhjZXNzaXZlIGFuZCAvIG9yIGlycmVsZXZhbnQga2V5d29yZHMgaW4gdGhl
+IGl0ZW0ncyBkZXNjcmlwdGlvbg0KVmlvbGF0aW5nIGNvbnRlbnQ6DQoNCihESEksIE1vZGlmaWVk
+IE9zd2VzdHJ5LCBOREksIExFRlMsIFF1aWNrREFTSCwgS09TLUFETFMNCg0KDQpIb3cgdG8gcmVj
+dGlmeTogUmVtb3ZlIHRoZSBleGNlc3NpdmUgYW5kIC8gb3IgaXJyZWxldmFudCBrZXl3b3Jkcw0K
+DQpSZWxldmFudCBzZWN0aW9uIG9mIHRoZSBwcm9ncmFtIHBvbGljeToNCg0KV2UgZG9uJ3QgYWxs
+b3cgZXh0ZW5zaW9ucyB3aXRoIG1pc2xlYWRpbmcsIGltcHJvcGVybHkgZm9ybWF0dGVkLCAgDQpu
+b24tZGVzY3JpcHRpdmUsIGlycmVsZXZhbnQsIGV4Y2Vzc2l2ZSwgb3IgaW5hcHByb3ByaWF0ZSBt
+ZXRhZGF0YSwgIA0KaW5jbHVkaW5nIGJ1dCBub3QgbGltaXRlZCB0byB0aGUgZXh0ZW5zaW9uJ3Mg
+ZGVzY3JpcHRpb24sIGRldmVsb3BlciBuYW1lLCAgDQp0aXRsZSwgaWNvbiwgc2NyZWVuc2hvdHMs
+IGFuZCBwcm9tb3Rpb25hbCBpbWFnZXMuIChsZWFybiBtb3JlKQ0KDQoNCg0KVGhpcyB2aW9sYXRp
+b24gd2FzIGRldGVjdGVkIGFzIGEgcmVzdWx0IG9mIGFuIGludGVybmFsIHJldmlldy4gTGVhcm4g
+bW9yZSAgDQphYm91dCBlbmZvcmNlbWVudCBoZXJlLg0KDQoNCkRvIHlvdSBiZWxpZXZlIHRoaXMg
+d2FzIGEgbWlzdGFrZT8NCg0KDQpJZiB5b3UgYmVsaWV2ZSB0aGF0IHRoaXMgZGVjaXNpb24gd2Fz
+IG1hZGUgaW4gZXJyb3IsIHBsZWFzZSBpbml0aWF0ZSBhbiAgDQphcHBlYWwgcmVxdWVzdCBieSBm
+b2xsb3dpbmcgdGhlc2Ugc3RlcHM6DQoNCg0KTG9nIGludG8geW91ciBDaHJvbWUgV2ViIFN0b3Jl
+IERldmVsb3BlciBEYXNoYm9hcmQuDQpTZWxlY3QgdGhlIHJlbGV2YW50IGl0ZW0gZnJvbSB5b3Vy
+IGxpc3QuDQpOYXZpZ2F0ZSB0byB0aGUgQnVpbGQgPiBTdGF0dXMgcGFnZS4NCkxvY2F0ZSB0aGUg
+Y29ycmVzcG9uZGluZyBpdGVtIHJldmlzaW9uIChlaXRoZXIgdGhlIGRyYWZ0IG9yIHRoZSBwdWJs
+aXNoZWQgIA0KdmVyc2lvbikuDQpDbGljayB0aGUgQXBwZWFsIGJ1dHRvbiB0byBzdWJtaXQgeW91
+ciByZXF1ZXN0IGZvciByZXZpZXcuDQoNCklmIHlvdSBhcmUgbG9jYXRlZCBpbiB0aGUgRVUsIHlv
+dSBjYW4gYWxzbyBsZWFybiBhYm91dCBhZGRpdGlvbmFsIHJlZHJlc3MgIA0Kb3B0aW9ucyB0aGF0
+IG1heSBiZSBhdmFpbGFibGUgdG8geW91IGhlcmUuDQoNClJvdXRpbmcgSUQ6IEZaU0wNCg0KDQpX
+ZSB2YWx1ZSBkZXZlbG9wZXIgY29udHJpYnV0aW9ucyB0byB0aGUgQ2hyb21lIFdlYiBTdG9yZSwg
+YW5kIGxvb2sgZm9yd2FyZCAgDQp0byBoZWxwaW5nIHlvdSBicmluZyB5b3VyIGl0ZW0gaW50byBj
+b21wbGlhbmNlIHdpdGggb3VyIHBvbGljaWVzLg0KDQpUaGFua3MsDQoNCkNocm9tZSBXZWIgU3Rv
+cmUgRGV2ZWxvcGVyIFN1cHBvcnQNCg0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0t
+LS0tLS0tLS0tLS0tLS0tLS0tLS0tDQpEZXZlbG9wZXIgVGVybXMgb2YgU2VydmljZQ0KUHJvZ3Jh
+bSBQb2xpY2llcw0KQnJhbmRpbmcgR3VpZGVsaW5lcw0KDQoNCkdvb2dsZQ0KwqkgMjAyNiBHb29n
+bGUgTExDLCAxNjAwIEFtcGhpdGhlYXRyZSBQYXJrd2F5LCBNb3VudGFpbiBWaWV3LCBDQSA5NDA0
+MyAsIFVTQQ0KRW1haWwgUHJlZmVyZW5jZXM6IFlvdSBoYXZlIHJlY2VpdmVkIHRoaXMgbWFuZGF0
+b3J5IGVtYWlsIHNlcnZpY2UgIA0KYW5ub3VuY2VtZW50IHRvIHVwZGF0ZSB5b3UgYWJvdXQgaW1w
+b3J0YW50IGNoYW5nZXMgdG8geW91ciBDaHJvbWUgV2ViIFN0b3JlICANCmRldmVsb3BlciBhY2Nv
+dW50Lg0KDQpUaGUgRW5nbGlzaCBsYW5ndWFnZSB2ZXJzaW9uIG9mIHRoZSBEZXZlbG9wZXIgUHJv
+Z3JhbSBQb2xpY2llcyB3aWxsIGNvbnRyb2wgIA0KYW5kIHRyYW5zbGF0aW9ucywgaWYgYW55LCBh
+cmUgbm9uLWJpbmRpbmcgYW5kIGZvciByZWZlcmVuY2Ugb25seS4NCg0KDQo=
+--000000000000438af30658c521e8
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><body style=3D"margin: 0; padding: 0; width: 100%; -webkit-text-size-=
+adjust: 100%; -ms-text-size-adjust: 100%;"><div style=3D"font-family: Robot=
+o, Arial, Helvetica, sans-serif; margin: auto; max-width: 560px;"><div styl=
+e=3D"border-color: #f0f0f0; border-style: none solid solid solid; border-wi=
+dth: 0 1px 1px 1px;"><div style=3D"background-color: #4184f3; padding: 50px=
+ 20px 0 20px;"><img src=3D"https://www.gstatic.com/chrome/webstore/images/c=
+hrome_web_store_white.png" alt=3D"Chrome Web Store" style=3D"border: none; =
+display: block; padding: 0 0 20px 0;"/><div style=3D"background-color: #fff=
+; height: 30px; margin: 0; padding: 0;">&nbsp;</div></div><div style=3D"bac=
+kground-color: #fafafa; padding: 0 20px 20px 20px;"><div style=3D"backgroun=
+d-color: #fff; color: #444; font-size: 14px; line-height: 22px; margin-top:=
+ 20px; padding: 30px;margin-top: 0; padding-top: 0;"><p>Hi there,</p><p>We =
+regret to inform you that the most recent submission of your item was rejec=
+ted. Please find the details below.</p><br><p><b>Item name:</b> Athelas Ins=
+ights Helper =E2=80=94 Chart-Note Tools</p><p><b>Item ID:</b> <a href=3D"ht=
+tps://chrome.google.com/webstore/devconsole/bf4cadba-e47e-4bb3-8fab-7b195f2=
+d6c00/lnacagncbpglinobghcdeadaodonpjdf/edit">lnacagncbpglinobghcdeadaodonpj=
+df</a></p><p><b>Violation(s):</b></p><p><b>Keyword Spam:</b></p><ul><li><b>=
+Violation reference ID: </b><a href=3D"https://developer.chrome.com/docs/we=
+bstore/troubleshooting/#keyword-stuffing">Yellow Argon</a></li><li><b>Viola=
+tion:</b> <div id=3D"incompatible-content-ground">Having <a href=3D"https:/=
+/developer.chrome.com/webstore/spam-faq#keyword-spam">excessive and / or ir=
+relevant keywords</a> in the item's description<li><b>Violating content: </=
+b><ul><li>(DHI, Modified Oswestry, NDI, LEFS, QuickDASH, KOS-ADLS</li></ul>=
+</li></div></li><li><b>How to rectify:</b> Remove the excessive and / or ir=
+relevant keywords</li><li><div id=3D"incompatible-content-explanation"><b>R=
+elevant section of the program policy:</b><ul><li><i>We don't allow extensi=
+ons with misleading, improperly formatted, non-descriptive, irrelevant, exc=
+essive, or inappropriate metadata, including but not limited to the extensi=
+on's description, developer name, title, icon, screenshots, and promotional=
+ images. <a href=3D"https://developer.chrome.com/webstore/program_policies#=
+spam">(learn more)</a></i></li></ul></div></li></ul><br><p>This violation w=
+as detected as a result of an internal review. Learn more about enforcement=
+ <a href=3D"https://developer.chrome.com/docs/webstore/program-policies/not=
+ification-and-appeals">here</a>.</p><div style=3D"color: #666; font-size: 1=
+6px;"><p>Do you believe this was a mistake?</p></div><p>If you believe that=
+ this decision was made in error, please initiate an appeal request by foll=
+owing these steps:</p><ol><li>Log into your <a href=3D"https://chrome.googl=
+e.com/webstore/devconsole/">Chrome Web Store Developer Dashboard</a>.</li><=
+li>Select the relevant item from your list.</li><li>Navigate to the <b>Buil=
+d &gt; Status</b> page.</li><li>Locate the corresponding item revision (eit=
+her the draft or the published version).</li><li>Click the <b>Appeal</b> bu=
+tton to submit your request for review.</li></ol><p>If you are located in t=
+he EU, you can also learn about additional redress options that may be avai=
+lable to you <a href=3D"https://support.google.com/european-union-digital-s=
+ervices-act-redress-options" target=3D"_blank">here</a>.</p><p>Routing ID: =
+FZSL</p><br><p>We value developer contributions to the Chrome Web Store, an=
+d look forward to helping you bring your item into compliance with our poli=
+cies.<br><br>Thanks,</p><p>Chrome Web Store Developer Support</p><p>-------=
+-----------------------------------------------<br><a href=3D"https://devel=
+oper.chrome.com/webstore/terms">Developer Terms of Service</a><br><a href=
+=3D"https://developer.chrome.com/webstore/program_policies">Program Policie=
+s</a><br><a href=3D"https://developer.chrome.com/webstore/branding">Brandin=
+g Guidelines</a></p></div><div style=3D"line-height: 1px; font-size: 1px; b=
+ackground-color: #bababa;">&nbsp;</div><div style=3D"line-height: 1px; font=
+-size: 1px; background-color: #c8c8c8;">&nbsp;</div><div style=3D"line-heig=
+ht: 1px; font-size: 1px; background-color: #dfdfdf;">&nbsp;</div><div style=
+=3D"line-height: 1px; font-size: 1px; background-color: #ededed;">&nbsp;</d=
+iv><div style=3D"color: #666; font-size: 10px; line-height: 18px; padding: =
+20px 5px; text-align: center;"><img src=3D"https://www.gstatic.com/chrome/w=
+ebstore/email/google_footer.png" alt=3D"Google" style=3D"border: none;"><br=
+><span style=3D"direction: ltr;">&copy; 2026 Google LLC, 1600 Amphitheatre =
+Parkway, Mountain View, CA 94043 , USA</span><br>Email Preferences: You hav=
+e received this mandatory email service announcement to update you about im=
+portant changes to your Chrome Web Store developer account.<br><p>The Engli=
+sh language version of the <a href=3D"https://developer.chrome.com/webstore=
+/program_policies">Developer Program Policies</a> will control and translat=
+ions, if any, are non-binding and for reference only.</p></div></div></div>=
+</div></body></html>
+--000000000000438af30658c521e8--
