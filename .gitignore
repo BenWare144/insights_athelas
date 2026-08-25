@@ -6,6 +6,9 @@
 # --- whitelisted ---
 !.gitignore
 !AGENTS.md
+!CLAUDE.md
+!HANDOFF.md
+!DECISIONS.md
 !CHANGELOG.md
 !DEPLOYMENT.md
 !package.json
