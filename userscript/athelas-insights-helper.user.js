@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.21.2
+// @version      15.22.0
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -60,6 +60,8 @@
         const LIST = [
             { id: 'fixProcedures',    label: 'Fix Procedures button' },
             { id: 'fixPrivatePay',    label: 'Fix Private Pay button' },
+            { id: 'fixDiagnosis',     label: 'Fix Diagnosis button (ICD-10 S → D)' },
+            { id: 'criticalWarnings', label: 'Warnings above the signature block' },
             { id: 'surveyPanel',      label: 'Survey quick-add panel (initial eval)' },
             { id: 'goals',            label: 'Survey status button + Create Goal' },
             { id: 'jumpFlowsheet',    label: 'Jump to Flowsheet on note open' },
@@ -370,6 +372,26 @@
             gluteMed: 'Verbal and tactile cues to glute med for upright posture',
             rom: 'To assist with pain free range of motion and restore normal function',
         };
+        // ---- non-reimbursed billing codes (mirror of matching/procedure-matching.js) ----
+        // Codes a PT is not paid for. An item left under one bills at $0, which makes
+        // this a CRITICAL fix, not a wrong-but-paid one. Small open family; not
+        // role-aware yet (see HANDOFF "role differentiation").
+        const CODE_NAMES = {
+            '97110': 'Therapeutic Exercise',
+            '97112': 'Neuromuscular Reeducation',
+            '97530': 'Therapeutic Activity',
+            '97535': 'Self-Care/Home Management Training',
+            '98960': 'Education & Training for Patient Self-Management',
+        };
+        const NON_REIMBURSED = {
+            '98960': { to: '97535', reason: 'Education & Training for Patient Self-Management is not reimbursed for PT' },
+        };
+        const resolveBadCode = (cardCode) => {
+            const code = String(cardCode || '').trim().split(/[\s-]/)[0].toUpperCase();
+            const hit = NON_REIMBURSED[code];
+            if (!hit) return null;
+            return { code, to: hit.to, name: CODE_NAMES[code] || '', toName: CODE_NAMES[hit.to] || '', reason: hit.reason };
+        };
         const metDescriptor = (name) => {
             let x = (name || '').trim();
             x = x.replace(/^\s*muscle\s*energy\s*technique\s*(\(met\))?\s*[:\-]?\s*/i, '');   // spelled-out prefix (+ optional "(MET)")
@@ -427,7 +449,101 @@
             }
             return null;
         };
-        return { normProc, resolveProcedure, metJustification, isJunkMET, RULES, J };
+        // Where an item under a non-reimbursed card should go. The NAME rule wins when
+        // it has an opinion (a "Squat" mis-filed under 98960 belongs under 97530, not
+        // the generic default); otherwise the family default applies. `exclude` rules
+        // are deliberately OVERRIDDEN: "leave alone" is about debatable codes, and
+        // does not apply when leaving it where it is bills at $0.
+        const resolveNonReimbursed = (name, cardCode) => {
+            const bad = resolveBadCode(cardCode);
+            if (!bad) return null;
+            const r = resolveProcedure(name);
+            const byName = r && !r.exclude && r.code ? r : null;
+            return {
+                label: 'Non-reimbursed ' + bad.code + (byName ? ' → ' + byName.label : ''),
+                code: byName ? byName.code : bad.to,
+                justification: byName ? byName.justification : null,
+                justMode: byName ? byName.justMode : 'none',
+                rename: byName ? byName.rename : null,
+                met: byName ? !!byName.met : false,
+                nonReimbursed: bad,
+            };
+        };
+        return {
+            normProc, resolveProcedure, metJustification, isJunkMET, RULES, J,
+            CODE_NAMES, NON_REIMBURSED, resolveBadCode, resolveNonReimbursed,
+        };
+    })();
+
+    // =====================================================================
+    // SHARED: diagnosis-code engine (v15.22).
+    //
+    // ICD-10 injury codes (chapter 19, the S/T codes) are seven characters, and
+    // the SEVENTH is the episode-of-care indicator:
+    //     A = initial encounter, D = subsequent encounter, S = sequela.
+    // The scribe carries the initial code forward, so follow-up visits keep
+    // showing up with "S". Billing a sequela code on a routine follow-up is a
+    // denial, so Fix Diagnosis rewrites the 7th character S -> D.
+    //
+    // Read-only here; MODULE 15 does the DOM interaction. Split out so the
+    // pre-sign warning button (MODULE 16) can ask "is anything still wrong?"
+    // without depending on the fixer.
+    //
+    // DOM (verified against captures/[patient] Chart Note_diagnotis_codes_example.mhtml):
+    //   section  [data-section="diagnosis_codes"]
+    //   chip     [role="button"][data-tag-index="N"], text "CODE - description",
+    //            aria-label starts "Principal · " on the principal diagnosis;
+    //            its delete X is an svg[data-testid="CloseIcon"] INSIDE the chip
+    //   search   input[aria-label="Search for diagnosis codes"]
+    //   options  li[role="option"][title="<code>"] (portaled to <body>)
+    //   DANGER   button[aria-label="Clear"] wipes EVERY code - never click it.
+    // =====================================================================
+    const Dx = (function () {
+        const SEL = {
+            section: '[data-section="diagnosis_codes"]',
+            chip: '[role="button"][data-tag-index]',
+            input: 'input[aria-label="Search for diagnosis codes"]',
+            option: 'li[role="option"]',
+        };
+        const section = () => document.querySelector(SEL.section);
+        const CODE_RE = /^([A-TV-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?)\s*[-–—]\s*(.*)$/;
+        function chips() {
+            const sec = section();
+            if (!sec) return [];
+            const out = [];
+            for (const el of sec.querySelectorAll(SEL.chip)) {
+                const span = el.querySelector('span');
+                const text = ((span ? span.textContent : el.textContent) || '').trim();
+                const m = CODE_RE.exec(text);
+                if (!m) continue;
+                const aria = el.getAttribute('aria-label') || '';
+                out.push({
+                    el, text, code: m[1].toUpperCase(), desc: m[2].trim(),
+                    index: Number(el.getAttribute('data-tag-index')),
+                    principal: /^\s*principal\b/i.test(aria),
+                });
+            }
+            return out;
+        }
+        const bare = (code) => String(code || '').replace(/\./g, '').toUpperCase();
+        // '' when the code is not a 7-character code (i.e. has no episode indicator).
+        const episode = (code) => { const b = bare(code); return b.length === 7 ? b[6] : ''; };
+        // The subsequent-encounter form of a sequela code, else null.
+        const subsequentOf = (code) => (episode(code) === 'S' ? String(code).slice(0, -1) + 'D' : null);
+        // Every chip that still carries the sequela indicator, with its target code
+        // and whether that target is already on the note (a half-applied fix, e.g.
+        // the add landed but the remove didn't — then only the removal is left).
+        function pending() {
+            const all = chips();
+            const have = new Set(all.map((c) => c.code));
+            const out = [];
+            for (const c of all) {
+                const to = subsequentOf(c.code);
+                if (to) out.push(Object.assign({ to, targetPresent: have.has(to) }, c));
+            }
+            return out;
+        }
+        return { SEL, section, chips, bare, episode, subsequentOf, pending };
     })();
 
 
@@ -604,6 +720,105 @@
                     moveChecked: isChecked(s.mv),
                     justChecked: isChecked(s.jv),
                 }));
+                overlay.remove();
+                document.removeEventListener('keydown', onKey, true);
+                resolve({ confirmed, decisions });
+            };
+            const onKey = (ev) => { if (ev.key === 'Escape') stop(() => close(false))(ev); };
+            cancel.addEventListener('click', stop(() => close(false)));
+            apply.addEventListener('click', stop(() => close(true)));
+            overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(false); });
+            document.addEventListener('keydown', onKey, true);
+        });
+    }
+
+    // Diagnosis review dialog (v15.22). Same visual language as athConfirmMoves —
+    // old value struck through in red, new value in green, one checkbox per row.
+    // rows: { code, to, desc, principal, targetPresent }.
+    // Resolves to { confirmed, decisions:[{...row, checked}] }.
+    function athConfirmDiagnosis(rows) {
+        return new Promise((resolve) => {
+            const stop = (fn) => (ev) => { ev.preventDefault(); ev.stopPropagation(); fn(); };
+            const overlay = document.createElement('div');
+            Object.assign(overlay.style, {
+                position: 'fixed', inset: '0', zIndex: '2147483646', background: 'rgba(0,0,0,0.45)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
+            });
+            const modal = document.createElement('div');
+            Object.assign(modal.style, {
+                background: '#fff', color: '#1a1a1a', borderRadius: '10px', maxWidth: '760px',
+                width: '100%', maxHeight: '84vh', display: 'flex', flexDirection: 'column',
+                overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.35)', font: '13px/1.4 system-ui, sans-serif',
+            });
+            const head = document.createElement('div');
+            Object.assign(head.style, { padding: '14px 18px', borderBottom: '1px solid #e5e5e5' });
+            const h = document.createElement('div'); h.textContent = 'Fix Diagnosis — 7th character S → D';
+            Object.assign(h.style, { font: '600 15px system-ui, sans-serif' });
+            const sub = document.createElement('div');
+            sub.textContent = 'The corrected code is added and verified BEFORE the old one is removed. Uncheck anything you do not want, then Apply.';
+            Object.assign(sub.style, { marginTop: '3px', color: '#666', fontSize: '12px' });
+            head.appendChild(h); head.appendChild(sub);
+
+            const body = document.createElement('div');
+            Object.assign(body.style, { overflow: 'auto', padding: '2px 8px 6px' });
+            const table = document.createElement('table');
+            Object.assign(table.style, { width: '100%', borderCollapse: 'collapse' });
+            const thr = document.createElement('tr');
+            [['', '34px'], ['Change', '38%'], ['Diagnosis', 'auto']].forEach(([t, w]) => {
+                const th = document.createElement('th'); th.textContent = t; th.style.width = w;
+                Object.assign(th.style, { textAlign: 'left', padding: '7px 10px', position: 'sticky', top: '0', background: '#fafafa', borderBottom: '1px solid #e5e5e5', fontSize: '11px', color: '#888', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '.03em' });
+                thr.appendChild(th);
+            });
+            table.appendChild(thr);
+
+            const state = [];
+            let anyPrincipal = false;
+            rows.forEach((r) => {
+                if (r.principal) anyPrincipal = true;
+                const tr = document.createElement('tr'); tr.style.borderBottom = '1px solid #f0f0f0';
+                const mkCell = () => { const td = document.createElement('td'); td.style.padding = '7px 10px'; td.style.verticalAlign = 'top'; return td; };
+                const c0 = mkCell(); c0.style.textAlign = 'center';
+                const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true; cb.style.cursor = 'pointer'; c0.appendChild(cb);
+                const c1 = mkCell();
+                const from = document.createElement('span'); from.textContent = r.code; from.style.color = '#b3261e'; from.style.textDecoration = 'line-through'; c1.appendChild(from);
+                c1.appendChild(document.createTextNode('  →  '));
+                const to = document.createElement('span'); to.textContent = r.to; to.style.color = '#127a2e'; to.style.fontWeight = '600'; c1.appendChild(to);
+                if (r.targetPresent) {
+                    const n = document.createElement('div'); n.textContent = r.to + ' is already on the note — only the old code is removed.';
+                    Object.assign(n.style, { color: '#888', fontSize: '11.5px', marginTop: '3px' }); c1.appendChild(n);
+                }
+                const c2 = mkCell(); c2.style.fontSize = '12px';
+                const d = document.createElement('div'); d.textContent = r.desc || '(no description)'; d.style.color = '#555'; c2.appendChild(d);
+                if (r.principal) {
+                    const p = document.createElement('div'); p.textContent = 'Principal diagnosis — the replacement is added at the END of the list, so check the order afterwards.';
+                    Object.assign(p.style, { color: '#8a5a00', fontSize: '11.5px', marginTop: '4px', fontWeight: '600' }); c2.appendChild(p);
+                }
+                tr.appendChild(c0); tr.appendChild(c1); tr.appendChild(c2);
+                table.appendChild(tr);
+                state.push({ row: r, cb });
+            });
+            body.appendChild(table);
+            if (anyPrincipal) {
+                const warn = document.createElement('div');
+                warn.textContent = 'Note: this app appends new codes to the end of the list. Use “Show reorder list” in the Diagnosis Codes section if the principal diagnosis needs to move back to the top.';
+                Object.assign(warn.style, { margin: '8px 10px 4px', padding: '8px 10px', background: '#fff8e6', border: '1px solid #f0dca8', borderRadius: '6px', color: '#7a5a10', fontSize: '11.5px' });
+                body.appendChild(warn);
+            }
+
+            const foot = document.createElement('div');
+            Object.assign(foot.style, { padding: '12px 18px', borderTop: '1px solid #e5e5e5', display: 'flex', justifyContent: 'flex-end', gap: '10px' });
+            const cancel = document.createElement('button'); cancel.textContent = 'Cancel';
+            Object.assign(cancel.style, { padding: '7px 16px', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer', font: '500 13px system-ui' });
+            const apply = document.createElement('button'); apply.textContent = 'Apply checked';
+            Object.assign(apply.style, { padding: '7px 16px', borderRadius: '6px', border: '1px solid #1746c9', background: '#1746c9', color: '#fff', cursor: 'pointer', font: '600 13px system-ui' });
+            foot.appendChild(cancel); foot.appendChild(apply);
+
+            modal.appendChild(head); modal.appendChild(body); modal.appendChild(foot);
+            overlay.appendChild(modal);
+            (document.body || document.documentElement).appendChild(overlay);
+
+            const close = (confirmed) => {
+                const decisions = state.map((s) => Object.assign({}, s.row, { checked: !!s.cb.checked }));
                 overlay.remove();
                 document.removeEventListener('keydown', onKey, true);
                 resolve({ confirmed, decisions });
@@ -1717,7 +1932,10 @@
             const name = itemName(li).trim();
             if (!name) return null;
             if (!isDone(li)) return null;                 // only "Done" items get fixed
-            const r = Proc.resolveProcedure(name);
+            // A non-reimbursed card (98960) overrides everything: the item has to leave
+            // whatever the name rules say, because staying there bills at $0. The name
+            // rule still picks the destination when it has one.
+            const r = Proc.resolveNonReimbursed(name, cardCode) || Proc.resolveProcedure(name);
             if (!r || r.exclude) return null;             // no rule, or "leave alone"
             const needsMove = r.code !== cardCode;
             const needsRename = !!r.rename && r.rename !== name;
@@ -1737,7 +1955,7 @@
                 }
                 if (!needsJust) return null;               // already correct, nothing to do
             }
-            return { name, from: cardCode, to: r.code, justMode: r.justMode, justification: r.justification, rename: r.rename, needsMove, needsJust, label: r.label };
+            return { name, from: cardCode, to: r.code, justMode: r.justMode, justification: r.justification, rename: r.rename, needsMove, needsJust, label: r.label, critical: !!r.nonReimbursed };
         }
         function findNextFix() {
             for (const card of getCards()) {
@@ -1769,7 +1987,7 @@
         }
 
         // ---- display helpers for the confirmation dialog --------------------
-        const CODE_NAMES = { '97110': 'Therapeutic Exercise', '97112': 'Neuromuscular Reeducation', '97530': 'Therapeutic Activity' };
+        const CODE_NAMES = Proc.CODE_NAMES;
         function cardLabel(code) {
             const c = getCards().find((x) => x.code === code);
             const nm = c ? c.name : (CODE_NAMES[code] || '');
@@ -1880,18 +2098,18 @@
             btn.id = HEADER_BTN_ID;
             btn.type = 'button';
             btn.textContent = 'Fix Procedures';
-            btn.title = 'Move every "Done"-checked intervention to its correct CPT code (97110/97112/97530) per the therapist\'s rules, via a real dnd-kit drag - including MET -> 97112. Renames Rib -> "MET - Rib" and appends the canonical justification. Un-checked, excluded (Bridges, TKE) and unmatched items are left alone. You review every change before it runs. Click Apply Scribe afterwards to persist.';
+            btn.title = FIX_TITLE;
             Object.assign(btn.style, {
                 justifySelf: 'end', alignSelf: 'center', marginRight: '12px',
                 padding: '4px 10px', background: '#c33', color: '#fff',
                 border: '1px solid #a22', borderRadius: '4px',
                 font: '500 12px/1.2 system-ui, sans-serif', cursor: 'pointer', whiteSpace: 'nowrap',
             });
-            btn.addEventListener('mouseenter', () => { btn.style.background = '#a22'; });
-            btn.addEventListener('mouseleave', () => { btn.style.background = '#c33'; });
+            athBindHover(btn);
+            athPaintButton(btn, 'pending');
             btn.addEventListener('click', async (ev) => {
                 ev.preventDefault(); ev.stopPropagation();
-                btn.disabled = true; btn.textContent = 'Working…'; btn.style.background = '#888';
+                btn.disabled = true; btn.textContent = 'Working…'; athPaintButton(btn, 'busy');
                 try {
                     const result = await performFix();
                     const parts = [];
@@ -1900,19 +2118,38 @@
                     if (result.justified) parts.push(`just. ${result.justified}`);
                     const didSomething = result.moved || result.renamed || result.justified;
                     btn.textContent = didSomething ? parts.join(', ') : (result.reason || 'no-op');
-                    btn.style.background = didSomething ? '#2a7' : '#888';
+                    athPaintButton(btn, didSomething ? 'clean' : 'busy');
                 } catch (err) {
                     log.error(`${ts()} performFix threw:`, err);
-                    btn.textContent = 'error'; btn.style.background = '#888';
+                    btn.textContent = 'error'; athPaintButton(btn, 'busy');
                 } finally {
-                    setTimeout(() => { btn.textContent = 'Fix Procedures'; btn.style.background = '#c33'; btn.disabled = false; }, 3500);
+                    setTimeout(() => { btn.textContent = 'Fix Procedures'; btn.disabled = false; refreshStatus(true); }, 3500);
                 }
             });
             row.appendChild(btn);
+            refreshStatus(true);
             log.log(`${ts()} injected Fix Procedures header button`);
         }
 
+        // ---- status colour: red = there are fixes pending, green = note is clean.
+        // One cheap DOM read over the flowsheet cards, driven by the shared status
+        // bus (no timer). `force` re-paints even when the state string is unchanged.
+        const FIX_TITLE = 'Move every "Done"-checked intervention to its correct CPT code (97110/97112/97530) per the therapist\'s rules, via a real dnd-kit drag - including MET -> 97112. Renames Rib -> "MET - Rib" and appends the canonical justification. Items under a non-reimbursed code (98960) are moved out too. Un-checked, excluded (Bridges, TKE) and unmatched items are left alone. You review every change before it runs. Click Apply Scribe afterwards to persist.';
+        function refreshStatus(force) {
+            const btn = document.getElementById(HEADER_BTN_ID);
+            if (!btn || btn.disabled) return;
+            let fixes;
+            try { fixes = listFixes(); } catch (e) { return; }
+            if (force) delete btn.dataset.athState;
+            const crit = fixes.filter((f) => f.critical).length;
+            athPaintButton(btn, fixes.length ? 'pending' : 'clean');
+            btn.title = fixes.length
+                ? `${fixes.length} change${fixes.length === 1 ? '' : 's'} pending` + (crit ? ` (${crit} under a NON-REIMBURSED code)` : '') + '.\n\n' + FIX_TITLE
+                : 'Every "Done" intervention is already under the right CPT code.\n\n' + FIX_TITLE;
+        }
+
         injectHeaderButton();
+        athStatusBus.add(refreshStatus);
         let pending = null;
         const obs = new MutationObserver(() => {
             if (pending) return;
@@ -2401,36 +2638,52 @@
             btn.id = BTN_ID;
             btn.type = 'button';
             btn.textContent = 'Fix Private Pay';
-            btn.title = 'Move every procedure check-marked "Done" from the CPT cards down into the Private Pay (PPVISIT) section via a real dnd-kit drag. Click Apply Scribe afterwards to persist.';
+            btn.title = PP_TITLE;
             Object.assign(btn.style, {
                 display: 'block', margin: '8px 0', padding: '5px 12px',
-                background: '#6b3fa0', color: '#fff', border: '1px solid #532f7d',
+                background: '#c33', color: '#fff', border: '1px solid #a22',
                 borderRadius: '4px', font: '600 12px/1.2 system-ui, sans-serif',
                 cursor: 'pointer', whiteSpace: 'nowrap',
             });
-            btn.addEventListener('mouseenter', () => { btn.style.background = '#532f7d'; });
-            btn.addEventListener('mouseleave', () => { btn.style.background = '#6b3fa0'; });
+            athBindHover(btn);
+            athPaintButton(btn, 'pending');
             btn.addEventListener('click', async (ev) => {
                 ev.preventDefault(); ev.stopPropagation();
-                btn.disabled = true; btn.textContent = 'Working…'; btn.style.background = '#888';
+                btn.disabled = true; btn.textContent = 'Working…'; athPaintButton(btn, 'busy');
                 try {
                     const result = await performFix();
                     const didSomething = !!result.moved;
                     btn.textContent = didSomething ? `moved ${result.moved}` : (result.reason || 'no-op');
-                    btn.style.background = didSomething ? '#2a7' : '#888';
+                    athPaintButton(btn, didSomething ? 'clean' : 'busy');
                 } catch (err) {
                     log.error(`${ts()} performFix threw:`, err);
-                    btn.textContent = 'error'; btn.style.background = '#888';
+                    btn.textContent = 'error'; athPaintButton(btn, 'busy');
                 } finally {
-                    setTimeout(() => { btn.textContent = 'Fix Private Pay'; btn.style.background = '#6b3fa0'; btn.disabled = false; }, 3500);
+                    setTimeout(() => { btn.textContent = 'Fix Private Pay'; btn.disabled = false; refreshStatus(true); }, 3500);
                 }
             });
             // Place the button just ABOVE the private-pay section.
             region.parentNode.insertBefore(btn, region);
+            refreshStatus(true);
             log.log(`${ts()} injected Fix Private Pay button above "${tgt.name}"`);
         }
 
+        // Red while "Done" items are still sitting outside the private-pay section,
+        // green once they have all been collected. (v15.22: this button used to be
+        // purple; the fixer buttons now share one red/green status colour language.)
+        const PP_TITLE = 'Move every procedure check-marked "Done" from the CPT cards down into the Private Pay (PPVISIT) section via a real dnd-kit drag. Click Apply Scribe afterwards to persist.';
+        function refreshStatus(force) {
+            const btn = document.getElementById(BTN_ID);
+            if (!btn || btn.disabled) return;
+            let n;
+            try { n = listDone().length; } catch (e) { return; }
+            if (force) delete btn.dataset.athState;
+            athPaintButton(btn, n ? 'pending' : 'clean');
+            btn.title = (n ? `${n} "Done" item${n === 1 ? '' : 's'} still outside Private Pay.` : 'Every "Done" item is already in Private Pay.') + '\n\n' + PP_TITLE;
+        }
+
         injectButton();
+        athStatusBus.add(refreshStatus);
         let pending = null;
         const obs = new MutationObserver(() => {
             if (pending) return;
@@ -2703,6 +2956,111 @@
         if (document.body) start();
         else new MutationObserver((_, o) => { if (document.body) { o.disconnect(); start(); } }).observe(document.documentElement, { childList: true });
     }
+    // =====================================================================
+    // SHARED: button-status bus (v15.22).
+    //
+    // The fixer buttons colour themselves red when they WOULD change something
+    // and green when the note is already clean. Recomputing that has to be cheap:
+    // these run on low-end clinic laptops, so there is deliberately NO polling
+    // timer anywhere. Instead ONE MutationObserver (event-driven — it costs
+    // nothing while the page is idle) feeds a trailing debounce:
+    //   - subscribers run only after the DOM has been quiet for QUIET ms, so a
+    //     React re-render storm produces a single recompute at the end;
+    //   - MAXWAIT caps that, so a page that mutates continuously still refreshes;
+    //   - nothing runs while the tab is hidden, or off a chart note.
+    // Each subscriber is a plain DOM read over the flowsheet cards / diagnosis
+    // chips (tens of elements) — the whole page is never walked.
+    // athStatusBus.poke() forces a refresh right after we change something.
+    // =====================================================================
+    const athStatusBus = (function () {
+        const QUIET = 900, MAXWAIT = 4000;
+        const subs = [];
+        let timer = null, firstMutation = 0, started = false;
+        const run = () => {
+            timer = null; firstMutation = 0;
+            if (document.hidden) return;
+            if (!pageType().isChartNote) return;
+            for (const fn of subs) { try { fn(); } catch (e) {} }
+        };
+        const schedule = (ms) => {
+            const now = Date.now();
+            if (!firstMutation) firstMutation = now;
+            if (timer) clearTimeout(timer);
+            const wait = Math.min(ms, Math.max(0, firstMutation + MAXWAIT - now));
+            timer = setTimeout(run, wait);
+        };
+        const start = () => {
+            if (started) return; started = true;
+            const obs = new MutationObserver(() => schedule(QUIET));
+            const go = () => obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+            if (document.body) go();
+            else new MutationObserver((_, o) => { if (document.body) { o.disconnect(); go(); } }).observe(document.documentElement, { childList: true });
+            document.addEventListener('visibilitychange', () => { if (!document.hidden) schedule(300); });
+        };
+        return {
+            add(fn) { subs.push(fn); start(); schedule(400); },
+            poke(ms) { schedule(ms == null ? 250 : ms); },
+        };
+    })();
+
+    // Fixer-button colour states: RED = clicking me would change something,
+    // GREEN = this part of the note is already clean, GREY = busy. Colours live on
+    // the element (data-ath-bg / data-ath-hover) so the hover handlers stay correct
+    // as the state flips. No-ops when the state hasn't changed, so a status pass
+    // over an unchanged note writes no styles and triggers no repaint.
+    const ATH_BTN = {
+        pending: { bg: '#c33', hover: '#a22' },
+        clean:   { bg: '#2a7', hover: '#1f8a5b' },
+        busy:    { bg: '#888', hover: '#888' },
+    };
+    function athPaintButton(btn, state) {
+        if (!btn) return;
+        const c = ATH_BTN[state] || ATH_BTN.pending;
+        if (btn.dataset.athState === state) return;
+        btn.dataset.athState = state;
+        btn.dataset.athBg = c.bg; btn.dataset.athHover = c.hover;
+        let hovered = false;
+        try { hovered = btn.matches(':hover'); } catch (e) {}
+        btn.style.background = hovered ? c.hover : c.bg;
+        btn.style.borderColor = c.hover;
+    }
+    // Attach once at injection; reads the current state's colours on every event.
+    function athBindHover(btn) {
+        btn.addEventListener('mouseenter', () => { btn.style.background = btn.dataset.athHover || btn.style.background; });
+        btn.addEventListener('mouseleave', () => { btn.style.background = btn.dataset.athBg || btn.style.background; });
+    }
+
+    // The note's provider block (bottom of the note, above Sign). Exploratory: the
+    // credential string is the only place the page states the signer's discipline
+    // (PT/DPT vs OT/OTR vs SLP), which a future role-aware code map would need.
+    // Nothing is gated on it yet — it is read-only and logged.
+    function athProviderInfo() {
+        const sec = document.querySelector('[data-section="notarize"] section[aria-label="Provider(s)"]');
+        if (!sec) return null;
+        const rows = [];
+        for (const row of sec.querySelectorAll('div')) {
+            const spans = [...row.children].filter((c) => c.tagName === 'SPAN');
+            if (spans.length < 2 || spans.length > 3) continue;
+            const name = (spans[0].textContent || '').trim();
+            const cred = (spans[1].textContent || '').trim();
+            if (!name || !cred || cred.length > 12 || /\s/.test(cred)) continue;
+            const note = spans[2] ? (spans[2].textContent || '').trim() : '';
+            if (rows.some((r) => r.name === name && r.credential === cred)) continue;
+            rows.push({ name, credential: cred, role: athDiscipline(cred), note, supervising: /supervis/i.test(note) });
+        }
+        return rows.length ? { providers: rows, signer: rows.find((r) => !r.supervising) || rows[0] } : null;
+    }
+    // Credential string -> discipline. Deliberately conservative: unknown strings
+    // return null rather than guessing, because the eventual use (picking a
+    // discipline-specific replacement CPT) must not act on a bad guess.
+    function athDiscipline(cred) {
+        const c = String(cred || '').toUpperCase().replace(/[^A-Z]/g, '');
+        if (/^(DPT|PT|MPT|PTA|SPT)$/.test(c)) return 'PT';
+        if (/^(OT|OTR|OTRL|MOT|OTD|COTA)$/.test(c)) return 'OT';
+        if (/^(SLP|CCCSLP|MSCCCSLP|SLPA)$/.test(c)) return 'SLP';
+        return null;
+    }
+
     function athFindButtonByText(root, text, preferLast) {
         const want = (text || '').trim().toLowerCase();
         const btns = [...(root || document).querySelectorAll('button, [role="button"]')].filter((b) => (b.textContent || '').trim().toLowerCase() === want);
@@ -3174,6 +3532,316 @@
     }
 
     // =====================================================================
+    // MODULE 15: Fix Diagnosis (ICD-10 7th character S -> D).
+    //
+    // Same shape as Fix Procedures: a button in the section header, a review
+    // dialog listing every change, then the edits. Per change, in this order —
+    // and the ORDER MATTERS, because a failed add followed by a remove would
+    // leave the note with no diagnosis at all:
+    //   1. type the target code into the search box and pick it from the listbox
+    //   2. VERIFY the new chip is actually on the note
+    //   3. only then delete the old sequela chip
+    // If step 1 or 2 fails the old code is left exactly where it was and the row
+    // is reported as skipped.
+    //
+    // The MUI Autocomplete also has a "Clear" X at the right of the text field
+    // that removes EVERY code at once. We never go near it — deletion always
+    // goes through the per-chip CloseIcon. (Hiding that X is a possible future
+    // feature; see HANDOFF.)
+    // =====================================================================
+    function featureFixDiagnosis() {
+        const log = makeLogger('fix-dx');
+        const T0 = performance.now();
+        const ts = () => `+${(performance.now() - T0).toFixed(0)}ms`;
+        const BTN_ID = 'athelas-fix-diagnosis-btn';
+        const TITLE = 'Rewrite the ICD-10 7th character from S (sequela) to D (subsequent encounter) on every diagnosis that still carries it. Adds the corrected code and verifies it landed BEFORE removing the old one. You review every change first. Click Apply Scribe afterwards to persist.';
+
+        const searchInput = () => { const sec = Dx.section(); return sec ? sec.querySelector(Dx.SEL.input) : null; };
+
+        // Type a code and pick it out of the portaled listbox. The options carry
+        // title="<code>" — an exact hook, so we never have to parse option text.
+        async function addCode(target) {
+            const input = searchInput();
+            if (!input) { log.warn(`${ts()} no diagnosis search input`); return false; }
+            input.focus();
+            setReactValue(input, target, log);
+            let opt = null;
+            for (let i = 0; i < 60 && !opt; i++) {
+                await sleep(100);
+                opt = document.querySelector(`${Dx.SEL.option}[title="${target}"]`);
+                if (!opt) {
+                    opt = [...document.querySelectorAll(Dx.SEL.option)]
+                        .find((o) => (o.textContent || '').trim().toUpperCase().startsWith(target));
+                }
+            }
+            if (!opt) { log.warn(`${ts()} no listbox option for ${target} after 6s`); return false; }
+            log.log(`${ts()} picking option ${target}`);
+            simulateClick(opt, log);
+            for (let i = 0; i < 25; i++) {
+                await sleep(100);
+                if (Dx.chips().some((c) => c.code === target)) { log.log(`${ts()} ${target} chip confirmed`); return true; }
+            }
+            log.warn(`${ts()} clicked ${target} but no chip appeared`);
+            return false;
+        }
+
+        // Delete one chip via its own CloseIcon. Never the field-level "Clear".
+        async function removeCode(code) {
+            for (let attempt = 0; attempt < 3; attempt++) {
+                const chip = Dx.chips().find((c) => c.code === code);
+                if (!chip) return true;
+                const x = chip.el.querySelector('svg[data-testid="CloseIcon"]') || chip.el.querySelector('svg');
+                if (!x) { log.warn(`${ts()} no delete icon on chip ${code}`); return false; }
+                simulateClick(x, log);
+                for (let i = 0; i < 15; i++) {
+                    await sleep(100);
+                    if (!Dx.chips().some((c) => c.code === code)) { log.log(`${ts()} removed ${code}`); return true; }
+                }
+                log.warn(`${ts()} ${code} still present after delete attempt ${attempt + 1}`);
+            }
+            return false;
+        }
+
+        async function closeSearch() {
+            const input = searchInput();
+            if (!input) return;
+            try { setReactValue(input, '', log); } catch (e) {}
+            input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+            try { input.blur(); } catch (e) {}
+        }
+
+        async function performFix() {
+            log.log(`${ts()} ============ Fix Diagnosis START ============`);
+            if (!Dx.section()) { log.warn(`${ts()} no diagnosis_codes section`); return { reason: 'no-section', fixed: 0, skipped: 0 }; }
+            const rows = Dx.pending();
+            log.log(`${ts()} sequela codes found: ${rows.length}`, rows.map((r) => r.code + ' -> ' + r.to));
+            if (!rows.length) return { reason: 'nothing-to-fix', fixed: 0, skipped: 0 };
+
+            const review = await athConfirmDiagnosis(rows);
+            if (!review.confirmed) { log.log(`${ts()} cancelled by user`); return { reason: 'cancelled', fixed: 0, skipped: 0 }; }
+            const chosen = review.decisions.filter((d) => d.checked);
+            if (!chosen.length) return { reason: 'nothing-selected', fixed: 0, skipped: 0 };
+
+            const prog = athToast('Fixing diagnosis codes…', { ttl: 0 });
+            let fixed = 0, skipped = 0;
+            for (const row of chosen) {
+                prog.update(`${row.code} → ${row.to}`);
+                if (!row.targetPresent) {
+                    const added = await addCode(row.to);
+                    if (!added) {
+                        skipped++;
+                        log.warn(`${ts()} SKIP ${row.code}: could not add ${row.to} — old code left in place`);
+                        athToast(`Could not find ${row.to} — left ${row.code} alone.`, { ttl: 4200 });
+                        continue;
+                    }
+                } else {
+                    log.log(`${ts()} ${row.to} already present — removal only`);
+                }
+                const removed = await removeCode(row.code);
+                if (removed) fixed++; else { skipped++; log.warn(`${ts()} added ${row.to} but could not remove ${row.code}`); }
+                await sleep(150);
+            }
+            await closeSearch();
+            prog.done(300);
+            const summary = fixed ? `fixed ${fixed}` + (skipped ? `, skipped ${skipped}` : '') : (skipped ? `skipped ${skipped}` : 'no changes');
+            athToast('Diagnosis: ' + summary + '. Click Apply Scribe to save.', { ttl: 4200 });
+            log.log(`${ts()} ============ Fix Diagnosis END: ${summary} ============`);
+            athStatusBus.poke(200);
+            return { reason: 'ok', fixed, skipped };
+        }
+
+        // The section header uses the same 1fr/auto grid the flowsheet header does,
+        // so the button lands on the right the same way Fix Procedures does.
+        function findHeaderRow() {
+            const sec = Dx.section();
+            if (!sec) return null;
+            return sec.querySelector(':scope > div.tr-grid, :scope > div > div.tr-grid');
+        }
+        function injectButton() {
+            if (!Features.enabled('fixDiagnosis')) { const _b = document.getElementById(BTN_ID); if (_b) _b.remove(); return; }
+            if (document.getElementById(BTN_ID)) return;
+            const row = findHeaderRow();
+            if (!row) return;
+            const btn = document.createElement('button');
+            btn.id = BTN_ID; btn.type = 'button';
+            btn.textContent = 'Fix Diagnosis';
+            btn.title = TITLE;
+            Object.assign(btn.style, {
+                justifySelf: 'end', alignSelf: 'center', marginRight: '12px',
+                padding: '4px 10px', background: '#c33', color: '#fff',
+                border: '1px solid #a22', borderRadius: '4px',
+                font: '500 12px/1.2 system-ui, sans-serif', cursor: 'pointer', whiteSpace: 'nowrap',
+            });
+            athBindHover(btn);
+            athPaintButton(btn, 'pending');
+            btn.addEventListener('click', async (ev) => {
+                ev.preventDefault(); ev.stopPropagation();
+                btn.disabled = true; btn.textContent = 'Working…'; athPaintButton(btn, 'busy');
+                try {
+                    const r = await performFix();
+                    btn.textContent = r.fixed ? `fixed ${r.fixed}` : (r.reason || 'no-op');
+                    athPaintButton(btn, r.fixed ? 'clean' : 'busy');
+                } catch (err) {
+                    log.error(`${ts()} performFix threw:`, err);
+                    btn.textContent = 'error'; athPaintButton(btn, 'busy');
+                } finally {
+                    setTimeout(() => { btn.textContent = 'Fix Diagnosis'; btn.disabled = false; refreshStatus(true); }, 3500);
+                }
+            });
+            row.appendChild(btn);
+            refreshStatus(true);
+            log.log(`${ts()} injected Fix Diagnosis button`);
+        }
+
+        function refreshStatus(force) {
+            const btn = document.getElementById(BTN_ID);
+            if (!btn || btn.disabled) return;
+            let rows;
+            try { rows = Dx.pending(); } catch (e) { return; }
+            if (force) delete btn.dataset.athState;
+            athPaintButton(btn, rows.length ? 'pending' : 'clean');
+            btn.title = (rows.length
+                ? `${rows.length} diagnosis code${rows.length === 1 ? '' : 's'} still marked S (sequela): ` + rows.map((r) => r.code).join(', ')
+                : 'No diagnosis code on this note is marked S (sequela).') + '\n\n' + TITLE;
+        }
+
+        injectButton();
+        athStatusBus.add(refreshStatus);
+        athObserveBody(() => { try { injectButton(); } catch (e) {} }, 250);
+
+        window.__athelasFixDiagnosis = performFix;
+        window.__athelasListDiagnosis = () => { const r = Dx.chips().map((c) => ({ code: c.code, principal: c.principal, episode: Dx.episode(c.code), to: Dx.subsequentOf(c.code) || '', desc: c.desc })); console.table(r); return r; };
+        log.log(`${ts()} hooks ready: __athelasFixDiagnosis, __athelasListDiagnosis`);
+    }
+
+    // =====================================================================
+    // MODULE 16: pre-sign critical warnings.
+    //
+    // The two problems that bill at $0 — a non-reimbursed CPT code, and a
+    // diagnosis still marked sequela — get one warning button each, directly
+    // above the Provider(s)/Sign block at the bottom of the note. They exist
+    // ONLY while the problem exists and vanish once it's fixed. Clicking one
+    // scrolls to the section that owns the fix and flashes it; it never edits
+    // anything itself (the therapist still reviews the real fixer's dialog).
+    //
+    // Recomputed on the shared status bus — no timer of its own.
+    // =====================================================================
+    function featureCriticalWarnings() {
+        const log = makeLogger('warnings');
+        const WRAP_ID = 'athelas-critical-warnings';
+
+        athInjectStyle('ath-warn-css', `
+            #${WRAP_ID} { display: flex; flex-direction: column; gap: 6px; margin: 0 0 12px; align-items: flex-start; }
+            .ath-warn-btn { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 6px;
+                background: #fdecec; color: #8a1c1c; border: 1px solid #e2a1a1; cursor: pointer; text-align: left;
+                font: 600 12.5px/1.3 system-ui, sans-serif; }
+            .ath-warn-btn:hover { background: #fadada; }
+            .ath-warn-flash { animation: ath-warn-flash 1.6s ease-out 1; }
+            @keyframes ath-warn-flash { 0%, 100% { box-shadow: none; } 20%, 60% { box-shadow: 0 0 0 3px rgba(200,40,40,.45); } }
+        `);
+
+        // Interventions sitting under a non-reimbursed CPT card, whatever their name.
+        // Card -> region lookup is by aria-label, the same hook the movers use
+        // (the code input is NOT inside the region, so `closest` would miss).
+        function badCodeItems() {
+            const scope = document.querySelector('[data-section="flowsheet"]');
+            if (!scope) return [];
+            const out = [];
+            for (const input of scope.querySelectorAll('input[aria-label="replace procedure"]')) {
+                const val = input.value || input.getAttribute('value') || '';
+                const bad = Proc.resolveBadCode(val);
+                if (!bad) continue;
+                const m = val.match(/^(\S+)\s*-\s*(.+?)\s*$/);
+                const cardName = m ? m[2].trim() : '';
+                const region = cardName
+                    ? scope.querySelector(`[role="region"][aria-label="${cardName} interventions"]`)
+                    : null;
+                // Count only "Done" items: those are what actually bill, and they
+                // are exactly what Fix Procedures will move — so the warning always
+                // clears once the fix has run, instead of sticking on an empty card.
+                let items = 0;
+                if (region) {
+                    for (const li of region.querySelectorAll('li[aria-label="Intervention"]')) {
+                        const cb = li.querySelector('input[aria-label="Done"]');
+                        if (cb && cb.checked) items++;
+                    }
+                }
+                if (!items) continue;
+                out.push({ code: bad.code, name: bad.name, to: bad.to, toName: bad.toName, items, reason: bad.reason });
+            }
+            return out;
+        }
+
+        function focusSection(selector) {
+            const el = document.querySelector(selector);
+            if (!el) { athToast('Could not find that section on this note.', { ttl: 3000 }); return; }
+            try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { el.scrollIntoView(); }
+            el.classList.remove('ath-warn-flash');
+            void el.offsetWidth;                 // restart the animation
+            el.classList.add('ath-warn-flash');
+            setTimeout(() => el.classList.remove('ath-warn-flash'), 2000);
+        }
+
+        function anchor() {
+            const sec = document.querySelector('[data-section="notarize"]');
+            if (!sec) return null;
+            return { parent: sec, before: sec.querySelector('section[aria-label="Provider(s)"]') };
+        }
+        function wrap() {
+            let w = document.getElementById(WRAP_ID);
+            if (w && w.isConnected) return w;
+            const a = anchor();
+            if (!a) return null;
+            w = document.createElement('div');
+            w.id = WRAP_ID;
+            if (a.before && a.before.parentNode) a.before.parentNode.insertBefore(w, a.before);
+            else a.parent.insertBefore(w, a.parent.firstChild);
+            return w;
+        }
+        function setWarning(id, show, text, title, onClick) {
+            let btn = document.getElementById(id);
+            if (!show) { if (btn) btn.remove(); return; }
+            const w = wrap();
+            if (!w) return;
+            if (!btn) {
+                btn = document.createElement('button');
+                btn.id = id; btn.type = 'button'; btn.className = 'ath-warn-btn';
+                btn.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); onClick(); });
+                w.appendChild(btn);
+            } else if (btn.parentNode !== w) { w.appendChild(btn); }
+            if (btn.textContent !== text) btn.textContent = text;
+            btn.title = title;
+        }
+
+        function refresh() {
+            if (!Features.enabled('criticalWarnings')) {
+                const w = document.getElementById(WRAP_ID); if (w) w.remove();
+                return;
+            }
+            let bad = [], dx = [];
+            try { bad = badCodeItems(); dx = Dx.pending(); } catch (e) { return; }
+            setWarning('ath-warn-badcode', bad.length,
+                `⚠ Non-reimbursed billing code on this note: ${bad.map((b) => b.code).join(', ')} — fix before signing`,
+                bad.map((b) => `${b.code} ${b.name}: ${b.reason}. ${b.items} intervention(s) filed under it; they belong under ${b.to} ${b.toName}.`).join('\n')
+                    + '\n\nClick to jump to the flowsheet and use Fix Procedures.',
+                () => focusSection('[data-section="flowsheet"]'));
+            setWarning('ath-warn-dx', dx.length,
+                `⚠ Diagnosis still marked S (sequela): ${dx.map((d) => d.code).join(', ')} — fix before signing`,
+                dx.map((d) => `${d.code} should be ${d.to} (subsequent encounter) on a follow-up visit.`).join('\n')
+                    + '\n\nClick to jump to Diagnosis Codes and use Fix Diagnosis.',
+                () => focusSection('[data-section="diagnosis_codes"]'));
+            const w = document.getElementById(WRAP_ID);
+            if (w && !w.children.length) w.remove();
+        }
+
+        athStatusBus.add(refresh);
+        Features.onChange(refresh);
+        window.__athelasCriticalWarnings = () => ({ badCodes: badCodeItems(), sequela: Dx.pending().map((d) => d.code + ' -> ' + d.to) });
+        window.__athelasProviderInfo = athProviderInfo;
+        log.log('pre-sign warnings ready. Hooks: __athelasCriticalWarnings(), __athelasProviderInfo().');
+    }
+
+    // =====================================================================
     // Boot: run each module in turn. They're independent.
     //
     // The button/preview features are observer-driven and self-heal, so we
@@ -3261,6 +3929,8 @@
     applyCompactCss();
     featureFixMisplacedMET();
     featureFixPrivatePay();
+    featureFixDiagnosis();
+    featureCriticalWarnings();
     featureProcedureMatchPreview();
     featureSurveyQuickAdd();
     featureGoalFromScore();

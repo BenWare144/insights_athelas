@@ -16,30 +16,46 @@ A browser add-on that automates chart-note busywork in **Athelas Insights** (a p
 
 ## Where it's at (Aug 2026)
 
-- **Version `15.21.2`**, 24/24 tests green. Latest local commit `9fd1e7d`. All commits are LOCAL — Ben pushes.
-- **Live features:** Fix Procedures, Fix Private Pay, functional-outcome survey quick-add + status button + goal-from-score (initial-eval notes), calendar Open Note + popup clamp, jump-to-Flowsheet, compact layout, and the Extension Settings toggle panel.
+- **Version `15.22.0`**, 38/38 tests green. All commits are LOCAL — Ben pushes.
+- **Live features:** Fix Procedures (incl. non-reimbursed 98960 → 97535), Fix Diagnosis (ICD-10 7th character S → D), pre-sign critical warnings, Fix Private Pay, functional-outcome survey quick-add + status button + goal-from-score (initial-eval notes), calendar Open Note + popup clamp, jump-to-Flowsheet, compact layout, and the Extension Settings toggle panel.
 - **Shelved:** calendar auto Day→Week (misbehaves; code kept, not called).
-- **Deployment:** userscript is live on Cheri's machine (auto-updates from a local `file://` build via `npm run build:local` + Tampermonkey "Check for updates"). The extension is unlisted on the Web Store (item ID `lnacagncbpglinobghcdeadaodonpjdf`) for eventual clinic force-install. The last submission was **rejected for keyword spam** (survey acronym list in the description); that's fixed in `deploy/store-listing.md` — needs a resubmit (upload current zip + paste corrected description; no appeal needed). Email archived in `deploy/store-review/`.
+- **Deployment:** userscript is live on Cheri's machine (auto-updates from a local `file://` build via `npm run build:local` + Tampermonkey "Check for updates"). The extension is **accepted and published (unlisted)** on the Web Store, item ID `lnacagncbpglinobghcdeadaodonpjdf`, for clinic force-install — the earlier keyword-spam rejection was fixed in `deploy/store-listing.md` and the resubmission went through. Rejection email archived in `deploy/store-review/`. `deploy/athelas-insights-helper-v15.22.0.zip` is built and ready to upload.
+- **Not verified on the live site yet:** everything added in 15.22.0 was written against `captures/[patient] Chart Note_diagnotis_codes_example.mhtml` and never run against a real note — no capture in the repo contains a 98960 card, so the `ensureCard('97535')` path (does the +CPT dialog even offer 97535?) and the whole Fix Diagnosis interaction need a live pass. See "verification checklist" below.
 - **Everything a new agent needs is in-repo** (this file, AGENTS.md, DECISIONS.md, CHANGELOG.md, DEPLOYMENT.md) — the previous work happened in Claude "cowork" whose separate memory does NOT travel to Claude Code, so these docs are the source of truth.
 
-## Current work / what's next — the Choice Therapy email requests (PRE-PLAN)
+## Current work / what's next — the Choice Therapy email requests
 
-These are new feature requests from the compliance review, not yet built. They're mostly **matching-engine additions** (new rules in `matching/procedure-matching.js` + the `Proc` mirror + review dialog). Do NOT start coding — this is a pre-plan; the requests need clarification and live captures first.
+Four requests came out of the compliance review. **Two are built (15.22.0), two are blocked on decisions.**
 
-1. **Auto-correct non-reimbursed billing codes → an appropriate PT CPT.** The scribe sometimes files a procedure under **98960** (Education & Training for Patient Self-Management — not reimbursed for PT). Confirmed request: **98960 → 97535** (Self-Care/Home Management Training). More broadly: catch "CPT codes that shouldn't be used" and let the therapist pick the right one (97110 / 97530 / 97535). Likely a new rule family + possibly a settings choice for the default target.
-2. **"Provider cues" documented → move to Neuromuscular Re-education (97112).** When the note documents provider (verbal/tactile) cues, the item still stays under Exercise (97110) instead of moving to Neuro. Request: detect cue language and classify to 97112. (Careful: MET already → 97112, and this may compete with existing 97110 rules — precedence matters.)
-3. **"Simulate / simulation of / replicates" → Therapeutic Activity (97530).** When the note says a task simulates/replicates a functional activity, move the item to 97530.
-4. **Diagnosis code "S → D" change (UNCLEAR).** A request to "make the diagnosis code change also from a S to D." Most likely the ICD-10 injury-code 7th-character episode indicator (A initial / D subsequent / S sequela) — i.e., set subsequent-encounter "D" for follow-ups — but this is a guess. Needs clarification + a capture of the diagnosis field.
+1. ✅ **Non-reimbursed billing codes → an appropriate PT CPT.** Built. `NON_REIMBURSED` in `matching/procedure-matching.js` maps **98960 → 97535**; Fix Procedures moves items off it (name rule picks the destination when it has one, "leave alone" rules overridden). Deliberately an open family — adding a code is a one-line change plus the mirror. Still open: the FULL list of codes that shouldn't be used (98961/98962? 97150? G-codes?) and whether any of them wants a different target.
+2. ⏸ **"Provider cues" documented → 97112.** BLOCKED on decisions — the evidence review is `matching/cues-and-simulation-review.md` (what it would catch, the 8 conflicts, and why it can't be a name rule). Headline: cue language is in the intervention **details**, not the name, so this changes the matcher's shape; it would move 6 of 254 real items and fix 2 wrong downgrades, but a bare "cue" mention also catches ordinary exercise instruction.
+3. ⏸ **"Simulate / replicates" → 97530.** BLOCKED — zero hits in 254 real interventions and 2,701 catalog names, so there's nothing to tune against. Need one real note where the scribe wrote it. Same doc.
+4. ✅ **Diagnosis "S → D".** Built as the **Fix Diagnosis** button — confirmed to be the ICD-10 7th-character episode indicator. Adds the `…D` code, verifies it landed, then removes the `…S` code.
 
 **Positive feedback (informs priorities, not tasks):** the reviewer loved the survey quick-add (most-popular-on-top + make-it-a-goal). They didn't find jump-to-Flowsheet useful — which they can disable in Extension Settings (validates the toggle system). The toggles, calendar Open Note, and jump-to-procedures are all confirmed wins.
 
+## Verification checklist for 15.22.0 (needs a live note)
+
+Nothing below could be checked offline — no capture in the repo contains a 98960 card, and the diagnosis interaction was written from a static snapshot.
+
+1. **Does the +CPT dialog offer 97535?** `ensureCard('97535')` matches dialog options by `textContent.includes(code)`. If 97535 isn't in that list, Fix Procedures can move items off 98960 only when a 97535 card already exists.
+2. **Fix Diagnosis end to end** on a note with a real `…S` code: does typing the full target into `input[aria-label="Search for diagnosis codes"]` produce `li[role="option"][title="<code>"]`, does clicking it add the chip, and does the chip's CloseIcon remove the old one? Console tag `[athelas:fix-dx]`.
+3. **Principal-diagnosis ordering.** New codes append to the end. Confirm what the app does to the "Principal ·" designation when the principal code is the one replaced.
+4. **Warning buttons** land above `section[aria-label="Provider(s)"]` and disappear once fixed.
+5. **Status colours** flip red↔green without visible lag, and the shared status bus doesn't feel heavy on Cheri's laptop.
+
 ## Open questions to resolve before planning
 
-1. **98960/coding:** Is it always 98960 → 97535, or a per-code choice (settings dropdown)? What is the FULL list of "codes that shouldn't be used" and each target (98961/98962? 97150? G-codes?)? Need a **capture of a real note where 98960 appears** — is it a CPT card/section like the 97110/97530 cards, so Fix Procedures can move it?
-2. **Provider cues → 97112:** exact trigger phrases ("verbal cues", "tactile cues", "VC", "cueing", "provider cued", "cues to/for…")? Does it apply to every item with cues, or only some? Where does it sit in precedence vs the existing 97110 rules (stretch, PROM, etc.) and MET?
-3. **"Simulate" → 97530:** exact phrases ("simulate", "simulation of", "to simulate", "replicates", "mimics")? Precedence vs lunge/squat/etc.?
-4. **Diagnosis S→D:** what exactly does "S to D" mean, which field/element holds the diagnosis on the note, and when should it flip (every visit, follow-ups only)? Need a capture.
+1. **The rest of the non-reimbursed list.** 98960 is handled. What else, and what's each target? Also: is 98960 → 97535 always right, or does it want to be a settings choice?
+2. **Provider cues → 97112 / "simulate" → 97530.** See the five questions at the end of `matching/cues-and-simulation-review.md` — chiefly (a) bare cue mention vs cue + purpose word, (b) what justification sentence a cue rule should append, and (c) one real "simulate" note.
+3. **Confirm the reimbursement ordering.** The "higher-paying category wins" tie-break is currently assumed to be 97530 ≳ 97535 > 97112 > 97110 (typical Medicare PFS). Confirm against Choice Therapy's actual fee schedule before it becomes precedence — 97530 and 97535 are close enough that a contract could invert them.
+4. **Role differentiation (exploratory, on hold).** Can the page tell us the user's discipline? **Yes** — the credential next to the provider name in `[data-section="notarize"] section[aria-label="Provider(s)"]` (`DPT`, `OTR/L`, `CCC-SLP`, …); it is the only place the app states it, and it's the *note's* provider rather than the logged-in account. `athProviderInfo()` / `window.__athelasProviderInfo()` read it and `athDiscipline()` maps it to PT/OT/SLP (returning null rather than guessing on an unknown credential). Nothing is gated on it. If OT can't bill a PT activity and needs an OT-specific code, `NON_REIMBURSED` becomes a per-discipline map.
 5. **Company-wide vs Cheri-specific:** the matching rules are one shared set. Should these new rules apply to all Choice Therapy therapists, or stay Cheri's? If therapists want different code mappings (not just on/off), that implies per-user config beyond the current toggles.
+
+## Future feature ideas (logged, not scheduled)
+
+- **Hide the diagnosis field's "Clear" X.** `button[aria-label="Clear"]` in the Diagnosis Codes autocomplete removes EVERY code at once — a one-click way to destroy the diagnosis list with no obvious undo. Consider hiding or guarding it (the script never clicks it; this is about protecting the human).
+- **Remove an emptied non-reimbursed CPT card.** Fix Procedures moves the interventions off 98960 but leaves the (now empty) card on the note; removing it is currently manual.
 
 ## How to work here (the short version)
 

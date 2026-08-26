@@ -1,5 +1,15 @@
 # Changelog
 
+## 15.22.0 — 2026-08-26
+
+Billing-critical fixes: the two mistakes that lead to $0 reimbursement now have their own fixer and their own pre-sign warning.
+
+- **Non-reimbursed billing codes → the right PT code.** Interventions the scribe filed under **98960** (Education & Training for Patient Self-Management, which PT is not paid for) are now moved out by **Fix Procedures**. The destination follows the normal rules when they have an opinion (a squat mis-filed under 98960 still lands under 97530); otherwise it goes to **97535 Self-Care/Home Management Training**. "Leave alone" rules (Bridges, TKE) are deliberately overridden here — leaving an item under a non-reimbursed code bills at $0, so it always has to move. The code family is a small open list, ready for more codes as the clinic identifies them.
+- **New "Fix Diagnosis" button** in the Diagnosis Codes section header. Rewrites the ICD-10 7th character from **S (sequela) to D (subsequent encounter)** — e.g. `S52.301S` → `S52.301D`. Same review-before-you-run dialog as Fix Procedures. Per code it adds the corrected diagnosis, **verifies the new one is really on the note, and only then removes the old one**; if the corrected code can't be found, the original is left untouched and the row is reported as skipped. Deletion always goes through the individual code's X — never the field-level "Clear" X, which would wipe every diagnosis at once.
+- **Warnings above the signature block.** At the bottom of the note, just above Provider(s)/Sign, up to two warning buttons appear: one when a non-reimbursed code still has "Done" interventions under it, one when a diagnosis is still marked S. Clicking a warning jumps to the section that fixes it and flashes it. They exist only while the problem exists and disappear as soon as it's fixed.
+- **Button status colours.** The fixer buttons are **red when clicking them would change something and green when that part of the note is already clean**, with a tooltip saying what's pending. Fix Private Pay changed from purple to the same red/green language. This costs no polling: one shared MutationObserver with a trailing debounce recomputes only after the page goes quiet, skips hidden tabs and non-note pages, and reads only the flowsheet cards and diagnosis chips.
+- Both new features have their own switches in Extension Settings.
+
 ## 15.21.2 — 2026-08-11
 
 - Calendar "Extension Settings" button now inserts *before* the `tr-hidden lg:tr-block` wrapper that holds "Clear All", instead of inside it — so it stays visible at smaller widths (the wrapper hides below the lg breakpoint).

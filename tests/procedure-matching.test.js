@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
-const { normProc, resolveProcedure, RULES, J } =
+const { normProc, resolveProcedure, RULES, J, resolveBadCode, resolveNonReimbursed, NON_REIMBURSED } =
     require(path.join(__dirname, '..', 'matching', 'procedure-matching.js'));
 
 test('normProc: lowercases, strips punctuation, collapses whitespace', () => {
@@ -141,5 +141,60 @@ test('intersecting names: justification follows the winning category', () => {
         const r = resolveProcedure(name);
         assert.equal(r.code, '97530', `${name} should file under 97530`);
         assert.equal(r.justification, J.stairs, `${name} should carry the step justification`);
+    }
+});
+
+// ---- non-reimbursed billing codes (98960 family) --------------------------
+// Leaving an item under one of these bills at $0, so these are CRITICAL fixes:
+// unlike the 97110/97112/97530 shuffle, "leave alone" is never an acceptable
+// outcome here.
+
+test('resolveBadCode: recognises a non-reimbursed card by code or full label', () => {
+    for (const card of ['98960', '98960 - Education & Training', ' 98960 ']) {
+        const bad = resolveBadCode(card);
+        assert.ok(bad, `${JSON.stringify(card)} should be flagged`);
+        assert.equal(bad.code, '98960');
+        assert.equal(bad.to, '97535');
+    }
+});
+
+test('resolveBadCode: the reimbursable codes are NOT flagged', () => {
+    for (const card of ['97110 - Therapeutic Exercise', '97112', '97530', '97140', 'PPVISIT - Visit-Private Pay', '', null]) {
+        assert.equal(resolveBadCode(card), null, `${JSON.stringify(card)} must not be flagged`);
+    }
+});
+
+test('resolveNonReimbursed: a name rule picks the destination when it has one', () => {
+    const r = resolveNonReimbursed('Chair squat', '98960');
+    assert.equal(r.code, '97530', 'a squat mis-filed under 98960 still belongs under 97530');
+    assert.equal(r.justification, J.squatrec, 'and carries the squat justification');
+    assert.ok(r.nonReimbursed, 'and is flagged as a critical (non-reimbursed) fix');
+});
+
+test('resolveNonReimbursed: falls back to the family default when no name rule matches', () => {
+    const r = resolveNonReimbursed('Home exercise program review', '98960');
+    assert.equal(r.code, '97535');
+    assert.equal(r.justMode, 'none', 'no canonical text to append for the default target');
+    assert.equal(r.justification, null);
+});
+
+test('resolveNonReimbursed: "leave alone" rules are overridden — $0 is not an option', () => {
+    for (const name of ['Supine Bridge', 'Terminal Knee Extension (TKE)']) {
+        assert.equal(resolveProcedure(name).exclude, true, `${name} is normally left alone`);
+        const r = resolveNonReimbursed(name, '98960');
+        assert.equal(r.code, '97535', `${name} must still be moved off 98960`);
+    }
+});
+
+test('resolveNonReimbursed: returns null for a card that is fine', () => {
+    assert.equal(resolveNonReimbursed('Chair squat', '97110 - Therapeutic Exercise'), null);
+});
+
+test('NON_REIMBURSED entries all target a real reimbursable PT code', () => {
+    const ok = new Set(['97110', '97112', '97530', '97535']);
+    for (const [code, cfg] of Object.entries(NON_REIMBURSED)) {
+        assert.ok(ok.has(cfg.to), `${code} targets ${cfg.to}, which is not a PT code we file under`);
+        assert.ok(cfg.reason && cfg.reason.length > 10, `${code} needs a reason string for the warning tooltip`);
+        assert.equal(resolveBadCode(cfg.to), null, `${code} must not map onto another non-reimbursed code`);
     }
 });

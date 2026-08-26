@@ -38,6 +38,34 @@ const J = {
   rom:       'To assist with pain free range of motion and restore normal function',
 };
 
+// ---- non-reimbursed billing codes -----------------------------------------
+// CPT/HCPCS codes the scribe sometimes files a procedure under that a PT is NOT
+// reimbursed for. Leaving an item under one of these bills at $0, so this is a
+// CRITICAL fix (unlike the 97110/97112/97530 shuffle, which is a wrong-but-paid
+// problem). Keyed by the CPT card's code; `to` is the default replacement.
+//
+// Deliberately a small open family — more codes get added here as the clinic
+// identifies them. NOT role-aware yet: if OT/SLP end up needing different
+// targets this becomes a per-discipline map (see HANDOFF "role differentiation").
+//
+// resolveBadCode(cardCode) -> null | { code, to, name, toName, reason }
+const CODE_NAMES = {
+  '97110': 'Therapeutic Exercise',
+  '97112': 'Neuromuscular Reeducation',
+  '97530': 'Therapeutic Activity',
+  '97535': 'Self-Care/Home Management Training',
+  '98960': 'Education & Training for Patient Self-Management',
+};
+const NON_REIMBURSED = {
+  '98960': { to: '97535', reason: 'Education & Training for Patient Self-Management is not reimbursed for PT' },
+};
+function resolveBadCode(cardCode) {
+  const code = String(cardCode || '').trim().split(/[\s-]/)[0].toUpperCase();
+  const hit = NON_REIMBURSED[code];
+  if (!hit) return null;
+  return { code, to: hit.to, name: CODE_NAMES[code] || '', toName: CODE_NAMES[hit.to] || '', reason: hit.reason };
+}
+
 // ---- MET helpers ----------------------------------------------------------
 // Junk/test MET names (e.g. "MET - jhgkhjg", "MET - 1243543t"): IGNORE them.
 // Junk = the descriptor after MET is a single token that has a digit or no vowel.
@@ -183,6 +211,31 @@ function resolveProcedure(name) {
   return null;
 }
 
+// Where an item sitting under a non-reimbursed card should go. The NAME rule
+// wins when it has an opinion (a "Squat" mis-filed under 98960 belongs under
+// 97530, not the generic default) — otherwise the family default applies.
+// Note `exclude` rules are deliberately OVERRIDDEN here: "leave alone" means
+// "leave it where it is because the code is merely debatable", which does not
+// apply when leaving it where it is bills at $0.
+function resolveNonReimbursed(name, cardCode) {
+  const bad = resolveBadCode(cardCode);
+  if (!bad) return null;
+  const r = resolveProcedure(name);
+  const byName = r && !r.exclude && r.code ? r : null;
+  return {
+    label: 'Non-reimbursed ' + bad.code + (byName ? ' → ' + byName.label : ''),
+    code: byName ? byName.code : bad.to,
+    justification: byName ? byName.justification : null,
+    justMode: byName ? byName.justMode : 'none',
+    rename: byName ? byName.rename : null,
+    met: byName ? !!byName.met : false,
+    nonReimbursed: bad,
+  };
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { normProc, resolveProcedure, metJustification, isJunkMET, RULES, J };
+  module.exports = {
+    normProc, resolveProcedure, metJustification, isJunkMET, RULES, J,
+    CODE_NAMES, NON_REIMBURSED, resolveBadCode, resolveNonReimbursed,
+  };
 }

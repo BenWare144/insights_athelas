@@ -8,7 +8,9 @@ A **chart-note workflow-automation helper** for **Athelas Insights** (insights.a
 
 Feature areas (all live):
 
-- **Fix Procedures** — moves each "Done" intervention to its correct CPT code (97110 / 97112 / 97530, incl. MET → 97112), renames Rib → "MET - Rib", and appends the standard justification — all behind a per-change review dialog.
+- **Fix Procedures** — moves each "Done" intervention to its correct CPT code (97110 / 97112 / 97530, incl. MET → 97112), renames Rib → "MET - Rib", and appends the standard justification — all behind a per-change review dialog. Also moves items off **non-reimbursed codes** (98960 → 97535 by default, or wherever the name rule says), which is the one case where "leave alone" rules are overridden.
+- **Fix Diagnosis** — rewrites the ICD-10 7th character S (sequela) → D (subsequent encounter) on the Diagnosis Codes section, add-verify-then-remove, behind the same style of review dialog.
+- **Pre-sign warnings** — up to two warning buttons above the Provider(s)/Sign block, one per $0-reimbursement problem (non-reimbursed code, sequela diagnosis); they appear only while the problem exists and jump to the section that fixes it.
 - **Fix Private Pay** — collects "Done" interventions into the private-pay section with the same fix-ups.
 - **Functional-outcome surveys (initial-eval notes)** — a quick-add panel for the clinic's self-report surveys, a per-survey completion/collapse status button, and **goal-from-score** (drafts a goal from a completed survey, behind an editable review dialog).
 - **Calendar** — an "Open Note" button on checked-in appointments + a fix that keeps the appointment hover popup on-screen. (Auto Day→Week view is written but **shelved** — misbehaves; see DECISIONS.md.)
@@ -38,7 +40,7 @@ The extension runs the script in the **MAIN world** — required, because the fi
 
 - `userscript/athelas-insights-helper.user.js` — the script (source of truth). One big IIFE; independent modules booted at the bottom. Verbose `[athelas:tag]` console logging throughout; keep that style. `userscript/*.local.user.js` is a git-ignored local build (see Local dev).
 - `athelas-insights-helper-extension/` — MV3 packaging (manifest, generated `content.js`, icons, README with the regenerate command).
-- `matching/` — **canonical procedure-matching engine** `procedure-matching.js` (the only exported/tested copy; source of truth for the userscript's `Proc` engine) + `procedure-matching.test.js`, decision docs (`procedure-audit.md`, `procedure-matching-QUESTIONS.md`, `BRIDGES-review.md`), and the research trail in `analysis/`.
+- `matching/` — **canonical procedure-matching engine** `procedure-matching.js` (the only exported/tested copy; source of truth for the userscript's `Proc` engine — includes the `NON_REIMBURSED` / `CODE_NAMES` tables) and **canonical ICD-10 helpers** `diagnosis-codes.js` (source of truth for the 7th-character S→D logic mirrored in the userscript's `Dx`) + `procedure-matching.test.js`, decision docs (`procedure-audit.md`, `procedure-matching-QUESTIONS.md`, `BRIDGES-review.md`), and the research trail in `analysis/`.
 - `surveys/` — **canonical survey-scoring engine** `survey-scoring.js` (6 surveys, score parsing, family-aware initial-state labels, goal strings, target-state mapping) + `survey-scoring.test.js`. Mirrored by the userscript's `Surveys` module; `tests/surveys-sync.test.js` guards drift. Survey descriptions live only in the userscript (`Surveys.DESCRIPTIONS`).
 - `reference/` — source data behind the rules: `Stuff for EMR.xlsx`, exercise-name lists, `reference_surveys.txt` (survey descriptions + scoring). Exercise/survey names only, **not PHI**.
 - `scripts/build-local.js` — `npm run build:local`; generates the git-ignored local Tampermonkey build with a `file://` auto-update URL.
@@ -50,7 +52,9 @@ The extension runs the script in the **MAIN world** — required, because the fi
 
 ## Userscript module layout (near-top → bottom of the IIFE)
 
-Shared: `pageType`/`onUrlChange` (SPA nav), `Features` (toggles), logging, `waitFor`/`sleep`/`simulateClick`/`setReactValue`, highlight helpers, `Proc` (procedure matcher), toast + `athConfirmMoves` + `athConfirmGoal` dialogs, `Fixer`, `Surveys`, `athInjectStyle`/`athObserveBody`. Modules: 1 compact CSS, 2 jump-to-Flowsheet, 9 Fix Procedures, 10 read-only match preview, 11 Fix Private Pay, 12 survey quick-add panel, 13 survey status button + goal-from-score, 14 calendar, plus `featureSettingsPanel`. Each observer-driven injector is gated by `Features.enabled(id)` at its top (adds when on, removes its elements when off).
+Shared: `pageType`/`onUrlChange` (SPA nav), `Features` (toggles), logging, `waitFor`/`sleep`/`simulateClick`/`setReactValue`, highlight helpers, `Proc` (procedure matcher), `Dx` (diagnosis codes), toast + `athConfirmMoves` + `athConfirmDiagnosis` + `athConfirmGoal` dialogs, `Fixer`, `Surveys`, `athInjectStyle`/`athObserveBody`, `athStatusBus`/`athPaintButton`/`athBindHover` (button status colours), `athProviderInfo`/`athDiscipline`. Modules: 1 compact CSS, 2 jump-to-Flowsheet, 9 Fix Procedures, 10 read-only match preview, 11 Fix Private Pay, 12 survey quick-add panel, 13 survey status button + goal-from-score, 14 calendar, 15 Fix Diagnosis, 16 pre-sign critical warnings, plus `featureSettingsPanel`. Each observer-driven injector is gated by `Features.enabled(id)` at its top (adds when on, removes its elements when off).
+
+**Button status colours:** red = clicking would change something, green = clean, grey = busy. Subscribe a `refreshStatus()` to `athStatusBus.add()` and paint with `athPaintButton(btn, state)`; never add a polling timer (see DECISIONS.md).
 
 ## The matching engine (Fix Procedures) — three-way sync
 

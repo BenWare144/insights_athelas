@@ -65,6 +65,49 @@ test('J justification map is identical across all three copies', () => {
     }
 });
 
+// Extract an object literal (`const NAME = { ... };`) with comments and
+// whitespace stripped — same normalization idea as extractRules.
+function extractObject(src, name, rel) {
+    const start = src.search(new RegExp(`const ${name} = \\{`));
+    assert.notEqual(start, -1, `${rel}: no ${name} map found`);
+    const end = src.indexOf('};', start);
+    assert.notEqual(end, -1, `${rel}: ${name} not terminated`);
+    return src.slice(start, end).replace(/\/\/[^\n]*/g, '').replace(/\s+/g, '');
+}
+
+// The non-reimbursed-code family (98960 -> 97535, plus whatever gets added to
+// it) drives a CRITICAL fix — an item left under one of these bills at $0 — so
+// the two copies must not drift any more than the RULES table may.
+test('NON_REIMBURSED + CODE_NAMES are identical across all three copies', () => {
+    for (const name of ['NON_REIMBURSED', 'CODE_NAMES']) {
+        const canonical = extractObject(srcs.canonical, name, FILES.canonical);
+        assert.ok(canonical.includes('98960'), `canonical ${name} missing 98960`);
+        for (const key of ['userscript', 'extension']) {
+            assert.equal(extractObject(srcs[key], name, FILES[key]), canonical,
+                `${FILES[key]} ${name} drifted from ${FILES.canonical} — sync per AGENTS.md`);
+        }
+    }
+});
+
+// The ICD-10 7th-character helpers behind Fix Diagnosis live canonically in
+// matching/diagnosis-codes.js and are mirrored inside the userscript's `Dx`
+// engine (which adds the DOM work on top). Same drift rule as the RULES table.
+test('ICD-10 7th-character helpers match matching/diagnosis-codes.js', () => {
+    const dx = read('matching/diagnosis-codes.js');
+    const line = (src, name, rel) => {
+        const m = new RegExp(`const ${name} = \\(code\\) =>[^\\n]*`).exec(src);
+        assert.ok(m, `${rel}: no ${name} definition found`);
+        return m[0].replace(/\s+/g, '');
+    };
+    for (const name of ['bare', 'episode', 'subsequentOf']) {
+        const canonical = line(dx, name, 'matching/diagnosis-codes.js');
+        for (const key of ['userscript', 'extension']) {
+            assert.equal(line(srcs[key], name, FILES[key]), canonical,
+                `${FILES[key]}: Dx.${name} drifted from matching/diagnosis-codes.js — sync per AGENTS.md`);
+        }
+    }
+});
+
 test('normProc normalization chain is present verbatim in all three copies', () => {
     const chain = `.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\\s+/g, ' ').trim()`
         .replace(/\s+/g, '');
