@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.22.0 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.23.0 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -57,6 +57,7 @@
             { id: 'fixProcedures',    label: 'Fix Procedures button' },
             { id: 'fixPrivatePay',    label: 'Fix Private Pay button' },
             { id: 'fixDiagnosis',     label: 'Fix Diagnosis button (ICD-10 S → D)' },
+            { id: 'fixPlanOfCare',    label: 'Fix Plan of Care button (eval duration)' },
             { id: 'criticalWarnings', label: 'Warnings above the signature block' },
             { id: 'surveyPanel',      label: 'Survey quick-add panel (initial eval)' },
             { id: 'goals',            label: 'Survey status button + Create Goal' },
@@ -819,6 +820,81 @@
                 document.removeEventListener('keydown', onKey, true);
                 resolve({ confirmed, decisions });
             };
+            const onKey = (ev) => { if (ev.key === 'Escape') stop(() => close(false))(ev); };
+            cancel.addEventListener('click', stop(() => close(false)));
+            apply.addEventListener('click', stop(() => close(true)));
+            overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(false); });
+            document.addEventListener('keydown', onKey, true);
+        });
+    }
+
+    // Generic before/after review dialog for a handful of form fields (v15.23).
+    // Same visual language as the other two: old value struck through in red, new
+    // value in green. No per-row checkboxes — these fields move together or not at
+    // all. rows: { label, from, to, note?, derived? }. Resolves to { confirmed }.
+    function athConfirmFields(title, subtitle, rows, footNote) {
+        return new Promise((resolve) => {
+            const stop = (fn) => (ev) => { ev.preventDefault(); ev.stopPropagation(); fn(); };
+            const overlay = document.createElement('div');
+            Object.assign(overlay.style, {
+                position: 'fixed', inset: '0', zIndex: '2147483646', background: 'rgba(0,0,0,0.45)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px',
+            });
+            const modal = document.createElement('div');
+            Object.assign(modal.style, {
+                background: '#fff', color: '#1a1a1a', borderRadius: '10px', maxWidth: '620px',
+                width: '100%', maxHeight: '84vh', display: 'flex', flexDirection: 'column',
+                overflow: 'hidden', boxShadow: '0 12px 40px rgba(0,0,0,0.35)', font: '13px/1.4 system-ui, sans-serif',
+            });
+            const head = document.createElement('div');
+            Object.assign(head.style, { padding: '14px 18px', borderBottom: '1px solid #e5e5e5' });
+            const h = document.createElement('div'); h.textContent = title;
+            Object.assign(h.style, { font: '600 15px system-ui, sans-serif' });
+            const sub = document.createElement('div'); sub.textContent = subtitle;
+            Object.assign(sub.style, { marginTop: '3px', color: '#666', fontSize: '12px' });
+            head.appendChild(h); head.appendChild(sub);
+
+            const body = document.createElement('div');
+            Object.assign(body.style, { overflow: 'auto', padding: '6px 8px' });
+            const table = document.createElement('table');
+            Object.assign(table.style, { width: '100%', borderCollapse: 'collapse' });
+            rows.forEach((r) => {
+                const tr = document.createElement('tr'); tr.style.borderBottom = '1px solid #f0f0f0';
+                const mk = () => { const td = document.createElement('td'); td.style.padding = '8px 10px'; td.style.verticalAlign = 'top'; return td; };
+                const c0 = mk(); c0.textContent = r.label; c0.style.width = '38%'; c0.style.color = '#666';
+                const c1 = mk();
+                const from = document.createElement('span'); from.textContent = String(r.from);
+                from.style.color = '#b3261e'; from.style.textDecoration = 'line-through'; c1.appendChild(from);
+                c1.appendChild(document.createTextNode('  →  '));
+                const to = document.createElement('span'); to.textContent = String(r.to);
+                to.style.color = '#127a2e'; to.style.fontWeight = '600'; c1.appendChild(to);
+                if (r.note) {
+                    const n = document.createElement('div'); n.textContent = r.note;
+                    Object.assign(n.style, { color: '#888', fontSize: '11.5px', marginTop: '3px' }); c1.appendChild(n);
+                }
+                tr.appendChild(c0); tr.appendChild(c1);
+                table.appendChild(tr);
+            });
+            body.appendChild(table);
+            if (footNote) {
+                const fn = document.createElement('div'); fn.textContent = footNote;
+                Object.assign(fn.style, { margin: '10px 10px 4px', padding: '8px 10px', background: '#fff8e6', border: '1px solid #f0dca8', borderRadius: '6px', color: '#7a5a10', fontSize: '11.5px' });
+                body.appendChild(fn);
+            }
+
+            const foot = document.createElement('div');
+            Object.assign(foot.style, { padding: '12px 18px', borderTop: '1px solid #e5e5e5', display: 'flex', justifyContent: 'flex-end', gap: '10px' });
+            const cancel = document.createElement('button'); cancel.textContent = 'Cancel';
+            Object.assign(cancel.style, { padding: '7px 16px', borderRadius: '6px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer', font: '500 13px system-ui' });
+            const apply = document.createElement('button'); apply.textContent = 'Apply';
+            Object.assign(apply.style, { padding: '7px 16px', borderRadius: '6px', border: '1px solid #1746c9', background: '#1746c9', color: '#fff', cursor: 'pointer', font: '600 13px system-ui' });
+            foot.appendChild(cancel); foot.appendChild(apply);
+
+            modal.appendChild(head); modal.appendChild(body); modal.appendChild(foot);
+            overlay.appendChild(modal);
+            (document.body || document.documentElement).appendChild(overlay);
+
+            const close = (confirmed) => { overlay.remove(); document.removeEventListener('keydown', onKey, true); resolve({ confirmed }); };
             const onKey = (ev) => { if (ev.key === 'Escape') stop(() => close(false))(ev); };
             cancel.addEventListener('click', stop(() => close(false)));
             apply.addEventListener('click', stop(() => close(true)));
@@ -3057,6 +3133,25 @@
         return null;
     }
 
+    // MUI date fields are segmented (MM / DD / YYYY): a plain value assignment
+    // usually doesn't stick, so fall back to typing the digits. Shared by the
+    // goal form's due date and Fix Plan of Care's end date.
+    async function athTypeDate(el, mmddyyyy, log) {
+        const digits = (mmddyyyy || '').replace(/\D/g, ''); if (!digits) return false;
+        el.focus(); el.click();
+        setReactValue(el, mmddyyyy, log);          // try the simple path first
+        await sleep(60);
+        if ((el.value || '').replace(/\D/g, '') === digits) return true;
+        // segmented MUI date field: type digit by digit (MM DD YYYY)
+        for (const ch of digits) {
+            el.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
+            el.dispatchEvent(new KeyboardEvent('keypress', { key: ch, bubbles: true }));
+            el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
+            await sleep(20);
+        }
+        return (el.value || '').replace(/\D/g, '').includes(digits.slice(0, 4));
+    }
+
     function athFindButtonByText(root, text, preferLast) {
         const want = (text || '').trim().toLowerCase();
         const btns = [...(root || document).querySelectorAll('button, [role="button"]')].filter((b) => (b.textContent || '').trim().toLowerCase() === want);
@@ -3249,21 +3344,7 @@
             }
             return null;
         }
-        async function typeDate(el, mmddyyyy, log) {
-            const digits = (mmddyyyy || '').replace(/\D/g, ''); if (!digits) return false;
-            el.focus(); el.click();
-            setReactValue(el, mmddyyyy, log);          // try the simple path first
-            await sleep(60);
-            if ((el.value || '').replace(/\D/g, '') === digits) return true;
-            // segmented MUI date field: type digit by digit (MM DD YYYY)
-            for (const ch of digits) {
-                el.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }));
-                el.dispatchEvent(new KeyboardEvent('keypress', { key: ch, bubbles: true }));
-                el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }));
-                await sleep(20);
-            }
-            return (el.value || '').replace(/\D/g, '').includes(digits.slice(0, 4));
-        }
+        const typeDate = athTypeDate;   // shared (v15.23) — also used by Fix Plan of Care
         async function createGoal(fields, log, prog) {
             const goals = Surveys.goalsSection(); if (!goals) throw new Error('no goals section');
             goals.scrollIntoView({ block: 'center' }); await sleep(150);
@@ -3838,6 +3919,226 @@
     }
 
     // =====================================================================
+    // MODULE 17: Fix Plan of Care (evaluation duration -> the certification window).
+    //
+    // The problem (compliance director, 2026-09-04): on an evaluation the
+    // therapist tells the patient what they'll START with — "1x/week for 4 weeks"
+    // — the scribe writes exactly that into the plan, and nobody changes it to the
+    // full certification window. The plan then expires early.
+    //
+    // This is a REVIEW-FIRST button, not a silent default, deliberately: it edits
+    // a certification document on every eval, and specifically the plan the
+    // therapist just discussed with the patient. They see the before/after and
+    // decide. Only ever LENGTHENS — a plan already at or past the target is left
+    // alone, and nothing else on the form is touched (frequency in particular:
+    // the complaint is the duration, not how often they're seen).
+    //
+    // The target: the clinic asked for "90 days". 90 days is 12.86 weeks, so it
+    // does not land on a whole number of weeks — 12 (84d) stays safely inside a
+    // 90-day certification, 13 (91d) would overshoot it. We cannot tell offline
+    // whether the Duration-Units Select even offers "Days" (MUI doesn't render
+    // Select options until opened), so the Weeks target is what ships. If "Days"
+    // turns out to be available, changing TARGET.WEEKS is not needed — the DAYS
+    // entry below already handles a form that is set to days. We never change the
+    // units Select ourselves; only the number.
+    // =====================================================================
+    function featureFixPlanOfCare() {
+        const log = makeLogger('fix-poc');
+        const T0 = performance.now();
+        const ts = () => `+${(performance.now() - T0).toFixed(0)}ms`;
+        const BTN_ID = 'athelas-fix-poc-btn';
+        const TARGET = { DAYS: 90, WEEKS: 12, MONTHS: 3 };     // per duration unit
+        const DAYS_PER = { DAYS: 1, WEEKS: 7, MONTHS: 30 };
+        const UNIT_WORD = { DAYS: 'days', WEEKS: 'weeks', MONTHS: 'months' };
+        const TITLE = 'Lengthen this evaluation\'s plan-of-care duration to the full certification window (12 weeks). The scribe copies whatever the therapist told the patient they would start with — often 4 weeks — which expires the plan early. You review the change before it runs; frequency is never touched, and a plan that is already long enough is left alone.';
+
+        const section = () => document.querySelector('[data-section="plan_of_care"]');
+        const field = (name) => { const s = section(); return s ? s.querySelector(`input[name="${name}"]`) : null; };
+        const numOf = (el) => { const v = el ? Number(el.value) : NaN; return Number.isFinite(v) ? v : null; };
+        const valOf = (el) => (el ? String(el.value || '') : '');
+        function durationUnit() {
+            const s = section(); if (!s) return '';
+            const wrap = s.querySelector('[aria-label="Duration Units"]');
+            const native = wrap ? wrap.querySelector('input') : null;   // hidden native select input, e.g. "WEEKS"
+            return native ? String(native.value || '').trim().toUpperCase() : '';
+        }
+        function readPoc() {
+            if (!section()) return null;
+            const unit = durationUnit();
+            return {
+                duration: numOf(field('duration')),
+                unit,
+                target: TARGET[unit] || null,
+                frequency: numOf(field('frequency')),
+                startDate: valOf(field('start_date')),
+                endDate: valOf(field('end_date')),
+                visits: numOf(field('visit_count')),
+            };
+        }
+        // A fix is pending only on an evaluation, only when we understand the unit,
+        // and only when the plan is SHORTER than the target.
+        function pending() {
+            if (!Surveys.isInitialEval()) return null;
+            const p = readPoc();
+            if (!p || p.duration == null || !p.target) return null;
+            if (p.duration >= p.target) return null;
+            return p;
+        }
+
+        const parseMDY = (s) => {
+            const m = /^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*$/.exec(s || '');
+            if (!m) return null;
+            const d = new Date(Number(m[3]), Number(m[1]) - 1, Number(m[2]));
+            return isNaN(d.getTime()) ? null : d;
+        };
+        const fmtMDY = (d) => { const p = (n) => String(n).padStart(2, '0'); return `${p(d.getMonth() + 1)}/${p(d.getDate())}/${d.getFullYear()}`; };
+        // Approximate: across the captures end_date tracks start + duration, but
+        // one eval was a day short of the exact arithmetic, so the app's own
+        // calculation wins whenever it recalculates. We only write this if it doesn't.
+        function projectedEnd(p) {
+            const s = parseMDY(p.startDate);
+            if (!s) return '';
+            const d = new Date(s.getTime());
+            d.setDate(d.getDate() + p.target * (DAYS_PER[p.unit] || 7));
+            return fmtMDY(d);
+        }
+        const projectedVisits = (p) => (p.frequency != null ? p.frequency * p.target : null);
+
+        async function performFix() {
+            log.log(`${ts()} ============ Fix Plan of Care START ============`);
+            const p = pending();
+            if (!p) {
+                const why = !section() ? 'no-poc-section' : (!Surveys.isInitialEval() ? 'not-an-eval' : 'nothing-to-fix');
+                log.log(`${ts()} ${why}`);
+                return { reason: why, changed: 0 };
+            }
+            const word = UNIT_WORD[p.unit] || p.unit.toLowerCase();
+            const projEnd = projectedEnd(p);
+            const projVisits = projectedVisits(p);
+            const rows = [{ label: 'Duration', from: `${p.duration} ${word}`, to: `${p.target} ${word}` }];
+            if (projEnd && p.endDate) rows.push({ label: 'End date', from: p.endDate, to: projEnd, note: 'the app usually recalculates this itself; we only set it if it doesn’t' });
+            if (projVisits != null && p.visits != null) rows.push({ label: 'Visit count', from: String(p.visits), to: String(projVisits), note: `${p.frequency} per week × ${p.target} ${word} — same as before, only the duration changed` });
+
+            const review = await athConfirmFields(
+                'Fix Plan of Care — evaluation duration',
+                'The visit frequency is not changed. Only the duration (and the end date / visit count that follow from it).',
+                rows,
+                p.unit === 'WEEKS' ? 'The clinic asked for 90 days. 12 weeks is 84 days — the longest whole number of weeks that stays inside a 90-day certification.' : null,
+            );
+            if (!review.confirmed) { log.log(`${ts()} cancelled by user`); return { reason: 'cancelled', changed: 0 }; }
+
+            const prog = athToast('Updating the plan of care…', { ttl: 0 });
+            const dur = field('duration');
+            if (!dur) { prog.done(0); log.warn(`${ts()} duration input vanished`); return { reason: 'no-duration-field', changed: 0 }; }
+            setReactValue(dur, String(p.target), log);
+            await sleep(700);                                   // let the app re-derive
+            let changed = numOf(field('duration')) === p.target ? 1 : 0;
+            if (!changed) log.warn(`${ts()} duration did not take (still ${valOf(field('duration'))})`);
+
+            // Only fill in what the app did NOT recalculate for us.
+            const notes = [];
+            const endEl = field('end_date');
+            if (endEl && projEnd && valOf(endEl) === p.endDate) {
+                log.log(`${ts()} end date unchanged by the app — writing ${projEnd}`);
+                const ok = await athTypeDate(endEl, projEnd, log);
+                if (!ok) { notes.push('end date'); log.warn(`${ts()} could not set the end date`); }
+            } else { log.log(`${ts()} app recalculated the end date -> ${valOf(endEl)}`); }
+
+            const visEl = field('visit_count');
+            if (visEl && projVisits != null && numOf(visEl) === p.visits) {
+                log.log(`${ts()} visit count unchanged by the app — writing ${projVisits}`);
+                setReactValue(visEl, String(projVisits), log);
+                await sleep(200);
+                if (numOf(field('visit_count')) !== projVisits) { notes.push('visit count'); log.warn(`${ts()} could not set the visit count`); }
+            } else { log.log(`${ts()} app recalculated the visit count -> ${valOf(visEl)}`); }
+
+            prog.done(300);
+            if (notes.length) athToast(`Duration updated, but check the ${notes.join(' and ')} by hand.`, { ttl: 5200 });
+            else athToast('Plan of care updated. Click Apply Scribe to save.', { ttl: 4200 });
+            log.log(`${ts()} ============ Fix Plan of Care END: changed=${changed}, manual=${notes.join(',') || 'none'} ============`);
+            athStatusBus.poke(200);
+            return { reason: 'ok', changed, manual: notes };
+        }
+
+        function findHeaderRow() {
+            const sec = section();
+            if (!sec) return null;
+            return sec.querySelector(':scope > div.tr-grid, :scope > div > div.tr-grid');
+        }
+        function injectButton() {
+            if (!Features.enabled('fixPlanOfCare') || !Surveys.isInitialEval()) {
+                const _b = document.getElementById(BTN_ID); if (_b) _b.remove(); return;
+            }
+            if (document.getElementById(BTN_ID)) return;
+            const row = findHeaderRow();
+            if (!row) return;
+            const btn = document.createElement('button');
+            btn.id = BTN_ID; btn.type = 'button';
+            btn.textContent = 'Fix Plan of Care';
+            btn.title = TITLE;
+            Object.assign(btn.style, {
+                justifySelf: 'end', alignSelf: 'center', marginRight: '12px',
+                padding: '4px 10px', background: '#c33', color: '#fff',
+                border: '1px solid #a22', borderRadius: '4px',
+                font: '500 12px/1.2 system-ui, sans-serif', cursor: 'pointer', whiteSpace: 'nowrap',
+            });
+            athBindHover(btn);
+            athPaintButton(btn, 'pending');
+            btn.addEventListener('click', async (ev) => {
+                ev.preventDefault(); ev.stopPropagation();
+                btn.disabled = true; btn.textContent = 'Working…'; athPaintButton(btn, 'busy');
+                try {
+                    const r = await performFix();
+                    btn.textContent = r.changed ? 'updated' : (r.reason || 'no-op');
+                    athPaintButton(btn, r.changed ? 'clean' : 'busy');
+                } catch (err) {
+                    log.error(`${ts()} performFix threw:`, err);
+                    btn.textContent = 'error'; athPaintButton(btn, 'busy');
+                } finally {
+                    setTimeout(() => { btn.textContent = 'Fix Plan of Care'; btn.disabled = false; refreshStatus(true); }, 3500);
+                }
+            });
+            row.appendChild(btn);
+            refreshStatus(true);
+            log.log(`${ts()} injected Fix Plan of Care button`);
+        }
+
+        function refreshStatus(force) {
+            const btn = document.getElementById(BTN_ID);
+            if (!btn || btn.disabled) return;
+            let p;
+            try { p = pending(); } catch (e) { return; }
+            if (force) delete btn.dataset.athState;
+            athPaintButton(btn, p ? 'pending' : 'clean');
+            const cur = readPoc();
+            btn.title = (p
+                ? `Plan of care is ${p.duration} ${UNIT_WORD[p.unit] || ''} — shorter than the ${p.target}-${(UNIT_WORD[p.unit] || 'unit').replace(/s$/, '')} certification window.`
+                : (cur && cur.duration != null ? `Plan of care is ${cur.duration} ${UNIT_WORD[cur.unit] || ''} — long enough.` : 'Plan of care looks fine.')) + '\n\n' + TITLE;
+        }
+
+        injectButton();
+        athStatusBus.add(refreshStatus);
+        athObserveBody(() => { try { injectButton(); } catch (e) {} }, 250);
+
+        window.__athelasFixPlanOfCare = performFix;
+        window.__athelasReadPlanOfCare = () => { const p = readPoc(); console.table(p ? [p] : []); return p; };
+        // Answers the one thing we could not check offline: does the Duration-Units
+        // Select offer "Days"? Run it on a live eval and paste the result back.
+        window.__athelasDurationUnitOptions = async () => {
+            const wrap = section() && section().querySelector('[aria-label="Duration Units"] [role="combobox"]');
+            if (!wrap) { log.warn('no Duration Units combobox'); return null; }
+            wrap.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));   // MUI Selects open on mousedown
+            wrap.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            await sleep(350);
+            const opts = [...document.querySelectorAll('[role="option"]')].map((o) => ({ text: (o.textContent || '').trim(), value: o.getAttribute('data-value') }));
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+            console.table(opts);
+            return opts;
+        };
+        log.log(`${ts()} hooks ready: __athelasFixPlanOfCare, __athelasReadPlanOfCare, __athelasDurationUnitOptions`);
+    }
+
+    // =====================================================================
     // Boot: run each module in turn. They're independent.
     //
     // The button/preview features are observer-driven and self-heal, so we
@@ -3926,6 +4227,7 @@
     featureFixMisplacedMET();
     featureFixPrivatePay();
     featureFixDiagnosis();
+    featureFixPlanOfCare();
     featureCriticalWarnings();
     featureProcedureMatchPreview();
     featureSurveyQuickAdd();

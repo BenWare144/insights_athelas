@@ -1,5 +1,14 @@
 # Changelog
 
+## 15.23.0 — 2026-09-06
+
+- **New "Fix Plan of Care" button** in the Plan of Care header, on evaluation notes only. On an eval the therapist tells the patient what they'll *start* with — "1x/week for 4 weeks" — the scribe writes exactly that into the plan, and nobody changes it to the full certification window, so the plan expires early. The button lengthens the **duration** to 12 weeks and lets the app recalculate the end date and visit count (it writes them itself only if the app doesn't). Red when the plan is too short, green when it isn't.
+  - **Frequency is never touched** — the complaint is the duration, not how often the patient is seen.
+  - **It only ever lengthens.** A plan already at or past 12 weeks is left alone.
+  - **It asks first.** This edits a certification document, and specifically the plan the therapist just discussed with the patient, so it shows the before/after and waits — it is not a silent default.
+  - Why 12 weeks and not 90 days: 90 days is 12.86 weeks. 12 weeks (84 days) is the longest whole number of weeks that stays inside a 90-day certification; 13 would overshoot it. If the duration units are set to days or months the button uses 90 or 3 instead. It never changes the units itself.
+- Its own switch in Extension Settings.
+
 ## 15.22.0 — 2026-08-26
 
 Billing-critical fixes: the two mistakes that lead to $0 reimbursement now have their own fixer and their own pre-sign warning.
