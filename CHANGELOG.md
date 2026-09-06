@@ -1,5 +1,13 @@
 # Changelog
 
+## 15.23.1 — 2026-09-06
+
+No user-visible change. Groundwork/bugfix in the (still unused) provider-discipline detection behind the possible role-aware code mapping.
+
+- `athProviderInfo()` now identifies the **logged-in user**, not just "the note's first provider". The row that owns the **Sign** button is you — you can only sign as yourself — while co-signers show "Awaiting Signature". The old heuristic used the "Supervising Provider" label, which is wrong: on several real notes the logged-in therapist is herself labelled Supervising Provider and still owns the Sign button.
+- Fixed two detection bugs found by replaying all 11 distinct provider blocks in `captures/`: the section's own "Provider(s)" heading was being read as a provider, and material-symbol icons render their name as text (the Sign button's raw text is `"signatureSign"`), so no exact-text match on a control could ever succeed. Detection is now 11/11 on the captures, up from 0/11.
+- The discipline is cached in page localStorage (`athelas-helper:me`) so it survives notes where the signal is ambiguous — a co-signed note has no unique signer. **Credential and discipline only, no name**; local, never transmitted.
+
 ## 15.23.0 — 2026-09-06
 
 - **New "Fix Plan of Care" button** in the Plan of Care header, on evaluation notes only. On an eval the therapist tells the patient what they'll *start* with — "1x/week for 4 weeks" — the scribe writes exactly that into the plan, and nobody changes it to the full certification window, so the plan expires early. The button lengthens the **duration** to 12 weeks and lets the app recalculate the end date and visit count (it writes them itself only if the app doesn't). Red when the plan is too short, green when it isn't.

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.23.0
+// @version      15.23.1
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -3110,21 +3110,111 @@
     // credential string is the only place the page states the signer's discipline
     // (PT/DPT vs OT/OTR vs SLP), which a future role-aware code map would need.
     // Nothing is gated on it yet — it is read-only and logged.
+    //
+    // WHICH row is the logged-in user: the one that owns the **Sign button**. You
+    // can only sign as yourself, so that button is the discriminator. Other
+    // providers on the note show "Awaiting Signature" (or "Signed") instead.
+    // Do NOT use the "Supervising Provider" label for this — across the captures
+    // the logged-in user is herself labelled Supervising Provider on some notes
+    // and still owns the Sign button.
+    //
+    // On an already-signed note nobody has a Sign button, so the discipline is
+    // cached (discipline + credential only — no name, nothing personal, never
+    // transmitted) the first time we see an unsigned note, in the same page
+    // localStorage the feature toggles use.
+    const ATH_ME_KEY = 'athelas-helper:me';
+    function athCachedMe() {
+        try { const v = JSON.parse(localStorage.getItem(ATH_ME_KEY) || 'null'); return v && v.credential ? v : null; } catch (e) { return null; }
+    }
+    function athCacheMe(row) {
+        try {
+            const cur = athCachedMe();
+            if (cur && cur.credential === row.credential) return;
+            localStorage.setItem(ATH_ME_KEY, JSON.stringify({ credential: row.credential, discipline: row.discipline }));
+        } catch (e) {}
+    }
     function athProviderInfo() {
         const sec = document.querySelector('[data-section="notarize"] section[aria-label="Provider(s)"]');
-        if (!sec) return null;
-        const rows = [];
-        for (const row of sec.querySelectorAll('div')) {
-            const spans = [...row.children].filter((c) => c.tagName === 'SPAN');
+        if (!sec) { const c = athCachedMe(); return c ? { providers: [], me: c, source: 'cache' } : null; }
+        // A provider's name cell is a <div> holding [name, credential(, label)] spans.
+        // The section's own heading is the same shape — an icon span plus the text
+        // "Provider(s)" — so cells inside a <label>, and icon spans, are skipped.
+        const nameCells = [];
+        for (const el of sec.querySelectorAll('div')) {
+            if (el.closest('label')) continue;
+            const spans = [...el.children].filter((c) => c.tagName === 'SPAN' && !athIsIcon(c));
             if (spans.length < 2 || spans.length > 3) continue;
-            const name = (spans[0].textContent || '').trim();
-            const cred = (spans[1].textContent || '').trim();
+            const name = athLabelText(spans[0]);
+            const cred = athLabelText(spans[1]);
             if (!name || !cred || cred.length > 12 || /\s/.test(cred)) continue;
-            const note = spans[2] ? (spans[2].textContent || '').trim() : '';
-            if (rows.some((r) => r.name === name && r.credential === cred)) continue;
-            rows.push({ name, credential: cred, role: athDiscipline(cred), note, supervising: /supervis/i.test(note) });
+            nameCells.push({ el, name, credential: cred, label: spans[2] ? athLabelText(spans[2]) : '' });
         }
-        return rows.length ? { providers: rows, signer: rows.find((r) => !r.supervising) || rows[0] } : null;
+        // The row is the nearest ancestor that carries this provider's sign state
+        // and no OTHER provider's name cell (so a shared container can't leak the
+        // Sign button from one provider onto another).
+        const rowFor = (cell) => {
+            let n = cell.el.parentElement;
+            for (let i = 0; i < 3 && n && n !== sec; i++, n = n.parentElement) {
+                if (nameCells.some((o) => o !== cell && n.contains(o.el))) return null;
+                if (athSignState(n)) return n;
+            }
+            return null;
+        };
+        const rows = [];
+        for (const cell of nameCells) {
+            if (rows.some((r) => r.name === cell.name && r.credential === cell.credential)) continue;
+            const row = rowFor(cell);
+            rows.push({
+                name: cell.name, credential: cell.credential, discipline: athDiscipline(cell.credential),
+                label: cell.label, supervising: /supervis/i.test(cell.label),
+                signState: row ? athSignState(row) : '',
+            });
+        }
+        if (!rows.length) { const c = athCachedMe(); return c ? { providers: [], me: c, source: 'cache' } : null; }
+        // canSign is unambiguous; a lone "Signed" row is the next best thing. Two
+        // signed rows (a co-signed note) tell us nothing, so fall back to the cache.
+        const signedRows = rows.filter((r) => r.signState === 'signed');
+        let me = rows.find((r) => r.signState === 'canSign');
+        let source = me ? 'signButton' : '';
+        if (!me && signedRows.length === 1) { me = signedRows[0]; source = 'signedLabel'; }
+        if (me) athCacheMe(me);
+        else { const c = athCachedMe(); if (c) { me = c; source = 'cache'; } }
+        return { providers: rows, me: me || null, source };
+    }
+    // Material-symbol icons in this app render their NAME as text — the Sign
+    // button's raw textContent is "signatureSign", not "Sign". Skip icon nodes so
+    // an exact-text match on a control actually works.
+    const athIsIcon = (el) => el.nodeType === 1 && (
+        el.getAttribute('data-testid') === 'material-symbol' ||
+        el.hasAttribute('data-icon') ||
+        el.getAttribute('aria-hidden') === 'true' ||
+        el.tagName === 'I' || el.tagName === 'IMG' || el.tagName === 'svg');
+    function athLabelText(el) {
+        let s = '';
+        for (const n of el.childNodes) {
+            if (n.nodeType === 3) { s += n.nodeValue; continue; }
+            if (n.nodeType !== 1 || athIsIcon(n)) continue;
+            s += athLabelText(n);
+        }
+        return s.replace(/\s+/g, ' ').trim();
+    }
+    // '' | 'canSign' (this row's own Sign button — i.e. you) | 'signed' | 'awaiting'.
+    // Matched on exact control text: "Awaiting Signature" CONTAINS "Sign", so a
+    // substring test would flag every other provider on the note as you.
+    function athSignState(row) {
+        // Unsigned: an enabled "Sign" button. Already signed: the SAME control,
+        // disabled and relabelled "Signed". Other providers get neither.
+        for (const b of row.querySelectorAll('button')) {
+            const t = athLabelText(b);
+            if (t === 'Sign') return 'canSign';
+            if (t === 'Signed') return 'signed';
+        }
+        for (const el of row.querySelectorAll('span, div, p')) {
+            const t = athLabelText(el);
+            if (t === 'Awaiting Signature') return 'awaiting';
+            if (t === 'Signed') return 'signed';
+        }
+        return '';
     }
     // Credential string -> discipline. Deliberately conservative: unknown strings
     // return null rather than guessing, because the eventual use (picking a
