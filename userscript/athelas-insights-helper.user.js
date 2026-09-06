@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.23.1
+// @version      15.24.0
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -62,6 +62,7 @@
             { id: 'fixPrivatePay',    label: 'Fix Private Pay button' },
             { id: 'fixDiagnosis',     label: 'Fix Diagnosis button (ICD-10 S → D)' },
             { id: 'fixPlanOfCare',    label: 'Fix Plan of Care button (eval duration)' },
+            { id: 'pocAutoDefault',   label: '…and apply it automatically the first time an eval opens' },
             { id: 'criticalWarnings', label: 'Warnings above the signature block' },
             { id: 'surveyPanel',      label: 'Survey quick-add panel (initial eval)' },
             { id: 'goals',            label: 'Survey status button + Create Goal' },
@@ -590,6 +591,23 @@
         // toast gets a long safety cap so it can't linger forever if done() is missed.
         b.style.pointerEvents = 'auto'; b.style.cursor = 'pointer'; b.title = 'Click to dismiss';
         b.addEventListener('click', () => { if (timer) clearTimeout(timer); fade(); });
+        // Optional single action (e.g. Undo). Runs, then dismisses the toast.
+        if (opts.action && typeof opts.action.fn === 'function') {
+            const a = document.createElement('button');
+            a.type = 'button'; a.textContent = opts.action.label || 'Undo';
+            Object.assign(a.style, {
+                marginLeft: '10px', padding: '3px 10px', borderRadius: '5px', cursor: 'pointer',
+                background: 'rgba(255,255,255,0.16)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)',
+                font: '600 12px system-ui, sans-serif',
+            });
+            a.addEventListener('click', (ev) => {
+                ev.preventDefault(); ev.stopPropagation();
+                if (timer) clearTimeout(timer);
+                try { opts.action.fn(); } catch (e) {}
+                fade();
+            });
+            b.appendChild(a);
+        }
         arm(opts.ttl === 0 ? 20000 : (opts.ttl || 2600));
         return {
             update: (t) => { b.textContent = t; if (opts.ttl !== 0) arm(opts.ttl || 2600); },
@@ -4044,7 +4062,7 @@
         const TARGET = { DAYS: 90, WEEKS: 12, MONTHS: 3 };     // per duration unit
         const DAYS_PER = { DAYS: 1, WEEKS: 7, MONTHS: 30 };
         const UNIT_WORD = { DAYS: 'days', WEEKS: 'weeks', MONTHS: 'months' };
-        const TITLE = 'Lengthen this evaluation\'s plan-of-care duration to the full certification window (12 weeks). The scribe copies whatever the therapist told the patient they would start with — often 4 weeks — which expires the plan early. You review the change before it runs; frequency is never touched, and a plan that is already long enough is left alone.';
+        const TITLE = 'Lengthen this evaluation\'s plan-of-care duration to the full certification window (12 weeks). The scribe copies whatever the therapist told the patient they would start with — often 4 weeks — which expires the plan early. You review the change before it runs; frequency is never touched, and a plan that is already long enough is left alone. The first time a new evaluation opens this is applied for you automatically (with an Undo) — turn that off in Extension Settings if you would rather click it yourself.';
 
         const section = () => document.querySelector('[data-section="plan_of_care"]');
         const field = (name) => { const s = section(); return s ? s.querySelector(`input[name="${name}"]`) : null; };
@@ -4122,20 +4140,36 @@
             if (!review.confirmed) { log.log(`${ts()} cancelled by user`); return { reason: 'cancelled', changed: 0 }; }
 
             const prog = athToast('Updating the plan of care…', { ttl: 0 });
+            const r = await applyTarget(p);
+            prog.done(300);
+            if (!r.ok) return { reason: r.reason, changed: 0 };
+            if (r.manual.length) athToast(`Duration updated, but check the ${r.manual.join(' and ')} by hand.`, { ttl: 5200 });
+            else athToast('Plan of care updated. Click Apply Scribe to save.', { ttl: 4200 });
+            log.log(`${ts()} ============ Fix Plan of Care END: changed=${r.changed}, manual=${r.manual.join(',') || 'none'} ============`);
+            athStatusBus.poke(200);
+            return { reason: 'ok', changed: r.changed, manual: r.manual };
+        }
+
+        // The write itself, shared by the button and the auto-default. Captures the
+        // previous values first so the auto-default can offer a real Undo.
+        async function applyTarget(p) {
+            const projEnd = projectedEnd(p);
+            const projVisits = projectedVisits(p);
+            const before = { duration: p.duration, endDate: p.endDate, visits: p.visits };
             const dur = field('duration');
-            if (!dur) { prog.done(0); log.warn(`${ts()} duration input vanished`); return { reason: 'no-duration-field', changed: 0 }; }
+            if (!dur) { log.warn(`${ts()} duration input vanished`); return { ok: false, reason: 'no-duration-field', changed: 0, manual: [], before }; }
             setReactValue(dur, String(p.target), log);
             await sleep(700);                                   // let the app re-derive
-            let changed = numOf(field('duration')) === p.target ? 1 : 0;
+            const changed = numOf(field('duration')) === p.target ? 1 : 0;
             if (!changed) log.warn(`${ts()} duration did not take (still ${valOf(field('duration'))})`);
 
             // Only fill in what the app did NOT recalculate for us.
-            const notes = [];
+            const manual = [];
             const endEl = field('end_date');
             if (endEl && projEnd && valOf(endEl) === p.endDate) {
                 log.log(`${ts()} end date unchanged by the app — writing ${projEnd}`);
                 const ok = await athTypeDate(endEl, projEnd, log);
-                if (!ok) { notes.push('end date'); log.warn(`${ts()} could not set the end date`); }
+                if (!ok) { manual.push('end date'); log.warn(`${ts()} could not set the end date`); }
             } else { log.log(`${ts()} app recalculated the end date -> ${valOf(endEl)}`); }
 
             const visEl = field('visit_count');
@@ -4143,15 +4177,74 @@
                 log.log(`${ts()} visit count unchanged by the app — writing ${projVisits}`);
                 setReactValue(visEl, String(projVisits), log);
                 await sleep(200);
-                if (numOf(field('visit_count')) !== projVisits) { notes.push('visit count'); log.warn(`${ts()} could not set the visit count`); }
+                if (numOf(field('visit_count')) !== projVisits) { manual.push('visit count'); log.warn(`${ts()} could not set the visit count`); }
             } else { log.log(`${ts()} app recalculated the visit count -> ${valOf(visEl)}`); }
 
-            prog.done(300);
-            if (notes.length) athToast(`Duration updated, but check the ${notes.join(' and ')} by hand.`, { ttl: 5200 });
-            else athToast('Plan of care updated. Click Apply Scribe to save.', { ttl: 4200 });
-            log.log(`${ts()} ============ Fix Plan of Care END: changed=${changed}, manual=${notes.join(',') || 'none'} ============`);
+            return { ok: true, reason: 'ok', changed, manual, before, after: { duration: p.target, endDate: valOf(field('end_date')), visits: numOf(field('visit_count')) } };
+        }
+
+        // Put every field back exactly as we found it.
+        async function undoTo(before) {
+            log.log(`${ts()} undo -> ${JSON.stringify(before)}`);
+            const dur = field('duration');
+            if (dur && before.duration != null) { setReactValue(dur, String(before.duration), log); await sleep(500); }
+            const endEl = field('end_date');
+            if (endEl && before.endDate && valOf(endEl) !== before.endDate) await athTypeDate(endEl, before.endDate, log);
+            const visEl = field('visit_count');
+            if (visEl && before.visits != null && numOf(visEl) !== before.visits) setReactValue(visEl, String(before.visits), log);
             athStatusBus.poke(200);
-            return { reason: 'ok', changed, manual: notes };
+        }
+
+        // ---- auto-default on the note's first open ---------------------------
+        // The clinic asked for this to be a DEFAULT, not a button. The app gives us
+        // no "first load" signal to hang that on: only the four free-text sections
+        // carry a "Last updated" chip / "View change history" control — plan_of_care
+        // has neither, there is no dirty flag, and the SPA ships no inline state to
+        // read. So we keep our own record: the note's own patient/appointment key
+        // (chartNoteKey) in page localStorage.
+        //
+        // That means "first time THIS BROWSER opened this note with the helper",
+        // not "first time ever" — which is the honest limit of it. The guards that
+        // make that acceptable:
+        //   - we burn the note's one shot even when we change nothing, so we never
+        //     revisit a note the therapist has since shortened on purpose;
+        //   - it only ever lengthens, and no-ops at or past the target;
+        //   - evaluations only, and never a signed note;
+        //   - the toast offers a real Undo, and the whole thing has its own switch.
+        const SEEN_KEY = 'athelas-helper:poc-seen';
+        const SEEN_CAP = 400;                     // keep the key from growing forever
+        const autoDone = new Set();               // in-memory guard for this page session
+        function seenList() { try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '[]') || []; } catch (e) { return []; } }
+        function markSeen(key) {
+            const arr = seenList().filter((k) => k !== key);
+            arr.push(key);
+            try { localStorage.setItem(SEEN_KEY, JSON.stringify(arr.slice(-SEEN_CAP))); } catch (e) {}
+        }
+        const hasSeen = (key) => seenList().indexOf(key) !== -1;
+        // A signed note is finished — never touch it. (The signer's control is the
+        // Sign button while unsigned and a disabled "Signed" one afterwards.)
+        function noteIsSigned() {
+            const sec = document.querySelector('[data-section="notarize"]');
+            if (!sec) return false;
+            return [...sec.querySelectorAll('button')].some((b) => /(^|\W)signed(\W|$)/i.test((b.textContent || '').replace(/signature/gi, ' ')));
+        }
+        async function maybeAutoApply() {
+            if (!Features.enabled('fixPlanOfCare') || !Features.enabled('pocAutoDefault')) return;
+            const key = chartNoteKey();
+            if (!key || autoDone.has(key) || hasSeen(key)) return;
+            if (!section() || !Surveys.isInitialEval()) return;      // wait for a real eval note
+            autoDone.add(key);                                       // one attempt per note, whatever happens
+            markSeen(key);
+            if (noteIsSigned()) { log.log(`${ts()} auto-default skipped: note is signed`); return; }
+            const p = pending();
+            if (!p) { log.log(`${ts()} auto-default: nothing to change on first open`); return; }
+            log.log(`${ts()} auto-default: first open of ${key}, ${p.duration} -> ${p.target} ${UNIT_WORD[p.unit] || ''}`);
+            const r = await applyTarget(p);
+            if (!r.ok || !r.changed) { log.warn(`${ts()} auto-default did not take (${r.reason})`); return; }
+            const word = UNIT_WORD[p.unit] || '';
+            athToast(`Plan of care set to ${p.target} ${word} (was ${p.duration}).` + (r.manual.length ? ` Check the ${r.manual.join(' and ')} by hand.` : ''),
+                { ttl: 9000, action: { label: 'Undo', fn: () => undoTo(r.before) } });
+            athStatusBus.poke(200);
         }
 
         function findHeaderRow() {
@@ -4211,11 +4304,25 @@
         }
 
         injectButton();
-        athStatusBus.add(refreshStatus);
+        // The status bus already fires only after the DOM has gone quiet, which is
+        // exactly "the note has finished loading" — so the auto-default rides it
+        // rather than adding a timer or a second observer.
+        athStatusBus.add(() => { refreshStatus(); maybeAutoApply(); });
         athObserveBody(() => { try { injectButton(); } catch (e) {} }, 250);
 
         window.__athelasFixPlanOfCare = performFix;
         window.__athelasReadPlanOfCare = () => { const p = readPoc(); console.table(p ? [p] : []); return p; };
+        // Inspect / reset the "we've already had our shot at this note" record.
+        window.__athelasPocSeen = () => { const l = seenList(); console.log(`${l.length} note(s) seen (cap ${SEEN_CAP})`, l); return l; };
+        window.__athelasPocForget = (key) => {
+            const only = key || chartNoteKey();
+            const arr = seenList().filter((k) => k !== only);
+            try { localStorage.setItem(SEEN_KEY, JSON.stringify(arr)); } catch (e) {}
+            autoDone.delete(only);
+            log.log('forgot', only, '- the auto-default can fire again on this note');
+            return only;
+        };
+        window.__athelasPocForgetAll = () => { try { localStorage.removeItem(SEEN_KEY); } catch (e) {} autoDone.clear(); log.log('cleared all seen notes'); };
         // Answers the one thing we could not check offline: does the Duration-Units
         // Select offer "Days"? Run it on a live eval and paste the result back.
         window.__athelasDurationUnitOptions = async () => {

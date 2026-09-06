@@ -1,5 +1,14 @@
 # Changelog
 
+## 15.24.0 — 2026-09-06
+
+- **The plan-of-care fix now applies itself the first time an evaluation opens**, which is what the clinic originally asked for ("auto default to 90 days"). It is still the same change — duration to 12 weeks, frequency untouched, only ever lengthening — but you no longer have to click the button on a fresh note. A toast says what changed and offers **Undo**.
+- **Once per note, ever.** The note gets exactly one automatic attempt, and it is used up even when nothing needed changing — so if you deliberately shorten a plan afterwards, re-opening the note will not undo your decision. The button is always there if you want to apply it by hand later.
+- Signed notes are never touched, and this only happens on evaluations.
+- It has its own switch in Extension Settings ("…and apply it automatically the first time an eval opens"), directly under the Fix Plan of Care switch — turn it off to go back to click-to-apply.
+
+**One limitation worth knowing:** Athelas doesn't tell us whether a note has been opened before — only the four free-text sections carry a "Last updated" stamp, and the Plan of Care section has none. So "first open" means *first time on this computer, in this browser*. On a second machine, or after clearing browser data, a note could get one more automatic attempt. Because the change only ever lengthens and no-ops at 12 weeks or more, the only case where that matters is a plan you had deliberately shortened — hence the Undo.
+
 ## 15.23.1 — 2026-09-06
 
 No user-visible change. Groundwork/bugfix in the (still unused) provider-discipline detection behind the possible role-aware code mapping.
