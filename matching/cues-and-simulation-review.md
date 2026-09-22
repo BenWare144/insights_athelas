@@ -1,6 +1,15 @@
 # Provider cues → 97112 and "simulate/replicates" → 97530 — evidence review
 
-Status: **NOT IMPLEMENTED — awaiting decisions.** This is the requested list of what these two proposed rules would actually catch, and where they collide with existing rules. Companion to `BRIDGES-review.md` and `procedure-matching-QUESTIONS.md`.
+Status: **simulate/replicate → 97530 is IMPLEMENTED (v15.25.0); the cue rule is still awaiting decisions.** This is the requested list of what these two proposed rules would actually catch, and where they collide with existing rules. Companion to `BRIDGES-review.md` and `procedure-matching-QUESTIONS.md`.
+
+> **2026-09-22 ruling (therapist, via Ben) — rule 3 is settled and shipped.**
+> Match `simulat*` / `replicat*` against the intervention **details** (the
+> `[aria-label="Intervention details"]` div), not the name. On a conflict with any
+> other rule, **this rule wins** — it is now rule 0, the first entry in `RULES`.
+> Consequences accepted with that ruling: it also overrides the "leave alone"
+> excludes (TKE, Bridges, curtsey-step), and it is move-only, so the item does not
+> pick up the losing rule's canonical justification. See the "What shipped" section
+> at the bottom.
 
 Corpus: every intervention harvested from all `captures/*.mhtml` — **254 unique (name, details) pairs** across ~20 real chart notes. Also cross-checked against the exercise-name catalogs in `reference/` (2,701 filtered / 3,193 original names) and the 156 harvested names in `procedure-matching.test.js`.
 
@@ -89,7 +98,7 @@ Two things worth pulling out:
 
 Because nothing fires, this rule is cheap and low-risk to add — but we also have no evidence it will ever fire, and no example to tune the phrasing against. Conflicts are hypothetical: since 97530 is the top-paying of the three, "higher reimbursement wins" makes it beat every 97110 and 97112 rule automatically, so it would sit near the top of the table. Its only real competitor would be another 97530 rule, where the code is the same and only the justification text differs.
 
-**Recommendation:** hold it until the clinic sends one real note where the scribe wrote "simulates". One capture settles the phrasing and the justification text at once.
+~~**Recommendation:** hold it until the clinic sends one real note where the scribe wrote "simulates".~~ **Superseded 2026-09-22** — the therapist ruled directly rather than waiting for a capture. See "What shipped" below.
 
 ---
 
@@ -107,10 +116,29 @@ Once confirmed, the table order becomes: 97530 rules → 97535 → 97112 (incl. 
 
 ---
 
+## What shipped for rule 3 (v15.25.0)
+
+```js
+// rule 0 — first in the table, so it beats everything
+{ label: 'Simulated functional activity (details)', code: '97530', justMode: 'none',
+  test: (n, d) => _has(d, 'simulat') || _has(d, 'replicat') }
+```
+
+- **Reads the details, not the name.** `resolveProcedure(name, details)` now takes a second argument — the normalized `[aria-label="Intervention details"]` text. Every other rule's `test` ignores it, and a one-argument call behaves exactly as before, so nothing else in the engine changed shape. All three call sites pass it: Fix Procedures, Fix Private Pay (via `listDone()`), and the read-only preview. `Fixer.readDetails(li)` is the reader, and it deliberately does **not** require `contenteditable` — a signed/locked note still renders the text.
+- **Stems, not whole words.** `simulat` catches simulate/simulates/simulation/simulated; `replicat` catches replicate/replicates/replicating. `reproduc` is **excluded** — "symptom reproduction" is the opposite of simulating a functional task and is the only near-miss in the 254-item corpus. `mimic` is not included either (not asked for); adding it is a one-token change.
+- **Move-only.** The detail sentence already documents the functional simulation, so it is its own justification, and there is no approved canonical wording for this rule. It also means a simulated activity does **not** inherit the losing rule's text (e.g. no "Improve ablity to squat and recover" on a squat that simulated a car transfer).
+- **It overrides the excludes.** A TKE, a bridge, or a curtsey-step-to-balance whose details document a simulation now moves to 97530 instead of being left alone. That follows directly from "highest priority" and was accepted with the ruling — but it is the one behaviour worth watching once bridges are finally settled.
+- **Zero regressions:** replayed over all 254 real interventions, no item's verdict changes (nothing in the corpus says simulate/replicate yet — as expected, since the phrase is the compliance director's habit and every capture is Cheri's).
+- Seven tests cover it in `procedure-matching.test.js`, including a positional assertion that it stays at index 0.
+
+**Still worth collecting:** one real note where the scribe actually wrote it, to confirm the scribe echoes the therapist's phrasing rather than paraphrasing it away.
+
 ## Open questions
 
+0. ~~**"Simulate" phrasing.**~~ Settled 2026-09-22 — see above.
 1. **Cue trigger strictness.** Bare cue mention (6 moves, 2 of them dubious), or cue + purpose word (proprioception / balance / posture / motor control / facilitation / recruitment / stabilization / neuromuscular)? The stricter form drops the two straight-leg-raise items and keeps the rest.
 2. **Justification text for the cue rule.** Every 97112 rule today carries either the MET splice or `J.gluteMed` ("Verbal and tactile cues to glute med for upright posture") — which is glute-specific and wrong for a chin tuck. A cue rule needs its own canonical sentence. What should it say?
 3. **`Supine Bridge`.** Bridges are currently *left alone* pending `BRIDGES-review.md`. Does a cue mention override that, or do bridges stay parked?
 4. **Does the details text survive?** The rule reads the scribe's details field. If the therapist has already edited it, or the scribe phrases a session summary differently, the trigger disappears. Confirm this is acceptable — name-based rules are stable, this one is not.
-5. **"Simulate" phrasing.** Need one real note. Which exact words does the scribe use?
+5. ~~**"Simulate" phrasing.** Need one real note. Which exact words does the scribe use?~~ — **settled**; shipped as `simulat*`/`replicat*` on the details. A real note is still worth having to confirm the scribe echoes the phrasing rather than paraphrasing it.
+6. **Does the cue rule also become highest-priority?** The simulate ruling set a precedent: a details-based rule that beats everything, excludes included. It does **not** automatically follow that the cue rule gets the same standing — 97112 pays less than the 97530 rules it would have to outrank, so under "higher-paying wins" the cue rule should sit *below* them, not above. Confirm which the therapist means before the cue rule ships.

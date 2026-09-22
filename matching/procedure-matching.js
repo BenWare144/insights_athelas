@@ -4,7 +4,7 @@
 // Maps the messy procedure names the AI scribe produces onto the therapist's
 // canonical rules (Stuff for EMR.xlsx + therapist markup on procedure-audit.md).
 //
-// resolveProcedure(name) -> null  (no rule; leave alone)
+// resolveProcedure(name, details) -> null  (no rule; leave alone)
 //                         | { label, code, justification, justMode, rename?, met?, exclude? }
 //   code        target CPT the item belongs under ('97110'|'97112'|'97530')
 //   justMode    'append' (add canonical text, keep existing) | 'none' (move only)
@@ -14,8 +14,17 @@
 //   rename      if present, the item's name should be changed to this first
 //   exclude     true => explicitly leave alone (don't move/justify)
 //
+// `details` is the intervention's free-text detail (the page's
+// [aria-label="Intervention details"] div — what the AI scribe wrote about the
+// session). Almost every rule keys on the NAME and ignores it; the simulated-
+// activity rule is the exception. It is optional: called with one argument the
+// engine behaves exactly as it always has.
+//
+// Each rule's test receives BOTH normalized strings: test(name, details).
+//
 // PRECEDENCE: first matching rule wins. Order below is deliberate
-// (e.g. cable-column before TKE-exclude; lunge before stretch).
+// (e.g. simulated-activity above everything; cable-column before TKE-exclude;
+// lunge before stretch).
 // Tested against 141 real (section,name) pairs — see procedure-matching.test.js.
 // ==================================================================
 
@@ -95,6 +104,29 @@ function metJustification(name) {
 
 // ---- rule table (first match wins) ----------------------------------------
 const RULES = [
+  // 0. HIGHEST PRIORITY (therapist's explicit instruction) — the note itself says
+  //    the task simulates or replicates a functional activity => Therapeutic
+  //    Activity (97530). This is the ONLY rule that reads the intervention's
+  //    DETAILS rather than its name: the phrasing is something the therapist says
+  //    out loud to the patient and the scribe writes down ("...to simulate getting
+  //    out of a car"), so it never appears in the exercise name.
+  //
+  //    It sits first deliberately: the therapist ruled it beats every other rule,
+  //    INCLUDING the "leave alone" excludes (TKE, Bridges, curtsey-step). If the
+  //    documentation says the task simulates a functional activity, that is what
+  //    was performed, whatever the exercise happens to be called.
+  //
+  //    Move-only (no canonical text): the detail sentence IS the justification —
+  //    it already documents the functional simulation — and there is no approved
+  //    canonical wording for this rule yet.
+  //
+  //    Matching 'simulat'/'replicat' as stems covers simulate/simulates/
+  //    simulation/simulated and replicate/replicates/replicating. Deliberately
+  //    NOT 'reproduc': "symptom reproduction" is the opposite of simulating a
+  //    functional task, and is the only near-miss in 254 real interventions.
+  { label: 'Simulated functional activity (details)', code: '97530', justMode: 'none',
+    test: (n, d) => _has(d, 'simulat') || _has(d, 'replicat') },
+
   // 1. Anything "cable column" -> Therapeutic Activity (catches "TKE on Cable column"
   //    too; must beat the TKE-exclude and stretch rules below).
   { label: 'Cable column',   code: '97530', just: J.yardwork, justMode: 'append',
@@ -190,10 +222,11 @@ const RULES = [
     test: (n) => _has(n, 'stretch') && !_has(n, 'hip shifting') },
 ];
 
-function resolveProcedure(name) {
+function resolveProcedure(name, details) {
   const n = normProc(name);
+  const d = normProc(details);
   for (const r of RULES) {
-    if (!r.test(n)) continue;
+    if (!r.test(n, d)) continue;
     if (r.exclude) return { label: r.label, exclude: true };
     if (r.met && isJunkMET(name)) return null;   // junk MET => leave alone (unmatched)
     // MET (and Rib->"MET - Rib") splice the justification from the FINAL name.
@@ -217,10 +250,10 @@ function resolveProcedure(name) {
 // Note `exclude` rules are deliberately OVERRIDDEN here: "leave alone" means
 // "leave it where it is because the code is merely debatable", which does not
 // apply when leaving it where it is bills at $0.
-function resolveNonReimbursed(name, cardCode) {
+function resolveNonReimbursed(name, cardCode, details) {
   const bad = resolveBadCode(cardCode);
   if (!bad) return null;
-  const r = resolveProcedure(name);
+  const r = resolveProcedure(name, details);
   const byName = r && !r.exclude && r.code ? r : null;
   return {
     label: 'Non-reimbursed ' + bad.code + (byName ? ' → ' + byName.label : ''),

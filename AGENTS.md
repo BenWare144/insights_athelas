@@ -61,6 +61,8 @@ Shared: `pageType`/`onUrlChange` (SPA nav), `Features` (toggles), logging, `wait
 
 The rule table exists in three places and must stay behaviorally identical: `matching/procedure-matching.js` (canonical, exported, tested), the `Proc` engine near the top of the userscript, and therefore `content.js`. `tests/table-sync.test.js` compares them. **Change the canonical file first, then mirror into the userscript's `Proc`.** Precedence = first matching rule wins; the winning rule supplies BOTH the CPT code AND the justification (they never split). Justifications are **append-only** (join with `\n`; no overwrite).
 
+Signature is `resolveProcedure(name, details)`, and each rule's `test(name, details)` gets both normalized strings. Almost every rule keys on the name; **rule 0 (simulated activity) is the only one that reads `details`**, and it outranks everything including the `exclude` rules — precedence is positional, so don't reorder it. `details` is optional, so one-argument calls behave as before. Read it with `Fixer.readDetails(li)`, not `currentDetailsText` (see DECISIONS.md).
+
 ## Feature toggles
 
 `Features` (userscript, near top) + `featureSettingsPanel()`. State persists in page `localStorage['athelas-helper:features']` (no permission, no data; identical in userscript + extension). UI = an inline green "Extension Settings" button placed next to a native control (`[aria-label="Clear All Filters"]` on calendar, `[aria-label="Recently Viewed Notes"]` on a chart note) — decoupled from features so it's reachable even if one breaks. Add a toggle by adding to `Features.LIST` and gating the injector with `Features.enabled(id)`.

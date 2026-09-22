@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.24.0 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.25.0 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -345,7 +345,7 @@
     // preview (MODULE 10). This is the single source of truth in the script;
     // keep it in sync with matching/procedure-matching.js.
     //
-    // Proc.resolveProcedure(name) -> null            (no rule; leave alone)
+    // Proc.resolveProcedure(name, details) -> null   (no rule; leave alone)
     //   | { label, exclude:true }                    (matched an "leave alone" rule)
     //   | { label, code, justification, justMode, rename }
     //     code       target CPT ('97110'|'97112'|'97530')
@@ -353,6 +353,9 @@
     //                All justifications are append-only now (therapist request); MET
     //                included. Existing text + "\n" + canonical text.
     //     rename     new name to set first (e.g. Rib -> "MET - Rib"), else null
+    // `details` is the item's [aria-label="Intervention details"] text. Optional —
+    // only the top simulated-activity rule reads it; everything else keys on the
+    // name, and a one-argument call behaves exactly as it always did.
     // First matching rule wins; order is deliberate.
     // =====================================================================
     const Proc = (function () {
@@ -406,6 +409,14 @@
             return 'Muscle energy technique applied ' + (hasConn ? rest : 'to ' + rest) + ', ' + tail;
         };
         const RULES = [
+            // HIGHEST PRIORITY (therapist's explicit instruction). The ONLY rule that reads the
+            // item's DETAILS instead of its name: "simulates/replicates a functional activity" is
+            // something the therapist says to the patient and the scribe writes down, so it never
+            // shows up in the exercise name. Beats every other rule INCLUDING the "leave alone"
+            // excludes. Move-only — the detail sentence is itself the justification. Stems catch
+            // simulate/simulation/simulated and replicate/replicates; 'reproduc' is deliberately
+            // excluded ("symptom reproduction" is the opposite of simulating a functional task).
+            { label: 'Simulated functional activity (details)', code: '97530', justMode: 'none', test: (n, d) => _has(d, 'simulat') || _has(d, 'replicat') },
             { label: 'Cable column', code: '97530', just: J.yardwork, justMode: 'append', test: (n) => _has(n, 'cable column') },
             { label: 'TKE (leave alone)', exclude: true, test: (n) => _word(n, 'tke') || _has(n, 'terminal knee extension') },
             { label: 'Bridges (under review — left alone)', exclude: true, test: (n) => _word(n, 'bridge') || _word(n, 'bridges') },
@@ -433,10 +444,11 @@
             { label: 'Shoulder Extension', code: '97110', justMode: 'none', test: (n) => _has(n, 'shoulder extension') && !_has(n, 'd2') && !_has(n, 'split squat') && !_has(n, 'step up') && !_has(n, 'posterior sling') && !_has(n, 'plank') },
             { label: 'Stretch', code: '97110', justMode: 'none', test: (n) => _has(n, 'stretch') && !_has(n, 'hip shifting') },
         ];
-        const resolveProcedure = (name) => {
+        const resolveProcedure = (name, details) => {
             const n = normProc(name);
+            const d = normProc(details);
             for (const r of RULES) {
-                if (!r.test(n)) continue;
+                if (!r.test(n, d)) continue;
                 if (r.exclude) return { label: r.label, exclude: true };
                 if (r.met && isJunkMET(name)) return null;
                 // For MET (and Rib->"MET - Rib"), the justification is spliced from the
@@ -452,10 +464,10 @@
         // the generic default); otherwise the family default applies. `exclude` rules
         // are deliberately OVERRIDDEN: "leave alone" is about debatable codes, and
         // does not apply when leaving it where it is bills at $0.
-        const resolveNonReimbursed = (name, cardCode) => {
+        const resolveNonReimbursed = (name, cardCode, details) => {
             const bad = resolveBadCode(cardCode);
             if (!bad) return null;
-            const r = resolveProcedure(name);
+            const r = resolveProcedure(name, details);
             const byName = r && !r.exclude && r.code ? r : null;
             return {
                 label: 'Non-reimbursed ' + bad.code + (byName ? ' → ' + byName.label : ''),
@@ -1023,12 +1035,20 @@
             const d = li && li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
             return d ? (d.textContent || '').trim() : '';
         }
+        // Read-only variant, for FEEDING the matcher rather than diffing an edit.
+        // Deliberately does NOT require contenteditable: a signed/locked note still
+        // renders the detail text, and the simulated-activity rule has to see it
+        // there too. Writes keep the stricter selector — they need an editable node.
+        function fxReadDetails(li) {
+            const d = li && li.querySelector('[aria-label="Intervention details"]');
+            return d ? (d.textContent || '').trim() : '';
+        }
         function fxComputeNewJust(fix, cur) {
             if (fix.justMode === 'none' || !fix.justification) return '';
             if (cur.includes(fix.justification)) return cur;
             return cur ? (cur.replace(/\s+$/, '') + '\n' + fix.justification) : fix.justification;
         }
-        return { applyItemFix: fxApplyItemFix, currentDetailsText: fxCurrentDetailsText, computeNewJust: fxComputeNewJust };
+        return { applyItemFix: fxApplyItemFix, currentDetailsText: fxCurrentDetailsText, readDetails: fxReadDetails, computeNewJust: fxComputeNewJust };
     })();
 
 
@@ -2022,10 +2042,13 @@
             const name = itemName(li).trim();
             if (!name) return null;
             if (!isDone(li)) return null;                 // only "Done" items get fixed
+            // The scribe's free text feeds the top (simulated-activity) rule; every
+            // other rule ignores it. Read once, here, so both branches see it.
+            const detailsText = Fixer.readDetails(li);
             // A non-reimbursed card (98960) overrides everything: the item has to leave
             // whatever the name rules say, because staying there bills at $0. The name
             // rule still picks the destination when it has one.
-            const r = Proc.resolveNonReimbursed(name, cardCode) || Proc.resolveProcedure(name);
+            const r = Proc.resolveNonReimbursed(name, cardCode, detailsText) || Proc.resolveProcedure(name, detailsText);
             if (!r || r.exclude) return null;             // no rule, or "leave alone"
             const needsMove = r.code !== cardCode;
             const needsRename = !!r.rename && r.rename !== name;
@@ -2602,7 +2625,9 @@
             for (const card of getCards()) {
                 if (tname && card.name === tname) continue;
                 for (const li of cardItems(card)) {
-                    if (isDone(li)) out.push({ code: card.code, name: itemName(li).trim() });
+                    // `details` rides along so justFixFor() resolves the same rule the
+                    // flowsheet would (the top simulated-activity rule reads it).
+                    if (isDone(li)) out.push({ code: card.code, name: itemName(li).trim(), details: Fixer.readDetails(li) });
                 }
             }
             return out;
@@ -2627,8 +2652,8 @@
         }
         // The matched rule's justification/rename for a Done item. The DESTINATION is
         // always private pay (billing), but the fix-up is the SAME as Fix Procedures.
-        function justFixFor(name) {
-            const r = Proc.resolveProcedure(name);
+        function justFixFor(name, details) {
+            const r = Proc.resolveProcedure(name, details);
             if (!r || r.exclude) return { justMode: 'none', justification: null, rename: null };
             return { justMode: r.justMode, justification: r.justification, rename: r.rename };
         }
@@ -2652,7 +2677,7 @@
                 const li = findSourceItem(it.name);
                 const cur = li ? Fixer.currentDetailsText(li) : '';
                 const curName = li ? itemName(li).trim() : it.name;
-                const fx = justFixFor(it.name);
+                const fx = justFixFor(it.name, it.details);
                 const newJust = Fixer.computeNewJust(fx, cur);
                 const renameChange = !!fx.rename && curName !== fx.rename;
                 const justChange = fx.justMode !== 'none' && !!fx.justification && newJust !== cur;
@@ -2679,7 +2704,7 @@
 
             for (const it of toDo) {
                 const d = byName[it.name];
-                const fx = justFixFor(it.name);
+                const fx = justFixFor(it.name, it.details);
                 const doMove = d.moveChecked;
                 const doJust = d.justChecked;
 
@@ -2842,7 +2867,7 @@
                 for (const li of card.items) {
                     const name = liName(li).trim();
                     if (!name) continue;
-                    const r = resolveProcedure(name);
+                    const r = resolveProcedure(name, Fixer.readDetails(li));
                     let action = '(no match)';
                     if (r && r.exclude) action = 'leave alone';
                     else if (r) action = (r.code !== card.code ? 'MOVE -> ' + r.code : 'stay ' + r.code);

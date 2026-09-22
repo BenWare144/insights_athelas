@@ -1,5 +1,13 @@
 # Changelog
 
+## 15.25.0 — 2026-09-22
+
+- **"Simulates / replicates" in the note now files the item under Therapeutic Activity (97530).** When the documentation says the task simulates or replicates a functional activity — "performed to simulate getting out of a car", "the movement replicates reaching into an overhead cupboard" — Fix Procedures moves it to 97530. It matches on the intervention's **details** (the text the scribe writes), not its name, because that phrasing is something the therapist says to the patient and never appears in an exercise name.
+- **This rule outranks every other rule**, per the therapist. If a squat, a lunge, a stretch, a MET or a balance exercise was documented as simulating a functional activity, 97530 wins. It also overrides the "leave alone" rules — a bridge or a TKE whose note documents a simulation is now moved rather than skipped.
+- No canonical justification is appended: the sentence in the note already documents the simulation, so it is its own justification. (That also means the item doesn't pick up the losing rule's boilerplate.)
+- It catches simulate / simulates / simulation / simulated and replicate / replicates / replicating. It deliberately does **not** catch "reproduction" — reproducing a patient's *symptoms* is the opposite of simulating a functional task.
+- Replayed against every intervention in the example notes: no existing item changes where it files. The new rule only fires on wording that isn't in any of them yet.
+
 ## 15.24.0 — 2026-09-06
 
 - **The plan-of-care fix now applies itself the first time an evaluation opens**, which is what the clinic originally asked for ("auto default to 90 days"). It is still the same change — duration to 12 weeks, frequency untouched, only ever lengthening — but you no longer have to click the button on a fresh note. A toast says what changed and offers **Undo**.

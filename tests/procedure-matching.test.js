@@ -198,3 +198,84 @@ test('NON_REIMBURSED entries all target a real reimbursable PT code', () => {
         assert.equal(resolveBadCode(cfg.to), null, `${code} must not map onto another non-reimbursed code`);
     }
 });
+
+// ---- simulated functional activity (details-based, highest priority) ------
+// The therapist's ruling: when the note says the task simulates/replicates a
+// functional activity, it is Therapeutic Activity (97530), and that beats every
+// other rule. This is the only rule that reads the intervention DETAILS.
+
+test('simulate/replicate in the details sends the item to 97530', () => {
+    for (const d of [
+        'Patient performed squats to simulate getting out of a car.',
+        'Task simulates stair descent at home.',
+        'Simulation of a lifting task from floor to counter.',
+        'Simulated car transfer practice.',
+        'The movement replicates reaching into an overhead cupboard.',
+        'Replicating the patient’s work station set-up.',
+    ]) {
+        const r = resolveProcedure('Some Exercise', d);
+        assert.ok(r, `should match: ${d}`);
+        assert.equal(r.code, '97530', `should be Therapeutic Activity: ${d}`);
+        assert.equal(r.justMode, 'none', 'move-only — the detail sentence is the justification');
+        assert.equal(r.justification, null);
+    }
+});
+
+test('simulated-activity outranks EVERY other rule, including the excludes', () => {
+    const d = 'Performed to simulate getting on and off the toilet at home.';
+    const cases = [
+        ['Terminal Knee Extension (TKE)', 'TKE is normally left alone'],
+        ['Supine Bridge', 'bridges are normally left alone (under review)'],
+        ['Curtsey Step to Single Leg Balance', 'curtsey-step-to-balance is normally left alone'],
+        ['MET to Superior Tib-Fib Joint', 'MET normally wins 97112'],
+        ['TKE on Cable column', 'cable column normally wins 97530 WITH the yardwork text'],
+        ['Single-Leg Balance - Left', 'balance normally wins 97112'],
+        ['Chair squat', 'squat normally wins 97530 WITH the squat-recover text'],
+        ['Hamstring Stretch-supine', 'stretch normally wins 97110'],
+        ['Hip Internal Rotation PROM', 'PROM normally wins 97110'],
+    ];
+    for (const [name, why] of cases) {
+        const r = resolveProcedure(name, d);
+        assert.equal(r.code, '97530', `${name}: ${why}`);
+        assert.equal(r.label, 'Simulated functional activity (details)', `${name} should match the top rule`);
+        assert.notEqual(r.exclude, true, `${name} must not be left alone when the note documents a simulation`);
+        assert.equal(r.justification, null, `${name} must not carry the other rule's canonical text`);
+    }
+});
+
+test('simulated-activity is the FIRST rule in the table', () => {
+    assert.equal(RULES[0].label, 'Simulated functional activity (details)',
+        'precedence is positional — this rule must stay at index 0');
+});
+
+test('"symptom reproduction" does NOT trigger the simulated-activity rule', () => {
+    // The only near-miss in 254 real interventions. Reproducing a SYMPTOM is the
+    // opposite of simulating a functional task, so 'reproduc' is not in the family.
+    const r = resolveProcedure('Straight leg raise mobility stretch',
+        'Clinician assessed effect of tibial rotation on symptom reproduction.');
+    assert.equal(r.code, '97110', 'should fall through to the Straight Leg Raise rule');
+    assert.equal(r.label, 'Straight Leg Raise');
+});
+
+test('details only — the simulated-activity rule ignores the NAME', () => {
+    // The phrasing is what the therapist says aloud and the scribe writes down; it
+    // does not appear in exercise names (0 hits in the 2,701-name catalogue).
+    const r = resolveProcedure('Simulated Stair Climb', '');
+    assert.equal(r, null, 'no name rule matches, and the details are empty');
+});
+
+test('the details argument is optional: one-argument calls are unchanged', () => {
+    for (const name of ['Chair squat', 'MET', 'Terminal Knee Extension (TKE)', 'Supine Bridge', 'Hip Internal Rotation PROM']) {
+        const a = resolveProcedure(name);
+        const b = resolveProcedure(name, '');
+        const c = resolveProcedure(name, undefined);
+        assert.deepEqual(a, b, `${name}: '' must behave like omitted`);
+        assert.deepEqual(a, c, `${name}: undefined must behave like omitted`);
+    }
+});
+
+test('a simulated activity under a non-reimbursed code still lands on 97530', () => {
+    const r = resolveNonReimbursed('Supine Bridge', '98960', 'to simulate getting out of bed');
+    assert.equal(r.code, '97530', 'the top rule supplies the destination');
+    assert.ok(r.nonReimbursed, 'and it is still flagged as a critical fix');
+});
