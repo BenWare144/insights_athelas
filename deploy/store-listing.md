@@ -24,35 +24,28 @@ English (United States)
 
 ## Detailed description (the big field)
 
-Athelas Insights Helper streamlines documentation for physical-therapy clinicians working in Athelas Insights (insights.athelas.com). It runs only on Athelas Insights pages and makes no changes anywhere else.
+_Paste everything between the rules below. Keep it under 3,000 characters — currently 2987._
 
-Every change it makes is shown to the clinician for approval before it happens, and any individual feature can be switched off.
+Athelas Insights Helper streamlines documentation for physical-therapy clinicians working in Athelas Insights (insights.athelas.com). It runs only on Athelas Insights pages. Every change it makes is shown for approval first, and any feature can be switched off.
 
 Features:
-• One click "Fix Procedures" button — reviews the interventions marked "Done" against the clinic's procedure rules and, with one click, moves any that are filed under the wrong billing code to the correct one and appends the standard justification. It also catches interventions filed under a code the clinic is not reimbursed for and moves them somewhere appropriate. Every change is shown in a confirmation dialog first, with a checkbox per change, so nothing happens without the clinician's approval.
-• NEW — One click "Fix Diagnosis" button — on a follow-up visit, corrects a diagnosis code that still carries the initial-injury episode indicator so it reflects a subsequent encounter, a common cause of held claims. The corrected code is added and confirmed to be present before the old one is removed, so a note is never left without a diagnosis; if the corrected code cannot be found, the original is left untouched. Shown in a review dialog first.
-• NEW — One click "Fix Plan of Care" button — on an evaluation, sets the plan duration to the clinic's full certification window, so a plan does not expire early because the note recorded only what the clinician told the patient they would start with. On a note's first open this is applied for the clinician with an Undo; otherwise it is a click. It only ever lengthens a plan, never shortens one, and never changes visit frequency.
-• NEW — Pre-signature warnings — directly above the signature block, a warning appears for either of the two documentation problems that lead to a claim being held or paid at zero. Clicking one jumps to the section that fixes it. The warnings exist only while the problem does and disappear once it is resolved. They never change anything themselves.
-• NEW — Button status colours — each helper button is red when clicking it would change something and green when that part of the note is already correct, so a clinician can see at a glance whether a note needs attention.
-• One click "Fix Private Pay" button — for self-pay visits, collects the interventions marked "Done" into the private-pay section, applying the same justifications, again after a review dialog.
-• Functional-outcome survey quick-add — on an initial evaluation, a one-click panel adds the clinic's most-used self-report outcome surveys to the Functional Outcomes section, replacing the fiddly hover-and-type step.
-• Create goal from outcome score — once a survey is scored, one click drafts a matching goal — title, target date pulled from the Plan of Care end date, and the initial and target states filled from the score — shown in an editable review dialog (with a reminder of what the score means) before anything is entered.
-• Calendar helpers — adds an "Open Note" button directly on each checked-in appointment so clinicians don't have to hover to find it, and keeps the appointment hover popup from opening off-screen.
-• Jump to Flowsheet — on opening a chart note, scrolls straight to the Interventions flowsheet where clinicians do most of their work.
-• Compact layout — tightens spacing on the Appointments and Chart Note pages so more of the flowsheet fits on screen, with no loss of information.
-• Extension Settings — an in-page panel to turn any individual feature on or off, with a master switch, so a site change that affects one feature never forces disabling the rest.
+• Fix Procedures — moves interventions marked "Done" that are filed under the wrong billing code to the correct one and appends the standard justification, including any filed under a code the clinic is not reimbursed for. Every change is listed in a confirmation dialog, with a checkbox each.
+• Fix Diagnosis — on a follow-up visit, corrects a diagnosis code still carrying the initial-injury episode indicator, a common cause of held claims. The corrected code is added and confirmed present before the old one is removed, so a note is never left without a diagnosis.
+• Fix Plan of Care — on an evaluation, sets the plan duration to the clinic's full certification window so it does not expire early. Applied with an Undo the first time a note opens, or on click. It only ever lengthens a plan and never changes visit frequency.
+• Pre-signature warnings — above the signature block, a warning appears for either documentation problem that gets a claim held or paid at zero, and jumps to the section that fixes it. It disappears once resolved, and never changes anything itself.
+• Status colours — each helper button is red when clicking it would change something, green when that part of the note is already correct.
+• Fix Private Pay — for self-pay visits, collects the interventions marked "Done" into the private-pay section with the same fix-ups, after a review dialog.
+• Outcome surveys — on an initial evaluation, one click adds the clinic's most-used self-report surveys; once one is scored, another drafts a matching goal — title, target date from the Plan of Care, initial and target states from the score — in an editable dialog.
+• Calendar — an "Open Note" button on each checked-in appointment, and the appointment hover popup kept on-screen.
+• Jump to Flowsheet on opening a note, compact layout, and a settings panel to turn any individual feature on or off.
 
-The extension is a display and workflow aid only. It makes no network requests, contacts no servers, and requests no browser permissions — all processing happens locally in the browser. It remembers your feature settings, your professional credential, and which notes it has already offered its plan-of-care default on, using your browser's own local storage; none of this is ever transmitted anywhere. Intended for authorized clinic staff.
+The extension is a display and workflow aid only. It makes no network requests, contacts no servers, and requests no browser permissions — all processing happens locally. It remembers your feature settings, your professional credential, and which notes it has already offered its plan-of-care default on, in your browser's own local storage; none of it is ever transmitted. Intended for authorized clinic staff.
 
 Recent updates:
-• v15.25 — When the documentation says a task simulates or replicates a functional activity, the intervention is filed under the matching activity code.
-• v15.24 — The plan-of-care duration fix now applies itself the first time an evaluation opens, with an Undo, instead of waiting to be clicked. Once per note only.
-• v15.23 — New "Fix Plan of Care" button on evaluations: lengthens a too-short plan to the full certification window.
-• v15.22 — New "Fix Diagnosis" button for the episode-of-care character on follow-up visits; warnings above the signature block for the two problems that cause claims to be held; helper buttons now show red/green status; interventions filed under a non-reimbursed code are moved out.
-• v15.21 — Settings panel: turn any individual feature on or off (with a master switch).
-• v15.20 — Each survey shows a completion status button (red until scored, green when complete) that collapses the survey and drafts the goal; the goal dialog now has editable score numbers and a description of what the score means.
-• v15.19 — Calendar: adds an "Open Note" button on checked-in appointments and keeps the appointment popup on-screen.
-• v15.18 — Functional-outcome survey quick-add panel and one-click "Create goal from outcome score" on initial evaluations, both behind a review dialog.
+• v15.25 — A task documented as simulating a functional activity is filed under the matching activity code.
+• v15.24 — The plan-of-care fix now applies itself once, with an Undo, when an evaluation first opens.
+• v15.23 — New Fix Plan of Care button on evaluations.
+• v15.22 — New Fix Diagnosis button; warnings above the signature block; red/green button status; interventions moved off non-reimbursed codes.
 
 ---
 
