@@ -17,7 +17,7 @@ A browser add-on that automates chart-note busywork in **Athelas Insights** (a p
 ## Where it’s at (Oct 2026)
 
 - **Version `15.25.2`**, 48/48 tests green (`npm test`).
-- **Git:** work is on branch **`v15.25.1-billing-diagnosis-poc`**, which is pushed and open as **[PR #1](https://github.com/BenWare144/insights_athelas/pull/1)** against `main` — ready for review, not merged. `main` is at `45f6971`. Both are pushed; nothing is sitting unpushed. **Check out the branch, not `main`,** or you will be looking at pre-15.22 code.
+- **Git:** everything is on **`main`**, pushed. The 15.22–15.25.2 work lived on the branch `v15.25.1-billing-diagnosis-poc` until 2026-10-13, when [PR #1](https://github.com/BenWare144/insights_athelas/pull/1) was merged into `main` by fast-forward (no merge commit). **Work on `main` and push `main` from now on** — Ben's standing instruction; the old branch is stale.
 - **Live features:** Fix Procedures (incl. non-reimbursed 98960 → 97535), Fix Diagnosis (ICD-10 7th character S → D), Fix Plan of Care (eval duration → 12 weeks, applied automatically on a note's first open), pre-sign critical warnings, Fix Private Pay, functional-outcome survey quick-add + status button + goal-from-score (initial-eval notes), calendar Open Note + popup clamp, jump-to-Flowsheet, compact layout, and the Extension Settings toggle panel.
 - **Shelved:** calendar auto Day→Week (misbehaves; code kept, not called).
 - **Deployment:** userscript is live on Cheri's machine (auto-updates from a local `file://` build via `npm run build:local` + Tampermonkey "Check for updates"). The extension is **accepted and published (unlisted)** on the Web Store, item ID `lnacagncbpglinobghcdeadaodonpjdf`, for clinic force-install. `deploy/athelas-insights-helper-v15.25.2.zip` is built and **needs uploading** — see the open loops below.
@@ -31,7 +31,6 @@ A browser add-on that automates chart-note busywork in **Athelas Insights** (a p
 3. **Delete the pre-rewrite backup** once you are sure nothing needs recovering: `../insights_athelas-PRE-REWRITE-BACKUP.bundle` (832 KB, all refs, outside the repo). It still contains the names, so it is now the only copy of them outside `captures/`.
 4. **Re-upload the extension.** The published 15.25.0 package has a patient name inside `content.js`, **and its goal-from-score is broken for everyone on it** — a site update on or before 2026-10-13 changed the Create-Goal dialog, so "Survey Complete! Create Goal?" opens an empty form (fixed in 15.25.2; see DECISIONS.md "Goal form: title is a textarea"). `deploy/athelas-insights-helper-v15.25.2.zip` is the build to upload. Userscript users get it from the local build via Tampermonkey "Check for updates".
 5. **Re-host `deploy/privacy-policy.html`** before the next Web Store submission. It was corrected (it used to claim the extension stores nothing; it now keeps a credential and a list of note keys in `localStorage`), and the hosted copy must match or the listing and policy disagree.
-6. **Review/merge PR #1.**
 
 ## Current work / what's next — the Choice Therapy email requests
 
@@ -88,6 +87,6 @@ Nothing below could be checked offline — no capture in the repo contains a 989
 
 ## How to work here (the short version)
 
-- Edit the userscript (and the canonical `matching/` or `surveys/` file first for logic). Bump the version in all four spots, regenerate `content.js`, `npm test`, `npm run build:local`, rebuild the store zip, update `CHANGELOG.md`. Commit, then **push** (standing instruction, 2026-10-13).
+- Edit the userscript (and the canonical `matching/` or `surveys/` file first for logic). Bump the version in all four spots, regenerate `content.js`, `npm test`, `npm run build:local`, rebuild the store zip, update `CHANGELOG.md`. Commit on `main`, then **push** (standing instruction, 2026-10-13).
 - Verify DOM behavior on the live site or an `.mhtml` capture in `captures/` (PHI — never leaves the repo). When you can't verify, say so.
 - Watch the recurring gotchas in `DECISIONS.md` (esp. `align-self: flex-end` for right-alignment, and MUI `mousedown` to open selects).
