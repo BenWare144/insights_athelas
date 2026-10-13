@@ -683,7 +683,7 @@
     // (drop). This survives React re-render + Apply Scribe because the move
     // goes through dnd-kit's own onDragEnd, updating React state.
     //
-    // DOM facts (from [patient] Chart Note_wtf.mhtml):
+    // DOM facts (from captures/*_wtf.mhtml):
     //   scope           [data-section="flowsheet"]
     //   card code       <input aria-label="replace procedure" value="97140 - Manual Therapy">
     //   list region     <div role="region" aria-label="Manual Therapy interventions">

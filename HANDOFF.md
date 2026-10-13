@@ -16,10 +16,10 @@ A browser add-on that automates chart-note busywork in **Athelas Insights** (a p
 
 ## Where it’s at (Sep 2026)
 
-- **Version `15.25.0`**, 45/45 tests green. All commits are LOCAL — Ben pushes.
+- **Version `15.25.1`**, 45/45 tests green. All commits are LOCAL — Ben pushes.
 - **Live features:** Fix Procedures (incl. non-reimbursed 98960 → 97535), Fix Diagnosis (ICD-10 7th character S → D), pre-sign critical warnings, Fix Private Pay, functional-outcome survey quick-add + status button + goal-from-score (initial-eval notes), calendar Open Note + popup clamp, jump-to-Flowsheet, compact layout, and the Extension Settings toggle panel.
 - **Shelved:** calendar auto Day→Week (misbehaves; code kept, not called).
-- **Deployment:** userscript is live on Cheri's machine (auto-updates from a local `file://` build via `npm run build:local` + Tampermonkey "Check for updates"). The extension is **accepted and published (unlisted)** on the Web Store, item ID `lnacagncbpglinobghcdeadaodonpjdf`, for clinic force-install — the earlier keyword-spam rejection was fixed in `deploy/store-listing.md` and the resubmission went through. Rejection email archived in `deploy/store-review/`. `deploy/athelas-insights-helper-v15.25.0.zip` is built and ready to upload.
+- **Deployment:** userscript is live on Cheri's machine (auto-updates from a local `file://` build via `npm run build:local` + Tampermonkey "Check for updates"). The extension is **accepted and published (unlisted)** on the Web Store, item ID `lnacagncbpglinobghcdeadaodonpjdf`, for clinic force-install — the earlier keyword-spam rejection was fixed in `deploy/store-listing.md` and the resubmission went through. Rejection email archived in `deploy/store-review/`. `deploy/athelas-insights-helper-v15.25.1.zip` is built and ready to upload.
 - **Live features (cont.):** Fix Plan of Care (eval duration → 12 weeks), applied automatically on a note's first open (15.24.0).
 - **Not verified on the live site yet:** everything added in 15.22.0 and 15.23.0 was written against static captures and never run against a real note. No capture contains a 98960 card, none has the Duration-Units dropdown open, and the diagnosis/plan-of-care interactions are both write paths. See "verification checklist" below.
 - **Everything a new agent needs is in-repo** (this file, AGENTS.md, DECISIONS.md, CHANGELOG.md, DEPLOYMENT.md) — the previous work happened in Claude "cowork" whose separate memory does NOT travel to Claude Code, so these docs are the source of truth.
@@ -55,7 +55,7 @@ Nothing below could be checked offline — no capture in the repo contains a 989
 
 ### Fixture note: no capture exercises Fix Plan of Care
 
-`[patient] Chart Note_initial_eval_box_open.mhtml` (2026-08-10) is the most recent Initial Evaluation capture and is structurally current — it has `plan_of_care`, `diagnosis_codes` and `notarize`, and its "box open" is the **functional-outcome survey autocomplete** (145 options), not the Duration-Units Select. But **its plan is already 12 weeks / 2 per week / 24 visits — exactly the target** — so Fix Plan of Care renders green and no-ops on it. It is a good *negative* fixture and nothing more. The only captures with a short plan are the `Example_Chart_Note*` trio (6 weeks), and those are from 2026-05-27, before the v14 site rework. **A capture of a real eval with a 4-week plan is the missing fixture.**
+`captures/*_initial_eval_box_open.mhtml` (2026-08-10) is the most recent Initial Evaluation capture and is structurally current — it has `plan_of_care`, `diagnosis_codes` and `notarize`, and its "box open" is the **functional-outcome survey autocomplete** (145 options), not the Duration-Units Select. But **its plan duration is already at the 12-week target** — so Fix Plan of Care renders green and no-ops on it. It is a good *negative* fixture and nothing more. The only captures with a short plan are the `Example_Chart_Note*` trio (6 weeks), and those are from 2026-05-27, before the v14 site rework. **A capture of a real eval with a 4-week plan is the missing fixture.**
 
 ## Open questions to resolve before planning
 

@@ -81,6 +81,7 @@ Signature is `resolveProcedure(name, details)`, and each rule's `test(name, deta
 - Commit locally after each self-contained change, with a descriptive multi-line message. Author is `BenWare144 <bwarex@gmail.com>`.
 - **Do NOT push** — the human (Ben) pushes. Leave commits local unless explicitly asked; the sandbox has no GitHub credentials anyway.
 - Never commit PHI: `captures/` and `*.log`/`*.mhtml`/`*.zip` are git-ignored (belt-and-suspenders). The `.gitignore` is an ignore-everything whitelist — new top-level dirs must be explicitly whitelisted to be tracked.
+- **Capture FILENAMES are PHI too — this repo is public.** Every capture is named after a real patient, so never paste a capture filename into a doc, a code comment, a commit message or a test. Cite them with the patient part globbed out: `captures/*_diagnotis_codes_example.mhtml`, `captures/*_initial_eval_box_open.mhtml`. Same for clinical specifics read out of one (a real plan of care, scores, dates of birth, policy or case numbers) and for third-party staff names and emails from the clinic's email threads — describe people by role ("the compliance director"). This rule exists because four patient names reached the public remote before anyone noticed; see the 2026-10-13 de-identification commit.
 - Filesystem quirk: the mount blocks `rm`/unlink (`mv`/rename works). To delete, use the delete-permission tool; NEVER rename junk into `.git/refs/**` (it broke a push once).
 
 ## Workflow expectations

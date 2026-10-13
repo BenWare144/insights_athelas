@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.25.0 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.25.1 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -499,7 +499,7 @@
     // pre-sign warning button (MODULE 16) can ask "is anything still wrong?"
     // without depending on the fixer.
     //
-    // DOM (verified against captures/[patient] Chart Note_diagnotis_codes_example.mhtml):
+    // DOM (verified against captures/*_diagnotis_codes_example.mhtml):
     //   section  [data-section="diagnosis_codes"]
     //   chip     [role="button"][data-tag-index="N"], text "CODE - description",
     //            aria-label starts "Principal · " on the principal diagnosis;
@@ -1589,7 +1589,7 @@
     // (drop). This survives React re-render + Apply Scribe because the move
     // goes through dnd-kit's own onDragEnd, updating React state.
     //
-    // DOM facts (from [patient] Chart Note_wtf.mhtml):
+    // DOM facts (from captures/*_wtf.mhtml):
     //   scope           [data-section="flowsheet"]
     //   card code       <input aria-label="replace procedure" value="97140 - Manual Therapy">
     //   list region     <div role="region" aria-label="Manual Therapy interventions">

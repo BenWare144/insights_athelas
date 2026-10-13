@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.25.0
+// @version      15.25.1
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -503,7 +503,7 @@
     // pre-sign warning button (MODULE 16) can ask "is anything still wrong?"
     // without depending on the fixer.
     //
-    // DOM (verified against captures/[patient] Chart Note_diagnotis_codes_example.mhtml):
+    // DOM (verified against captures/*_diagnotis_codes_example.mhtml):
     //   section  [data-section="diagnosis_codes"]
     //   chip     [role="button"][data-tag-index="N"], text "CODE - description",
     //            aria-label starts "Principal · " on the principal diagnosis;
@@ -1593,7 +1593,7 @@
     // (drop). This survives React re-render + Apply Scribe because the move
     // goes through dnd-kit's own onDragEnd, updating React state.
     //
-    // DOM facts (from [patient] Chart Note_wtf.mhtml):
+    // DOM facts (from captures/*_wtf.mhtml):
     //   scope           [data-section="flowsheet"]
     //   card code       <input aria-label="replace procedure" value="97140 - Manual Therapy">
     //   list region     <div role="region" aria-label="Manual Therapy interventions">

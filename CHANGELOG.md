@@ -1,5 +1,13 @@
 # Changelog
 
+## 15.25.1 — 2026-10-13
+
+No functional change. Removes real patient names from the shipped code and the project docs.
+
+- Four code comments and doc references cited example page captures by their filenames, and every capture is named after a real patient. This repository is public, and the comment shipped inside the extension's `content.js`, so the names were published. They are now cited with the patient part globbed out (`captures/*_diagnotis_codes_example.mhtml`), and one doc line that quoted a real plan of care no longer does.
+- AGENTS.md now states the rule explicitly: capture filenames are PHI, cite them globbed, and never paste clinical specifics or clinic staff names into tracked files.
+- **Please re-upload** — the published 15.25.0 package still contains one of the names in a comment.
+
 ## 15.25.0 — 2026-09-22
 
 - **"Simulates / replicates" in the note now files the item under Therapeutic Activity (97530).** When the documentation says the task simulates or replicates a functional activity — "performed to simulate getting out of a car", "the movement replicates reaching into an overhead cupboard" — Fix Procedures moves it to 97530. It matches on the intervention's **details** (the text the scribe writes), not its name, because that phrasing is something the therapist says to the patient and never appears in an exercise name.

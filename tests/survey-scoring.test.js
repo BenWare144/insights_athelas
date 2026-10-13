@@ -1,5 +1,5 @@
 // Unit tests for the canonical survey-scoring engine.
-// Values below are the real ones parsed from the [patient] initial-eval
+// Values below are taken from a real initial-eval
 // capture (captures/…_forms_filled_out.mhtml). Run: npm test (Node >= 20).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
