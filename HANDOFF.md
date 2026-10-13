@@ -10,7 +10,7 @@ A browser add-on that automates chart-note busywork in **Athelas Insights** (a p
 
 (This repo is public — keep third-party names/emails out of committed files.)
 
-- **Ben** — the developer (handing off to his Claude Code). Commits as `BenWare144 <bwarex@gmail.com>`; he does the GitHub pushes and Web Store uploads.
+- **Ben** — the developer (handing off to his Claude Code). Commits as `BenWare144 <bwarex@gmail.com>`; he does the Web Store uploads; agents push their own commits (see AGENTS.md).
 - **Cheri Ware, DPT** — Ben's mom; the original user, trading as **Lake Region Consulting** (the Web Store publisher). The tool is currently customized to her.
 - **The clinic** evaluating a wider rollout — a compliance director there is test-driving it, with another stakeholder involved. Their internal evaluation email thread (the source of the requests below) is held by Ben, not committed here.
 
@@ -88,6 +88,6 @@ Nothing below could be checked offline — no capture in the repo contains a 989
 
 ## How to work here (the short version)
 
-- Edit the userscript (and the canonical `matching/` or `surveys/` file first for logic). Bump the version in all four spots, regenerate `content.js`, `npm test`, `npm run build:local`, rebuild the store zip, update `CHANGELOG.md`. Commit locally; **don't push**.
+- Edit the userscript (and the canonical `matching/` or `surveys/` file first for logic). Bump the version in all four spots, regenerate `content.js`, `npm test`, `npm run build:local`, rebuild the store zip, update `CHANGELOG.md`. Commit, then **push** (standing instruction, 2026-10-13).
 - Verify DOM behavior on the live site or an `.mhtml` capture in `captures/` (PHI — never leaves the repo). When you can't verify, say so.
 - Watch the recurring gotchas in `DECISIONS.md` (esp. `align-self: flex-end` for right-alignment, and MUI `mousedown` to open selects).
