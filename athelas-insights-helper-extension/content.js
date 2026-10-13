@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.25.2 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.25.3 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -1207,14 +1207,10 @@
             .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] .MuiListItem-root,
             .tr-w-\\[160px\\].tr-min-w-\\[160px\\].tr-max-w-\\[160px\\] .MuiListItemButton-root { padding-top: 1px !important; padding-bottom: 1px !important; min-height: 0 !important; }
 
-            /* 2. Quasar drawer aside (the left global nav with EHR / Insights
-                  expansion items). Tighten q-item rows. */
-            .q-drawer-container > aside .q-item { min-height: 28px !important; padding-top: 2px !important; padding-bottom: 2px !important; }
-            .q-drawer-container > aside .q-expansion-item__container { min-height: 0 !important; }
-            .q-drawer-container > aside [class*="tw-h-12"] { height: 28px !important; }
-            .q-drawer-container > aside [class*="tw-h-10"] { height: 24px !important; }
-            .q-drawer-container > aside [class*="tw-my-"] { margin-top: 0 !important; margin-bottom: 0 !important; }
-            .q-drawer-container > aside [class*="tw-mt-"] { margin-top: 0 !important; }
+            /* 2. (removed in 15.25.3) The global left nav used to be a Quasar
+                  drawer and had its rows tightened here. The site replaced it
+                  with its own resizable, collapsible sidebar
+                  ([data-slot="app-shell-sidebar"]); nothing here targets it. */
 
             /* 3. "Surface4" sub-section banner with px-5: drop vertical breathing. */
             .tr-bg-Surface-Neutral-Lighter-Surface4.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-px-5 { padding-top: 2px !important; padding-bottom: 2px !important; }
@@ -1239,30 +1235,21 @@
                stay visible and clickable everywhere.
                ============================================================ */
 
-            /* 1. Global Quasar drawer: 250px -> 150px. The drawer width and
-                  the page-container's left offset are both set via INLINE
-                  style on the page (DOM-FACTS lesson #2), so !important is
-                  required to win. The existing v10 drawer rules above
-                  (q-item min-height 28/24px etc.) still apply on top of this. */
-            /* v15.11: 150px was too narrow - labels like "Daily Operations"
-               overflowed and gave the drawer a horizontal scrollbar. 200px (down
-               from the native 250px) still reclaims space but fits the labels;
-               overflow-x:hidden is a safety net so no h-scrollbar can appear. */
-            aside.q-drawer { width: 200px !important; }
-            .q-page-container { padding-left: 200px !important; }
-            aside.q-drawer .q-drawer__content { overflow-x: hidden !important; }
-
-            /* Ellipsize the section-header label row (EHR / Insights / Daily
-               Operations / Utilities / Settings) so a narrower rail never
-               wraps or clips mid-word. The individual nav links beneath each
-               section already truncate via the site's own tw-truncate class. */
-            .q-drawer-container > aside .q-item [class*="tw-flex-1"] {
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
-                white-space: nowrap !important;
-                min-width: 0 !important;
-            }
-            .q-drawer-container > aside [class*="tw-px-4"] { padding-left: 8px !important; padding-right: 8px !important; }
+            /* 1. (removed in 15.25.3) NO APP-SHELL GEOMETRY. This block used to
+                  narrow the Quasar drawer to 200px and force
+                  .q-page-container { padding-left: 200px } to match. Those two
+                  rules only made sense as a pair. When the site replaced the
+                  drawer with a flex sidebar and stopped padding the container,
+                  the first rule matched nothing and the second kept applying -
+                  a 200px blank band down the left of every note.
+                  Rule for this stylesheet: spacing only. Never set a width, an
+                  offset or a position, and never touch the shell (sidebar,
+                  page container, main). A spacing rule whose selector stops
+                  matching does nothing; a geometry rule that half-matches
+                  breaks the page. tests/compact-css.test.js enforces it, and
+                  compactSelfCheck() below catches what a test cannot. The
+                  sidebar is natively resizable now, so there is nothing to
+                  reclaim here anyway. */
 
             /* 2. Section sub-nav rail: v15.11 KEEPS THE NATIVE WIDTH (160/200px).
                   Forcing it narrower (the old 160->112px rule) made the item
@@ -1275,7 +1262,7 @@
                   tr-mx-4 gutters, and shrink the tr-px-6 rows inside the
                   sticky header (breadcrumb / title / info-strip rows) to
                   8px - scoped to that header container only. */
-            .tr-mx-4.tr-h-full.tr-w-full.tr-overflow-x-auto { margin-left: 0 !important; margin-right: 0 !important; }
+            .tr-mx-4.tr-h-full.tr-overflow-x-auto { margin-left: 0 !important; margin-right: 0 !important; }
             .tr-sticky.tr-top-0.tr-z-10.tr-w-full.tr-border-b.tr-border-Shape-OnSurface-Outlines.tr-bg-Surface-Neutral-Lighter-Surface [class*="tr-px-6"] { padding-left: 8px !important; padding-right: 8px !important; }
 
             /* ============================================================
@@ -1434,7 +1421,7 @@
         const { isAppointments, isChartNote } = pageType();
         const wanted = [];
         if (isAppointments) wanted.push(['app', cssAppointments]);
-        if (isChartNote) wanted.push(['chart', cssChartNote]);
+        if (isChartNote && !applyCompactCss._tripped) wanted.push(['chart', cssChartNote]);
         if (!wanted.length) { log.log('no CSS block applies for this URL'); return; }
 
         applyCompactCss._done = applyCompactCss._done || {};
@@ -1460,7 +1447,56 @@
                 }).observe(document.documentElement, { childList: true });
             }
         }
+        if (isChartNote && applyCompactCss._done.chart) compactSelfCheck(log);
     }
+
+    // Compact CSS may only ever give the note MORE room. Once per page load,
+    // after a note has rendered, compare the note's horizontal extent (the span
+    // of its [data-section] blocks) with our stylesheet off vs on. If ours
+    // shifts the note right or squeezes it - which is what a site update did to
+    // the old drawer rules - drop the stylesheet for the rest of this page load:
+    // an uncompacted page beats a broken one. The off/on flip is synchronous,
+    // so nothing is painted in between. Diagnostics: __athelasCompactCheck().
+    const COMPACT_TOLERANCE_PX = 24;   // wider than a scrollbar; the real break was 200
+    function compactMeasure() {
+        const style = document.getElementById('athelas-compact-chart');
+        const sheet = style && style.sheet;
+        if (!sheet) return null;
+        const extent = () => {
+            let left = Infinity, right = -Infinity;
+            for (const e of document.querySelectorAll('[data-section]')) {
+                const r = e.getBoundingClientRect();
+                if (r.width > 0) { left = Math.min(left, r.left); right = Math.max(right, r.right); }
+            }
+            return left === Infinity ? null : { left: Math.round(left), width: Math.round(right - left) };
+        };
+        const was = sheet.disabled;
+        let on, off;
+        try { sheet.disabled = false; on = extent(); sheet.disabled = true; off = extent(); }
+        finally { sheet.disabled = was; }
+        if (!on || !off) return null;
+        const shiftedRight = on.left - off.left, narrowed = off.width - on.width;
+        return { on, off, shiftedRight, narrowed, broken: shiftedRight > COMPACT_TOLERANCE_PX || narrowed > COMPACT_TOLERANCE_PX };
+    }
+    async function compactSelfCheck(log) {
+        if (applyCompactCss._checked || applyCompactCss._checking) return;
+        applyCompactCss._checking = true;
+        try {
+            if (!(await waitFor('[data-section]', { timeoutMs: 20000 }))) return;   // no note rendered - try again on the next one
+            await sleep(1500);                                                       // let the sections lay out
+            const m = compactMeasure();
+            if (!m) return;
+            applyCompactCss._checked = true;
+            if (!m.broken) { log.log('self-check ok', m); return; }
+            applyCompactCss._tripped = true;
+            const style = document.getElementById('athelas-compact-chart');
+            if (style) style.remove();
+            log.warn('self-check FAILED: compact CSS was pushing the note sideways, so it is off until the page reloads', m);
+            athToast('Compact layout switched itself off — it no longer fits this page after a site update. Everything else still works.', { ttl: 12000 });
+        } catch (e) { log.error('self-check threw', e); }
+        finally { applyCompactCss._checking = false; }
+    }
+    window.__athelasCompactCheck = compactMeasure;
 
 
     // =====================================================================

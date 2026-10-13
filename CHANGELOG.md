@@ -1,5 +1,14 @@
 # Changelog
 
+## 15.25.3 — 2026-10-13
+
+- **Fixed: a blank band down the left side of every chart note.** Athelas replaced its left-hand navigation with a new sidebar. The compact layout still carried a rule written for the old one — "start the page 200px in from the left" — and with the old navigation gone, that rule just pushed the whole note 200px to the right and left an empty strip beside the sidebar. The rule is removed. On a 1600px-wide window the note goes from 915px wide back to 1147px.
+- **The compact layout no longer touches the sidebar or the page frame at all.** It used to narrow the old navigation to save space. The new sidebar can be resized or collapsed with its own handle, so that is now yours to set and the helper leaves it alone.
+- **The 16px gutters either side of the note are trimmed again.** That rule had quietly stopped matching after the same site update.
+- **It now checks itself.** The first time a note finishes loading, the helper compares the note's position with the compact layout on and off. If the compact layout is ever pushing the note sideways or squeezing it — which is what a future site update could do again — it switches itself off until the page is reloaded and says so in a message at the bottom of the screen. You get Athelas's normal layout instead of a broken one. Please pass that message along if you see it.
+
+**Not yet confirmed on a live note.** Checked against a saved copy of today's page at two window widths.
+
 ## 15.25.2 — 2026-10-13
 
 - **Fixed: "Survey Complete! Create Goal?" opened an empty goal form.** Athelas changed the Goal Title box in its "Create new Goal" dialog — it is now a multi-line box — and the helper could no longer find it. So it opened the dialog and stopped, leaving every field blank. It finds the box again and fills the title, target date, initial state and target state as before.

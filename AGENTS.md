@@ -36,6 +36,7 @@ The extension runs the script in the **MAIN world** — required, because the fi
 1. **No font-size shrinking** for compactness — density comes from margins/padding/line-height only.
 2. **Never pad/restyle `.MuiInputBase` internals** — it broke input click targets before.
 3. **No css-hash selectors** (e.g. `.css-1abc2d3`) — MUI regenerates them each deploy. Use stable hooks: `data-section` attributes, `aria-label`s, semantic classes (`.tiptap.ProseMirror`), MUI root classes. Note `_r_*` ids are dynamic React `useId` values — also unstable; anchor on labels/aria instead.
+4. **Compact CSS is spacing-only** (engineering rule, 15.25.3 — not therapist-imposed, but it has already broken the page once). No width, offset, position, overflow or display, no spacing value above 16px, and never a selector on the app shell (sidebar, page container, `main`). `tests/compact-css.test.js` enforces it; see DECISIONS.md for why.
 
 ## Repo map
 
