@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "test": "node --test \"tests/*.test.js\"",
-    "build:local": "node scripts/build-local.js"
+    "build:local": "node scripts/build-local.js",
+    "scrub": "node scripts/scrub-capture.js"
   },
   "engines": {
     "node": ">=20"

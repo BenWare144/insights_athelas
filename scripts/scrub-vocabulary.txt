@@ -1,0 +1,215 @@
+# UI vocabulary for scripts/scrub-capture.js.
+#
+# One label per line. A piece of page text survives the scrub only if it matches
+# a line here exactly (case-insensitive; a trailing ":" or "*" is ignored).
+# Everything else becomes "Xxxx xx 000" placeholders.
+#
+# RULES FOR ADDING A LINE
+#   - App chrome only: a button, tab, column header, field label, menu item.
+#   - NEVER a person's name, a clinic name, a diagnosis, an exercise, or anything
+#     that differs from patient to patient.
+#   - Be wary of single words that are also names (May, April, June, Rose, Grant):
+#     a first name shown in its own element would then be kept. Prefer the full
+#     label ("Clear All Filters") over the bare word.
+#   - "^Phrase" keeps Phrase at the START of a longer label and scrubs the rest
+#     (unless the rest is itself a label):  ^Scores for  ->  "Scores for Xxxx".
+#   - "$Phrase" does the same at the END:   $interventions -> "00000 - Xxxx interventions".
+#   - "Label: value" needs no rule: when the part before the colon is a label
+#     here, the label is kept and the value is scrubbed.
+#
+# Survey names are added automatically from surveys/survey-scoring.js.
+# The scrubber's own list of what it removed is _scrub-review.txt in the RAW
+# folder; it contains raw page text, so read it there, not here.
+
+# --- generic controls ---
+Add
+Apply
+Back
+Cancel
+Clear
+Clear All
+Close
+Collapse
+Confirm
+Copy
+Delete
+Edit
+Expand
+Filter
+Hide
+Loading...
+More
+N/A
+Next
+No
+None
+OK
+Open
+Optional
+Print
+Remove
+Required
+Reset
+Save
+Search
+Select
+Show
+Submit
+Undo
+Yes
+Choose date
+MM/DD/YYYY
+Add here...
+
+# --- app shell ---
+EHR
+Insights
+Daily Operations
+Utilities
+Settings
+Notifications
+Toggle Panel
+Recently Viewed Notes
+Clear All Filters
+
+# --- chart note: header and tabs ---
+Demographics
+Appointments
+Attachments
+Tasks
+Orders
+Book Appointment
+MRN
+Appointment Type
+Clinical Note Type
+Plan of Care End Date
+Pending Visits
+Prior Auth
+Insurance
+Initial Evaluation
+Daily Note
+Progress Note
+Re-Evaluation
+Discharge Summary
+Scribe Notes
+Transcription & Context
+Apply Scribe
+AI Summary
+Previous Visit
+Patient Forms
+Last updated
+
+# --- chart note: sections ---
+Subjective
+Daily Subjective
+Objective
+Assessment
+Plan
+Interventions
+Flowsheet
+Goals
+Plan of Care
+Functional Outcomes
+Add a functional outcome form
+Diagnosis Codes
+Provider(s)
+Transcript
+Remove Section
+
+# --- flowsheet ---
+Intervention
+Intervention name
+Intervention details
+procedures
+$interventions
+CPT
+Done
+HEP
+Add to HEP
+Mod
+Mins
+minutes
+Units
+Treatment Time
+Timed
+Untimed
+Total Units
+Time in Clinic
+Private Pay
+
+# --- goals ---
+Add Goal
+Create Goal
+Create new Goal
+Goal Title
+Target Date
+Duration
+Duration help
+Duration Units
+Days
+Weeks
+Months
+Initial State
+Current State
+Target State
+Status
+Start Date
+Goal Description
+Goal Description Display
+Show Reorder List
+Show reorder list
+Goal status
+Select goal state
+In Progress
+Edit goal title and target date
+Delete goal
+
+# --- plan of care ---
+Frequency
+Frequency Units
+Per Week
+End Date
+Visit Count
+
+# --- diagnosis codes ---
+Search for diagnosis codes
+^Principal ·
+Principal
+
+# --- signature block ---
+Sign
+Signed
+Awaiting Signature
+Supervising Provider
+DPT
+PT
+PTA
+OT
+OTR/L
+COTA
+SLP
+CCC-SLP
+
+# --- functional-outcome surveys ---
+^Scores for
+
+# --- calendar ---
+Day
+Week
+Month
+Today
+Checked In
+Appointment Tooltip
+
+# --- injected by the helper itself ---
+Extension Settings
+Fix Procedures
+Fix Diagnosis
+Fix Plan of Care
+Fix Private Pay
+Open Note
+Survey incomplete
+Survey Complete! Create Goal?
+Create goal
+Apply checked
+Working…
