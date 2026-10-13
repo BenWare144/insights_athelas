@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.25.1 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.25.2 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -3285,12 +3285,6 @@
         return (el.value || '').replace(/\D/g, '').includes(digits.slice(0, 4));
     }
 
-    function athFindButtonByText(root, text, preferLast) {
-        const want = (text || '').trim().toLowerCase();
-        const btns = [...(root || document).querySelectorAll('button, [role="button"]')].filter((b) => (b.textContent || '').trim().toLowerCase() === want);
-        return preferLast ? btns[btns.length - 1] : btns[0];
-    }
-
     // Goal review dialog. fields = { title, date, initial, target }; `description`
     // reminds the therapist what the score means. The score number in the initial
     // and target sentences is editable (first number in each). No checkboxes -
@@ -3450,12 +3444,29 @@
             // form has four ("Initial State", "Current State", "Target State",
             // "Status"), so match the chip's exact text - matching a shared container
             // returned the first chip (Current State) instead of the one we wanted.
-            // Prefer chips within the open form's `root`, then fall back to the document.
+            // Only chips inside the open form's `root` - never the rest of the page.
             const want = labelText.trim().toLowerCase();
             const pick = (arr) => arr.find((c) => (c.textContent || '').trim().toLowerCase() === want)
                 || arr.find((c) => (c.textContent || '').trim().toLowerCase().startsWith(want));
             const sel = '.MuiChip-root[role="button"], [role="button"].MuiChip-root';
-            return (root && pick([...root.querySelectorAll(sel)])) || pick([...document.querySelectorAll(sel)]);
+            return pick([...root.querySelectorAll(sel)]) || null;
+        }
+        // The goal form's fields, by their stable `name=` hooks. Match the name on
+        // EITHER tag: the Goal Title was an <input> until an Oct-2026 site update
+        // made it a multiline <textarea>, and `input[name="name"]` then matched
+        // nothing - the dialog opened and was left empty. (MUI's hidden auto-size
+        // twin textarea has no name, so it never matches.)
+        const goalFieldSel = (name) => 'input[name="' + name + '"], textarea[name="' + name + '"]';
+        const goalDialogOf = (el) => el.closest('[role="dialog"], .MuiDialog-container, .MuiModal-root');
+        const emptyGoalTitle = () => [...document.querySelectorAll(goalFieldSel('name'))].find((i) => goalDialogOf(i) && !(i.value || '').trim()) || null;
+        async function waitForGoalField(root, name, timeoutMs) {
+            const t0 = Date.now();
+            while (Date.now() - t0 < timeoutMs) {
+                const el = root.querySelector(goalFieldSel(name));
+                if (el) return el;
+                await sleep(100);
+            }
+            return null;
         }
         function findOpenGoalButton() {
             // The button to open a new goal form. After the first goal exists its text
@@ -3471,7 +3482,7 @@
         async function waitForFreshNameInput(timeoutMs) {
             const t0 = Date.now();
             while (Date.now() - t0 < timeoutMs) {
-                const empty = [...document.querySelectorAll('input[name="name"]')].find((i) => !(i.value || '').trim());
+                const empty = emptyGoalTitle();
                 if (empty) return empty;
                 await sleep(120);
             }
@@ -3482,9 +3493,8 @@
             const goals = Surveys.goalsSection(); if (!goals) throw new Error('no goals section');
             goals.scrollIntoView({ block: 'center' }); await sleep(150);
             // Open a fresh goal form UNLESS an empty one is already open. Target the
-            // EMPTY Goal Title field - once a goal exists its own name/initial/target
-            // fields stay in the DOM, and grabbing the first one would overwrite it.
-            let title = [...document.querySelectorAll('input[name="name"]')].find((i) => !(i.value || '').trim());
+            // EMPTY Goal Title field of an open dialog.
+            let title = emptyGoalTitle();
             if (!title) {
                 const openBtn = findOpenGoalButton();
                 if (!openBtn) throw new Error('no "Create/Add Goal" button (did it change after the first goal, or is a form already open?)');
@@ -3492,25 +3502,44 @@
                 title = await waitForFreshNameInput(5000);
             }
             if (!title) throw new Error('no empty Goal Title field appeared');
-            // Scope everything to the open form so we never touch an existing goal.
-            const form = title.closest('form, [role="dialog"], .MuiDialog-container, .MuiModal-root, .MuiPaper-root') || goals;
-            const q = (sel) => form.querySelector(sel) || document.querySelector(sel);
-            setReactValue(title, fields.title, log); await sleep(120);
-            if (fields.date) { const d = q('input[name="due_date"]'); if (d) { prog && prog.update('Setting target date…'); await typeDate(d, fields.date, log); } else log.warn('no due_date field'); }
-            if (fields.initial) {
-                prog && prog.update('Adding initial state…');
-                const chip = findAddChip('Initial State', form); if (chip) { simulateClick(chip, log); await sleep(300); }
-                const iv = q('input[name="initial_value"]'); if (iv) setReactValue(iv, fields.initial, log); else log.warn('no initial_value input');
+            // Scope EVERYTHING to the open dialog, with no page-wide fallback: every
+            // existing goal card on the note carries its own initial_value /
+            // end_goal_value inputs, so a lookup that misses the dialog and falls
+            // back to the document would overwrite the first existing goal.
+            const form = goalDialogOf(title);
+            const field = (name) => form.querySelector(goalFieldSel(name));
+            const filled = [];   // [label, element, wanted, isDate] - re-read before submitting
+            setReactValue(title, fields.title, log); filled.push(['Goal Title', title, fields.title]);
+            await sleep(120);
+            if (fields.date) {
+                prog && prog.update('Setting target date…');
+                const d = field('due_date');
+                if (d) await typeDate(d, fields.date, log); else log.warn('no due_date field');
+                filled.push(['Target Date', d, fields.date, true]);
             }
-            if (fields.target) {
-                prog && prog.update('Adding target state…');
-                const chip = findAddChip('Target State', form); if (chip) { simulateClick(chip, log); await sleep(300); }
-                const tv = q('input[name="end_goal_value"]'); if (tv) setReactValue(tv, fields.target, log); else log.warn('no end_goal_value input');
-            }
+            const fillState = async (chipLabel, name, value) => {
+                prog && prog.update('Adding ' + chipLabel.toLowerCase() + '…');
+                let el = field(name);
+                if (!el) {
+                    const chip = findAddChip(chipLabel, form);
+                    if (chip) { simulateClick(chip, log); el = await waitForGoalField(form, name, 2500); } else log.warn('no "' + chipLabel + '" chip');
+                }
+                if (el) setReactValue(el, value, log); else log.warn('no ' + name + ' field');
+                filled.push([chipLabel, el, value]);
+            };
+            if (fields.initial) await fillState('Initial State', 'initial_value', fields.initial);
+            if (fields.target) await fillState('Target State', 'end_goal_value', fields.target);
             await sleep(150);
-            const submit = [...form.querySelectorAll('button, [role="button"]')].filter((b) => /create\s+goal/i.test((b.textContent || '').trim())).pop()
-                || athFindButtonByText(document, 'Create Goal', true);
-            if (submit) { simulateClick(submit, log); log.log('submitted Create Goal'); } else log.warn('no submit "Create Goal" button');
+            // Submit only a COMPLETE form. If a field is missing or did not take
+            // (the site changed again), leave the dialog open for the therapist
+            // rather than create a goal with a blank state.
+            const norm = (v, isDate) => isDate ? (String(v).match(/\d+/g) || []).map(Number).join('/') : String(v).replace(/\s+/g, ' ').trim();
+            const missed = filled.filter(([, el, want, isDate]) => !el || norm(el.value || '', isDate) !== norm(want, isDate)).map(([label]) => label);
+            if (missed.length) { log.warn('not submitting - did not take:', missed); return { submitted: false, missed }; }
+            const submit = [...form.querySelectorAll('button, [role="button"]')].filter((b) => /create\s+goal/i.test((b.textContent || '').trim())).pop();
+            if (!submit) { log.warn('no submit "Create Goal" button'); return { submitted: false, missed: [] }; }
+            simulateClick(submit, log); log.log('submitted Create Goal');
+            return { submitted: true, missed: [] };
         }
         async function runGoal(s, btn) {
             const scores = Surveys.readScores(s.key) || {};
@@ -3522,7 +3551,11 @@
             const finalFields = { title: fields.title, date: fields.date, initial: res.initial, target: res.target };
             if (btn && btn.dataset) btn.disabled = true;
             const prog = athToast('Creating ' + s.key + ' goal…', { ttl: 0 });
-            try { await createGoal(finalFields, log, prog); prog.update('Goal created — review before saving'); prog.done(3500); }
+            try {
+                const r = await createGoal(finalFields, log, prog);
+                if (r.submitted) { prog.update('Goal created — review before saving'); prog.done(3500); }
+                else { prog.update('Goal form left open — ' + (r.missed.length ? 'could not fill: ' + r.missed.join(', ') + '. Finish it by hand, then click Create Goal.' : 'filled in, but its Create Goal button was not found. Click it yourself.')); prog.done(15000); }
+            }
             catch (e) { log.error('createGoal failed', e); prog.update('Goal failed — see console'); prog.done(4000); }
             finally { if (btn) setTimeout(() => { btn.disabled = false; }, 3000); }
         }

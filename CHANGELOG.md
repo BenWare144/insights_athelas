@@ -1,5 +1,14 @@
 # Changelog
 
+## 15.25.2 — 2026-10-13
+
+- **Fixed: "Survey Complete! Create Goal?" opened an empty goal form.** Athelas changed the Goal Title box in its "Create new Goal" dialog — it is now a multi-line box — and the helper could no longer find it. So it opened the dialog and stopped, leaving every field blank. It finds the box again and fills the title, target date, initial state and target state as before.
+- **It no longer creates a half-filled goal.** Before clicking Create Goal, the helper now re-reads every field it filled. If one is missing or didn't take, it leaves the dialog open and tells you which field to finish by hand, instead of submitting. Until now it submitted regardless.
+- **It can only write into the open dialog.** Every goal already on the note has its own Initial / Current / Target State boxes. If the helper couldn't find a field in the dialog it used to go looking across the whole page, which could have overwritten the first existing goal. That fallback is gone.
+- The dialog also has a new **Duration** field. The helper leaves it alone and sets the Target Date, as before.
+
+**Not yet confirmed on a live note.** This was fixed from a saved copy of the page, which can show where the fields are but not how the live form reacts. If a goal still doesn't come out right, the message at the bottom of the screen now says which field was the problem — please pass that along.
+
 ## 15.25.1 — 2026-10-13
 
 No functional change. Removes real patient names from the shipped code and the project docs.
