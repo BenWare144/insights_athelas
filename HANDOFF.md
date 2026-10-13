@@ -14,15 +14,24 @@ A browser add-on that automates chart-note busywork in **Athelas Insights** (a p
 - **Cheri Ware, DPT** — Ben's mom; the original user, trading as **Lake Region Consulting** (the Web Store publisher). The tool is currently customized to her.
 - **The clinic** evaluating a wider rollout — a compliance director there is test-driving it, with another stakeholder involved. Their internal evaluation email thread (the source of the requests below) is held by Ben, not committed here.
 
-## Where it’s at (Sep 2026)
+## Where it’s at (Oct 2026)
 
-- **Version `15.25.1`**, 45/45 tests green. All commits are LOCAL — Ben pushes.
-- **Live features:** Fix Procedures (incl. non-reimbursed 98960 → 97535), Fix Diagnosis (ICD-10 7th character S → D), pre-sign critical warnings, Fix Private Pay, functional-outcome survey quick-add + status button + goal-from-score (initial-eval notes), calendar Open Note + popup clamp, jump-to-Flowsheet, compact layout, and the Extension Settings toggle panel.
+- **Version `15.25.1`**, 45/45 tests green (`npm test`).
+- **Git:** work is on branch **`v15.25.1-billing-diagnosis-poc`**, which is pushed and open as **[PR #1](https://github.com/BenWare144/insights_athelas/pull/1)** against `main` — ready for review, not merged. `main` is at `45f6971`. Both are pushed; nothing is sitting unpushed. **Check out the branch, not `main`,** or you will be looking at pre-15.22 code.
+- **Live features:** Fix Procedures (incl. non-reimbursed 98960 → 97535), Fix Diagnosis (ICD-10 7th character S → D), Fix Plan of Care (eval duration → 12 weeks, applied automatically on a note's first open), pre-sign critical warnings, Fix Private Pay, functional-outcome survey quick-add + status button + goal-from-score (initial-eval notes), calendar Open Note + popup clamp, jump-to-Flowsheet, compact layout, and the Extension Settings toggle panel.
 - **Shelved:** calendar auto Day→Week (misbehaves; code kept, not called).
-- **Deployment:** userscript is live on Cheri's machine (auto-updates from a local `file://` build via `npm run build:local` + Tampermonkey "Check for updates"). The extension is **accepted and published (unlisted)** on the Web Store, item ID `lnacagncbpglinobghcdeadaodonpjdf`, for clinic force-install — the earlier keyword-spam rejection was fixed in `deploy/store-listing.md` and the resubmission went through. Rejection email archived in `deploy/store-review/`. `deploy/athelas-insights-helper-v15.25.1.zip` is built and ready to upload.
-- **Live features (cont.):** Fix Plan of Care (eval duration → 12 weeks), applied automatically on a note's first open (15.24.0).
-- **Not verified on the live site yet:** everything added in 15.22.0 and 15.23.0 was written against static captures and never run against a real note. No capture contains a 98960 card, none has the Duration-Units dropdown open, and the diagnosis/plan-of-care interactions are both write paths. See "verification checklist" below.
-- **Everything a new agent needs is in-repo** (this file, AGENTS.md, DECISIONS.md, CHANGELOG.md, DEPLOYMENT.md) — the previous work happened in Claude "cowork" whose separate memory does NOT travel to Claude Code, so these docs are the source of truth.
+- **Deployment:** userscript is live on Cheri's machine (auto-updates from a local `file://` build via `npm run build:local` + Tampermonkey "Check for updates"). The extension is **accepted and published (unlisted)** on the Web Store, item ID `lnacagncbpglinobghcdeadaodonpjdf`, for clinic force-install. `deploy/athelas-insights-helper-v15.25.1.zip` is built and **needs uploading** — see the open loops below.
+- **NOTHING in 15.22–15.25 has been run against a live note.** It was all built from static `.mhtml` captures. The diagnosis and plan-of-care features are DOM *write* paths, and one of them (the plan-of-care auto-default) now edits a note without a confirmation dialog. The "verification checklist" below is the first thing to work through with Cheri; item 8 (does the plan-of-care form autosave on blur?) is the one that could change a shipped decision.
+- **Everything a new agent needs is in-repo** (this file, AGENTS.md, DECISIONS.md, CHANGELOG.md, DEPLOYMENT.md) — earlier work happened in Claude "cowork" whose separate memory does NOT travel to Claude Code, so these docs are the source of truth.
+
+## Open loops — do these before starting new work
+
+1. **Ask GitHub Support to garbage-collect the repo.** On 2026-10-13 four real patient names were found in this public repo — in code comments, docs, a test header, and one commit message — because capture filenames are patient names and had been pasted around. All 68 commits were rewritten (`[patient]` substituted), `main` and the branch were force-pushed, and the local clone was gc'd: **0 of 68 reachable commits now contain a name.** But a force-push does not delete GitHub's copies — the old commits stay reachable by direct SHA until GitHub GCs. [Contact Support](https://support.github.com/contact) with the repo and the old SHAs, chiefly **`9fd1e7d769727430fb7e66b22e4c7bf0e3fa27f7`** (the old `main`), and say it is PHI so it is triaged properly. Also still outside git's reach: any existing clone/fork and any search-engine or archive cache.
+2. **Decide whether this is a reportable disclosure.** Ben + the compliance director, not an agent's call. The names sat in a public repo for some time, next to "Chart Note" filenames and in one case a real plan of care.
+3. **Delete the pre-rewrite backup** once you are sure nothing needs recovering: `../insights_athelas-PRE-REWRITE-BACKUP.bundle` (832 KB, all refs, outside the repo). It still contains the names, so it is now the only copy of them outside `captures/`.
+4. **Re-upload the extension.** The published 15.25.0 package has a patient name inside `content.js`. `deploy/athelas-insights-helper-v15.25.1.zip` is the fixed build.
+5. **Re-host `deploy/privacy-policy.html`** before the next Web Store submission. It was corrected (it used to claim the extension stores nothing; it now keeps a credential and a list of note keys in `localStorage`), and the hosted copy must match or the listing and policy disagree.
+6. **Review/merge PR #1.**
 
 ## Current work / what's next — the Choice Therapy email requests
 
