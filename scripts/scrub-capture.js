@@ -46,7 +46,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const SCRUBBER_VERSION = 4;   // bump whenever a scrub rule changes: every capture is then re-scrubbed on the next run
+const SCRUBBER_VERSION = 5;   // bump whenever a scrub rule changes: every capture is then re-scrubbed on the next run
 const REPO = path.join(__dirname, '..');
 const DEFAULT_RAW = process.env.ATHELAS_RAW_CAPTURES || path.join(REPO, '..', 'insights_athelas_raw_captures');
 const DEFAULT_OUT = path.join(REPO, 'captures');
@@ -516,7 +516,9 @@ function nameTokens(rawName, vocab) {
     const base = rawName.replace(/\.[A-Za-z0-9]+$/, '');
     const m = MARKER.exec(base);
     const words = (s) => (s.match(/\p{L}+/gu) || []).map((w) => w.toLowerCase());
-    const uiWord = (w) => !!(vocab && vocab.phrases && vocab.phrases.has(w));
+    // any word that occurs in a UI label ("goal" in "Add Goal"), not only whole one-word labels
+    if (vocab && vocab.phrases && !vocab.words) vocab.words = new Set([...vocab.phrases].flatMap((p) => p.match(/\p{L}+/gu) || []));
+    const uiWord = (w) => !!(vocab && vocab.words && vocab.words.has(w));
     const toks = m ? words(base.slice(0, m.index)) : words(base).filter((w) => !DESCRIPTOR_WORDS.has(w) && !uiWord(w));
     return [...new Set(toks.filter((w) => w.length >= 2 && !(m && DESCRIPTOR_WORDS.has(w))))];
 }

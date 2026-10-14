@@ -142,6 +142,7 @@ test('filenames: tokens to remove, and a neutral clean name', () => {
     assert.deepEqual(S.nameTokens('I_dont_see_goals_anymore.mhtml', vocab), ['dont', 'see', 'anymore']);
     // ...but a real name in it still is, and a marker-bearing name is unaffected by the vocabulary
     assert.deepEqual(S.nameTokens('Quixley goals broken.mhtml', vocab), ['quixley', 'broken']);
+    assert.deepEqual(S.nameTokens('is_the_goal_correct.mhtml', vocab), ['is', 'the', 'correct'], '"goal" is a word of the label "Add Goal"');
     assert.deepEqual(S.nameTokens('Jane Day Chart Note.mhtml', S.parseVocabulary('Day')), ['jane', 'day']);
     const when = new Date(2026, 9, 13, 16, 28).getTime();
     const taken = new Set();
