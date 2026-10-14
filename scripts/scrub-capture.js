@@ -33,6 +33,9 @@
  *   node scripts/scrub-capture.js            scrub new or changed raw captures
  *   node scripts/scrub-capture.js --all      re-scrub everything
  *   node scripts/scrub-capture.js --hook     same, but quiet JSON for a Claude Code hook
+ *   node scripts/scrub-capture.js --audit    cross-check every clean copy against every patient's name (counts only)
+ *   git diff --cached | node scripts/scrub-capture.js --check-stdin
+ *                                            does this text contain any patient's name? (a count; for pre-commit)
  *   --raw <dir> / --out <dir>                override the folders
  *   --verbose                                also list which attribute NAMES were scrubbed
  *
@@ -43,7 +46,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const SCRUBBER_VERSION = 2;   // bump whenever a scrub rule changes: every capture is then re-scrubbed on the next run
+const SCRUBBER_VERSION = 3;   // bump whenever a scrub rule changes: every capture is then re-scrubbed on the next run
 const REPO = path.join(__dirname, '..');
 const DEFAULT_RAW = process.env.ATHELAS_RAW_CAPTURES || path.join(REPO, '..', 'insights_athelas_raw_captures');
 const DEFAULT_OUT = path.join(REPO, 'captures');
@@ -162,6 +165,7 @@ const KEEP_ATTRS = new Set([
 const LABEL_ATTRS = new Set([
     'aria-label', 'aria-description', 'aria-placeholder', 'aria-roledescription', 'aria-valuetext', 'title', 'placeholder', 'alt',
     'value', 'label', 'data-value', 'data-placeholder', 'data-label', 'data-title', 'summary', 'abbr',
+    'jf-ext-button-ct',   // a copy of the button's own text; the helper finds the "+ CPT" button through it
 ]);
 const URL_ATTRS = new Set(['href', 'src', 'action', 'formaction', 'poster', 'data', 'cite', 'background', 'longdesc', 'manifest', 'xlink:href', 'srcset', 'ping']);
 const MEDIA_TAGS = new Set(['img', 'source', 'video', 'audio', 'picture', 'image', 'track', 'embed', 'object']);
@@ -604,9 +608,91 @@ function run(opts) {
     return result;
 }
 
+// Text outside tags (and outside <style>), entity-decoded - what a reader of the page would see.
+function* textChunks(html) {
+    let i = 0;
+    const n = html.length;
+    while (i < n) {
+        const lt = html.indexOf('<', i);
+        if (lt !== i) yield decodeEntities(html.slice(i, lt < 0 ? n : lt));
+        if (lt < 0) return;
+        if (html.startsWith('<!--', lt)) { i = html.indexOf('-->', lt) + 3; continue; }
+        if (html[lt + 1] === '/' || html[lt + 1] === '!') { i = html.indexOf('>', lt) + 1; continue; }
+        const t = parseStartTag(html, lt);
+        i = t.end;
+        if (t.rawName.toLowerCase() === 'style') { const e = html.toLowerCase().indexOf('</style', i); i = e < 0 ? n : e; }
+    }
+}
+
+// A wider net than the per-file audit, which only knows each file's OWN patient: this checks every patient's
+// name tokens (from every raw filename) against every clean copy, and counts what else looks identifying.
+// Returns counts only - never the tokens, never the text. `npm run scrub -- --audit`.
+function crossAudit(opts) {
+    const rawDir = opts.raw || DEFAULT_RAW;
+    const outDir = opts.out || DEFAULT_OUT;
+    const manifest = JSON.parse(fs.readFileSync(path.join(rawDir, MANIFEST), 'utf8'));
+    const tokens = new Set();
+    for (const name of Object.keys(manifest.files)) if (MARKER.test(name)) for (const t of nameTokens(name)) if (t.length >= 3) tokens.add(t);
+    const deny = denyRegex([...tokens]);
+    const r = { cleanFiles: 0, nameTokensChecked: tokens.size, filesWithNameHits: 0, nameHits: 0, nameHitsWhere: {}, nonZeroDigitsInText: 0, emailLikeInText: 0, phoneLikeInText: 0, nameInMimeHeaders: 0, rawNameWordsInCleanFilenames: 0 };
+    for (const [rawName, f] of Object.entries(manifest.files)) {
+        const file = path.join(outDir, String(f.clean));
+        if (!f.ok || !fs.existsSync(file)) continue;
+        r.cleanFiles++;
+        const buf = fs.readFileSync(file);
+        let htmls = [buf.toString('utf8')];
+        if (/\.mhtml$/i.test(f.clean)) {
+            const mh = parseMhtml(buf);
+            const whole = buf.toString('latin1');
+            if (deny && deny.test(whole.slice(0, whole.indexOf('\r\n\r\n')))) r.nameInMimeHeaders++;
+            for (const p of mh.parts) if (deny && deny.test(p.headers.map((h) => h.value).join('\n'))) r.nameInMimeHeaders++;
+            htmls = mh.parts.filter((p) => isHtml(header(p.headers, 'content-type'))).map((p) => decodePart(p).toString('utf8'));
+        }
+        const own = denyRegex(nameTokens(rawName).filter((t) => t.length >= 3));
+        if (own && own.test(String(f.clean).replace(/[_.-]/g, ' '))) r.rawNameWordsInCleanFilenames++;
+        let hits = 0;
+        for (const html of htmls) {
+            hits += auditHtml(html, deny, r.nameHitsWhere);
+            for (const chunk of textChunks(html)) {
+                r.nonZeroDigitsInText += (chunk.match(/[1-9]/g) || []).length;
+                r.emailLikeInText += (chunk.match(/[\w.+-]+@[\w-]+\.[a-z]{2,}/gi) || []).length;
+                r.phoneLikeInText += (chunk.match(/\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}/g) || []).filter((p) => /[1-9]/.test(p)).length;
+            }
+        }
+        if (hits) { r.filesWithNameHits++; r.nameHits += hits; }
+    }
+    return r;
+}
+
+// Pre-commit check for a PUBLIC repo: does this text (a staged diff, a doc) contain any patient's name?
+// The names are known only from the raw filenames, which agents must not read - so the scrubber answers
+// the question for them, with a count.  git diff --cached | node scripts/scrub-capture.js --check-stdin
+function checkText(text, opts) {
+    const manifest = JSON.parse(fs.readFileSync(path.join((opts && opts.raw) || DEFAULT_RAW, MANIFEST), 'utf8'));
+    const tokens = new Set();
+    for (const name of Object.keys(manifest.files)) if (MARKER.test(name)) for (const t of nameTokens(name)) if (t.length >= 3) tokens.add(t);
+    const deny = denyRegex([...tokens]);
+    const hits = deny ? (String(text).match(new RegExp(deny.source, 'giu')) || []).length : 0;
+    return { nameTokensChecked: tokens.size, hits };
+}
+
 function main(argv) {
     const opts = { all: argv.includes('--all'), hook: argv.includes('--hook'), verbose: argv.includes('--verbose') };
     for (const k of ['raw', 'out']) { const i = argv.indexOf('--' + k); if (i >= 0) opts[k] = path.resolve(argv[i + 1]); }
+    if (argv.includes('--check-stdin')) {
+        let c;
+        try { c = checkText(fs.readFileSync(0, 'utf8'), opts); } catch (e) { console.error('check failed: ' + (e && e.message)); process.exitCode = 1; return; }
+        console.log(JSON.stringify(c));
+        if (c.hits) { console.log('A patient name token appears in this text. Find it and remove it before committing.'); process.exitCode = 2; }
+        return;
+    }
+    if (argv.includes('--audit')) {
+        let a;
+        try { a = crossAudit(opts); } catch (e) { console.error('audit failed: ' + (e && e.message)); process.exitCode = 1; return; }
+        console.log(JSON.stringify(a, null, 1));
+        if (a.nameHits || a.nameInMimeHeaders || a.rawNameWordsInCleanFilenames) { console.log('LOOK AT THIS: something name-like survived (a vocabulary word that is also a surname counts).'); process.exitCode = 2; }
+        return;
+    }
     let r;
     try { r = run(opts); } catch (e) {
         if (opts.hook) return;                     // never block a prompt on a tooling error
@@ -634,6 +720,6 @@ function main(argv) {
 
 module.exports = {
     SCRUBBER_VERSION, parseVocabulary, loadVocabulary, shape, classifyLabel, decodeEntities, scrubUrl, scrubHtml, auditHtml,
-    qpEncode, qpDecode, parseMhtml, scrubMhtml, nameTokens, denyRegex, cleanName, run, newStats,
+    qpEncode, qpDecode, parseMhtml, scrubMhtml, nameTokens, denyRegex, cleanName, run, crossAudit, checkText, newStats,
 };
 if (require.main === module) main(process.argv.slice(2));

@@ -226,6 +226,22 @@ test('batch run: neutral names, manifest in the raw folder, idempotent, never pr
         assert.equal(r3.scrubbed.length, 2, 'a vocabulary change re-scrubs everything');
         assert.equal(r3.failed, 1, '...and retries the failure');
         assert.deepEqual(fs.readdirSync(out).sort(), cleanFiles, 'under the same clean names');
+        // the cross-audit: every patient's tokens against every clean copy, counts only
+        const a1 = S.crossAudit({ raw, out });
+        assert.equal(a1.cleanFiles, 2);
+        assert.ok(a1.nameTokensChecked >= 2);
+        assert.deepEqual([a1.nameHits, a1.nonZeroDigitsInText, a1.nameInMimeHeaders, a1.rawNameWordsInCleanFilenames], [0, 0, 0, 0]);
+        assert.doesNotMatch(JSON.stringify(a1), /zelda|quixley/i, 'the audit result carries counts, not names');
+        // the pre-commit text check answers "is a patient's name in this diff?" without revealing the names
+        assert.equal(S.checkText('+ fixed the goal form\n+ see captures/2026-10-13_goal_form.mhtml', { raw }).hits, 0);
+        assert.equal(S.checkText('+ // DOM fact from the Zelda Quixley capture', { raw }).hits, 2);
+        assert.equal(S.checkText('+ unzeldable, quixleyish', { raw }).hits, 0, 'whole words only');
+        const htmlCopy = path.join(out, cleanFiles.find((f) => f.endsWith('.html')));
+        fs.appendFileSync(htmlCopy, '<p>Call Quixley on 555-867-5309</p>');   // simulate a leak
+        const a2 = S.crossAudit({ raw, out });
+        assert.equal(a2.nameHits, 1, 'a name from ANOTHER raw file is caught too');
+        assert.equal(a2.phoneLikeInText, 1);
+        assert.ok(a2.nonZeroDigitsInText > 0);
     } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
     }
@@ -237,4 +253,24 @@ test('the shipped vocabulary loads and holds no rule that keeps arbitrary text',
     assert.ok(v.phrases.size > 100);
     for (const p of v.phrases) assert.ok(p.length <= 60 && !/\d{3,}/.test(p), 'suspicious vocabulary entry: ' + p);
     assert.equal(S.scrubHtml('<p>Zelda Quixley, 64, reports pain.</p>', { vocab: v }), '<p>Xxxxx Xxxxxxx, 00, xxxxxxx xxxx.</p>');
+});
+
+test('every label the helper selects on survives the scrub', () => {
+    // A scrubbed capture is only a usable fixture if the helper's own selectors still match it. When this
+    // fails, a selector in the userscript keys on a label that scripts/scrub-vocabulary.txt does not list.
+    const v = S.loadVocabulary();
+    const src = fs.readFileSync(path.join(__dirname, '..', 'userscript', 'athelas-insights-helper.user.js'), 'utf8');
+    const rx = /\[(aria-label|placeholder|title|alt|data-value|jf-ext-button-ct)([\^$*~|]?)=\\?["']([^"'\\\]]+)\\?["']\]/g;
+    const lost = new Set();
+    let checked = 0;
+    for (const m of src.matchAll(rx)) {
+        const [, attr, op, val] = m;
+        if (/[<$]/.test(val)) continue;   // built at runtime ("<code>", a template placeholder), not a fixed label
+        checked++;
+        const sample = op === '^' ? val.replace(/\s+$/, '') + ' Zzzz Qqqq' : op === '$' ? 'Zzzz Qqqq ' + val.replace(/^\s+/, '') : val;
+        const out = S.scrubHtml('<i ' + attr + '="' + sample + '"></i>', { vocab: v });
+        if (!out.includes(val)) lost.add('[' + attr + op + '="' + val + '"]');
+    }
+    assert.ok(checked >= 15, 'the selector scan found too little - has the userscript changed shape?');
+    assert.deepEqual([...lost], [], 'add these labels to scripts/scrub-vocabulary.txt');
 });

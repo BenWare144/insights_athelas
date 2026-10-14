@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.25.3
+// @version      15.25.4
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -2028,12 +2028,13 @@
             log.log(`${ts()} ensureCard: ${code} count before=${before}`);
             if (before > 0) { log.log(`${ts()} ${code} already present - skipping +CPT dialog`); return true; }
             const scope = getScope();
-            let addBtn = scope.querySelector('button[jf-ext-button-ct$="cpt"]');
-            if (!addBtn) {
-                for (const b of scope.querySelectorAll('button')) {
-                    if ((b.textContent || '').trim() === 'CPT') { addBtn = b; break; }
-                }
-            }
+            // `jf-ext-button-ct` (a lowercased copy of the button's text) is not Athelas's
+            // own attribute: it was on every button until late July 2026 and on none
+            // since, so it can only be a shortcut. The real anchor is the button's label -
+            // read with athLabelText, because the "add" icon renders its name as text and
+            // the raw textContent is "addCPT" (the old `=== 'CPT'` fallback never matched).
+            const addBtn = scope.querySelector('button[jf-ext-button-ct$="cpt"]')
+                || [...scope.querySelectorAll('button')].find((b) => athLabelText(b).toUpperCase() === 'CPT');
             if (!addBtn) { log.warn(`${ts()} no +CPT button in flowsheet`); return false; }
             log.log(`${ts()} +CPT button found (jf-ext-button-ct=${JSON.stringify(addBtn.getAttribute('jf-ext-button-ct'))}); single native click`);
             addBtn.click();
@@ -2051,7 +2052,8 @@
             } else {
                 log.log(`${ts()} ${code} option already selected`);
             }
-            const addCodesBtn = dialog.querySelector('button[jf-ext-button-ct*="cpt code"]');
+            const addCodesBtn = dialog.querySelector('button[jf-ext-button-ct*="cpt code"]')
+                || [...dialog.querySelectorAll('button')].find((b) => /\bcpt codes?\b/i.test(athLabelText(b)));   // "Add 1 CPT code"
             if (!addCodesBtn) { log.warn(`${ts()} no "Add N CPT code" button in dialog`); return false; }
             if (addCodesBtn.disabled) { log.warn(`${ts()} Add button disabled (option not ticked?)`); return false; }
             const pre = countCards(code);
@@ -2187,6 +2189,7 @@
             // ---- execute the approved changes (with a live progress toast) ----
             const prog = athToast('Fixing procedures…', { ttl: 0 });
             let moved = 0, renamed = 0, justified = 0, usePointer = true;
+            const noCard = new Set();   // CPT codes whose card could not be added - reported once each, not per item
 
             for (const f of toDo) {
                 const d = byName[f.name];
@@ -2199,7 +2202,11 @@
                     let target = getCards().find((c) => c.code === f.to);
                     if (!target) {
                         const ok = await ensureCard(f.to);
-                        if (!ok) { log.warn(`${ts()} could not add ${f.to}; skip`); continue; }
+                        if (!ok) {
+                            log.warn(`${ts()} could not add ${f.to}; skip`);
+                            if (!noCard.has(f.to)) { noCard.add(f.to); athToast('Could not add a ' + cardLabel(f.to) + ' card — its items were left where they are.', { ttl: 7000 }); }
+                            continue;
+                        }
                         await sleep(400); target = getCards().find((c) => c.code === f.to);
                     }
                     if (!target) { log.warn(`${ts()} still no ${f.to}; skip`); continue; }
@@ -2228,7 +2235,7 @@
             }
 
             prog.done(300);
-            const summary = [moved ? 'moved ' + moved : '', renamed ? 'renamed ' + renamed : '', justified ? 'justified ' + justified : ''].filter(Boolean).join(', ') || 'no changes';
+            const summary = [moved ? 'moved ' + moved : '', renamed ? 'renamed ' + renamed : '', justified ? 'justified ' + justified : '', noCard.size ? 'could not add ' + [...noCard].join(', ') : ''].filter(Boolean).join(', ') || 'no changes';
             athToast('Done: ' + summary + '. Click Apply Scribe to save.', { ttl: 4200 });
             log.log(`${ts()} ================= performFix END: ${summary} =================`);
             return { reason: 'ok', moved, renamed, justified };

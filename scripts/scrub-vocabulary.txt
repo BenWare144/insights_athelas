@@ -121,7 +121,12 @@ Intervention
 Intervention name
 Intervention details
 procedures
+replace procedure
+Drag to reorder
 $interventions
+$intervention list
+$cpt code
+$cpt
 CPT
 Done
 HEP

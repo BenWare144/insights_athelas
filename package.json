@@ -1,6 +1,6 @@
 {
   "name": "athelas-insights-helper",
-  "version": "15.25.3",
+  "version": "15.25.4",
   "private": true,
   "description": "One-click chart-note workflow helpers for Athelas Insights (userscript + Chrome extension)",
   "type": "commonjs",

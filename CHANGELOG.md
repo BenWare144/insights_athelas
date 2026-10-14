@@ -1,5 +1,13 @@
 # Changelog
 
+## 15.25.4 — 2026-10-13
+
+- **Fixed: Fix Procedures could not add a missing CPT card.** When an intervention has to move to a code that is not on the note yet, the helper clicks "+ CPT", ticks the code and clicks "Add 1 CPT code". It was finding both of those buttons through a hidden attribute that turns out not to belong to Athelas: in our saved pages it is on the buttons up to 21 July and on none from 27 July on, so something else in the browser (probably another extension) was adding it. Wherever that attribute is missing, the helper could not find "+ CPT", and those items were skipped without a message; only moves to a card that already existed went through. Both buttons are now found by their own labels.
+- **A card that cannot be added is now reported.** You get a message naming the code ("Could not add a 97112 … card — its items were left where they are") and the closing summary says so, instead of "Done: no changes".
+- Nothing else changes: where the old attribute is still present it is used first.
+
+**Not yet confirmed on a live note.** The "+ CPT" button lookup was checked against today's page. The "Add 1 CPT code" lookup was checked against a July capture of that dialog; there is no capture of the dialog since the site update, so if Athelas changed it the way it changed the goal dialog, this step could still fail. The console says which step: `[athelas:fix-met]` "no +CPT button", "CPT dialog never appeared", "no … option", or "no Add N CPT code button".
+
 ## 15.25.3 — 2026-10-13
 
 - **Fixed: a blank band down the left side of every chart note.** Athelas replaced its left-hand navigation with a new sidebar. The compact layout still carried a rule written for the old one — "start the page 200px in from the left" — and with the old navigation gone, that rule just pushed the whole note 200px to the right and left an empty strip beside the sidebar. The rule is removed. On a 1600px-wide window the note goes from 915px wide back to 1147px.
