@@ -1,5 +1,16 @@
 # Changelog
 
+## 15.25.5 — 2026-10-13
+
+No change to what the helper does on the page. This release changes what it writes to the browser console.
+
+- **Console logs no longer contain chart content.** The helper writes a running log to the browser console (DevTools), and a saved copy of that log is what we ask for when something goes wrong. Until now that log included the real values the helper read from or typed into the chart: goal sentences and target dates, plan-of-care durations and end dates, diagnosis codes, intervention names, and the address of the patient's chart. A saved log was therefore patient data, which is why the old ones could no longer be used for debugging.
+- **What the log says now:** which step ran, which field it touched, and whether the value took. A chart value is shown only as a same-length placeholder: letters become `x`/`X` and digits become `0`, so `Knee 03/14/2026` is logged as `Xxxx 00/00/0000`. That keeps the format visible (enough to spot a date typed in the wrong order, or a field left blank) without the content. Things that are not about the patient are still logged as they are: CPT codes, the matching rule that fired, the helper's own justification text, survey names, counts and timings.
+- Page elements are logged as a short description (`<input name="duration" type="number">`) instead of the live element. DevTools would otherwise copy the element's attributes, including its current value, into a saved log.
+- **For developers only:** `localStorage.setItem('athelas-helper:log-values', '1')` and a page reload bring the real values back. A warning at the top of the console says it is on. Remove the key and reload to go back. Do not turn it on on a therapist's machine.
+
+**Checked by tests only.** The new rule is covered by automated tests that fail on the old logging, and the code passes a syntax check, but nobody has saved a console log from a live note yet. The first one sent in after this update is the real check: it should not contain a single real name, date, code or sentence from the chart.
+
 ## 15.25.4 — 2026-10-13
 
 - **Fixed: Fix Procedures could not add a missing CPT card.** When an intervention has to move to a code that is not on the note yet, the helper clicks "+ CPT", ticks the code and clicks "Add 1 CPT code". It was finding both of those buttons through a hidden attribute that turns out not to belong to Athelas: in our saved pages it is on the buttons up to 21 July and on none from 27 July on, so something else in the browser (probably another extension) was adding it. Wherever that attribute is missing, the helper could not find "+ CPT", and those items were skipped without a message; only moves to a card that already existed went through. Both buttons are now found by their own labels.

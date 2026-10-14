@@ -1,5 +1,5 @@
 // Athelas Insights Helper — Chart-Note Tools (Chrome extension build)
-// v15.25.4 - ported verbatim from athelas-insights-helper.user.js (the
+// v15.25.5 - ported verbatim from athelas-insights-helper.user.js (the
 // userscript remains the source of truth; see AGENTS.md "Dual artifacts").
 // Runs in the MAIN world (see manifest.json) so the one-click fixers can reach
 // the page's React fiber / Tiptap editor instances, exactly like Tampermonkey.
@@ -82,12 +82,66 @@
 
     // =====================================================================
     // Shared logging helpers
+    //
+    // Log lines must be safe to save and share. The therapist saves the console
+    // to report a bug, and anything the helper read from or typed into the chart
+    // makes that file patient data (it did: the old saved logs had to leave the
+    // repo on 2026-10-13). So a log line says WHAT happened and the SHAPE of a
+    // chart value, never the value: athLogVal("Knee 03/14/2026") is
+    // "Xxxx 00/00/0000". Not patient-specific, so verbatim: CPT codes and card
+    // names, rule labels, our own rename/justification text, survey keys, field
+    // names, counts, timings.
+    //
+    // Elements are logged as a short descriptor, not the live node: DevTools
+    // prints a node's attributes (value= and aria-label= included) into a saved
+    // log. makeLogger does that for every argument, so `log.log('x', el)` is safe.
+    //
+    // Raw values for Ben's own debugging: run
+    //   localStorage.setItem('athelas-helper:log-values', '1')
+    // and reload (read once at boot; a warning line says it is on). Remove the
+    // key and reload to go back. The __athelas* DevTools hooks return and print
+    // raw values either way - those you call on purpose. See DECISIONS.md.
     // =====================================================================
+    const ATH_LOG_VALUES_KEY = 'athelas-helper:log-values';
+    const ATH_LOG_VALUES = (() => { try { return localStorage.getItem(ATH_LOG_VALUES_KEY) === '1'; } catch (e) { return false; } })();
+
+    /** Same-shape placeholder: letters -> x/X, digits -> 0, everything else kept.
+     *  Same rule as shape() in scripts/scrub-capture.js. */
+    function athShape(s) {
+        return String(s).replace(/[\p{L}\p{N}]/gu, (ch) => (/\p{N}/u.test(ch) ? '0' : (ch !== ch.toLowerCase() ? 'X' : 'x')));
+    }
+    const athIsElement = (x) => !!x && typeof x === 'object' && x.nodeType === 1 && typeof x.tagName === 'string';
+    /** A chart value as a log line may show it: its shape, or the value itself
+     *  when log-values is on. Arrays and plain objects are shaped value by value
+     *  (keys are our own field names and stay). null/undefined/booleans pass. */
+    function athLogVal(v) {
+        if (ATH_LOG_VALUES || v == null || typeof v === 'boolean') return v;
+        if (Array.isArray(v)) return v.map(athLogVal);
+        if (athIsElement(v)) return athLogEl(v);
+        if (typeof v === 'object') { const o = {}; for (const k of Object.keys(v)) o[k] = athLogVal(v[k]); return o; }
+        return athShape(v);
+    }
+    /** An element as a log line may show it: its tag, our structural hooks
+     *  (name, type, role, data-section, data-testid) and the SHAPE of its
+     *  aria-label, which can carry content (a diagnosis chip's label is its code
+     *  and description). Not an element, or log-values on: returned unchanged. */
+    function athLogEl(el) {
+        if (ATH_LOG_VALUES || !athIsElement(el)) return el;
+        let d = '<' + el.tagName.toLowerCase();
+        for (const a of ['name', 'type', 'role', 'data-section', 'data-testid']) {
+            const v = el.getAttribute(a);
+            if (v) d += ` ${a}="${v}"`;
+        }
+        const label = el.getAttribute('aria-label');
+        if (label) d += ` aria-label="${athShape(label)}"`;
+        return d + '>';
+    }
     function makeLogger(tag) {
         const prefix = `[athelas:${tag}]`;
-        const fmt = (lvl) => (...args) => console[lvl](prefix, ...args);
+        const fmt = (lvl) => (...args) => console[lvl](prefix, ...args.map(athLogEl));
         return { log: fmt('log'), info: fmt('info'), warn: fmt('warn'), error: fmt('error'), debug: fmt('debug'), group: (label) => console.groupCollapsed(prefix, label), groupEnd: () => console.groupEnd() };
     }
+    if (ATH_LOG_VALUES) console.warn(`[athelas:log] ${ATH_LOG_VALUES_KEY} is ON: log lines below include real chart values. Do not save or share this console. localStorage.removeItem('${ATH_LOG_VALUES_KEY}') and reload to turn it off.`);
 
     // =====================================================================
     // Shared DOM helpers (used by multiple modules)
@@ -176,14 +230,16 @@
             const ev2 = new Event('change', { bubbles: true });
             ev2.simulated = true;
             el.dispatchEvent(ev2);
-            log && log.log(`setReactValue: "${before}" -> "${el.value}" (requested "${value}")`, el);
+            // Shapes only (athLogVal): these are goal sentences, dates, plan-of-care
+            // numbers and diagnosis codes straight out of the chart.
+            log && log.log(`setReactValue: "${athLogVal(before)}" -> "${athLogVal(el.value)}" (requested "${athLogVal(value)}", stuck=${el.value === value})`, el);
             // If React wiped it back (controlled component reverting), retry the
             // simpler heno-style approach as a sanity check.
             if (el.value !== value) {
                 log && log.warn(`setReactValue: React appears to have reverted the value. Trying plain assignment as fallback.`);
                 el.value = value;
                 el.dispatchEvent(new Event('input', { bubbles: true }));
-                log && log.log(`setReactValue (fallback): "${el.value}"`);
+                log && log.log(`setReactValue (fallback): "${athLogVal(el.value)}" stuck=${el.value === value}`);
             }
             return el.value === value;
         } catch (err) {
@@ -205,7 +261,7 @@
             sel.removeAllRanges();
             sel.addRange(range);
             const ok = document.execCommand('insertText', false, value);
-            log && log.log(`setProseMirrorText: execCommand returned ${ok}, current text now: "${el.textContent.slice(0,80)}..."`);
+            log && log.log(`setProseMirrorText: execCommand returned ${ok}, current text now (${el.textContent.length} chars): "${athLogVal(el.textContent.slice(0,80))}..."`);
             return ok;
         } catch (err) {
             log && log.error('setProseMirrorText: threw', err);
@@ -261,7 +317,7 @@
         if (!id) return;
         if (highlightedIds.has(id)) return;
         highlightedIds.add(id);
-        highlightLogger.log(`marked row data-id=${id} for persistent highlight${reason ? ' ('+reason+')' : ''}; total: ${highlightedIds.size}`);
+        highlightLogger.log(`marked row data-id=${athLogVal(id)} for persistent highlight${reason ? ' ('+reason+')' : ''}; total: ${highlightedIds.size}`);
         startHighlightObserver();
         applyHighlights();
     }
@@ -1012,7 +1068,7 @@
             setReactValue(inp, newName, log);
             await sleep(120);
             const ok = (inp.value || '').trim() === newName;
-            log && log.log('rename -> "' + newName + '": ' + (ok ? 'ok' : 'FAILED (value="' + (inp.value || '') + '")'));
+            log && log.log('rename -> "' + newName + '": ' + (ok ? 'ok' : 'FAILED (value="' + athLogVal(inp.value || '') + '")'));
             return ok;
         }
         // Apply rename + justification. justMode: 'none' (leave), 'append' (add the
@@ -1023,12 +1079,12 @@
             if (fix.rename && (nameOf(li) !== fix.rename)) renamed = await fxRenameItem(li, fix.rename, log);
             if (fix.justMode === 'none' || !fix.justification) return { renamed, justified };
             const details = li.querySelector('[contenteditable="true"][aria-label="Intervention details"]');
-            if (!details) { log && log.warn('no "Intervention details" field for "' + nameOf(li) + '"'); return { renamed, justified }; }
+            if (!details) { log && log.warn('no "Intervention details" field for "' + athLogVal(nameOf(li)) + '"'); return { renamed, justified }; }
             const existing = (details.textContent || '').trim();
             if (existing.includes(fix.justification)) return { renamed, justified: true };   // already present -> idempotent
             const target = existing ? (existing.replace(/\s+$/, '') + '\n' + fix.justification) : fix.justification;
             justified = await fxWriteDetails(details, target, log);
-            if (!justified && log) log.warn('justification for "' + nameOf(li) + '" did NOT stick');
+            if (!justified && log) log.warn('justification for "' + athLogVal(nameOf(li)) + '" did NOT stick');
             return { renamed, justified };
         }
         function fxCurrentDetailsText(li) {
@@ -1730,11 +1786,11 @@
 
         function dumpState(label) {
             const scope = getScope();
-            log.log(`${ts()} STATE[${label}] scope=${!!scope} liveRegion="${liveRegionText()}"`);
+            log.log(`${ts()} STATE[${label}] scope=${!!scope} liveRegion="${athLogVal(liveRegionText())}"`);
             if (!scope) return;
             for (const card of getCards()) {
                 const items = cardItems(card).map((li) => itemName(li).trim());
-                log.log(`${ts()}    card ${card.code} "${card.name}" region=${!!card.region} ul=${!!card.ul} items[${items.length}]=${JSON.stringify(items)}`);
+                log.log(`${ts()}    card ${card.code} "${card.name}" region=${!!card.region} ul=${!!card.ul} items[${items.length}]=${JSON.stringify(athLogVal(items))}`);
             }
         }
 
@@ -1820,7 +1876,7 @@
             const maxSteps = opts.maxSteps || MAX_ARROW_STEPS;
             const name = itemName(li).trim();
             const handle = itemHandle(li);
-            log.log(`${ts()} ===== keyboardDrag "${name}" -> "${targetName}" =====`);
+            log.log(`${ts()} ===== keyboardDrag "${athLogVal(name)}" -> "${targetName}" =====`);
             if (!handle) { log.warn(`${ts()} no drag handle on li - abort`); return { ok: false, reason: 'no-handle' }; }
             const targetCode = codeForName(targetName);
             const targetRegion = findRegionByName(getScope(), targetName);
@@ -1837,7 +1893,7 @@
             await waitForLiveChange(live, 320);
             const pressed = handle.getAttribute('aria-pressed');
             const pickedUp = pressed === 'true' || liveRegionText() !== live;
-            log.log(`${ts()} pickup: aria-pressed=${pressed} pickedUp=${pickedUp} live="${liveRegionText()}"`);
+            log.log(`${ts()} pickup: aria-pressed=${pressed} pickedUp=${pickedUp} live="${athLogVal(liveRegionText())}"`);
             if (!pickedUp) {
                 log.warn(`${ts()} PICKUP FAILED - aborting keyboard path`);
                 pressKey(document, 'Escape', 'Escape');
@@ -1885,7 +1941,7 @@
             const finalHits = regionsContainingName(name);
             const inTargetAtAll = finalHits.some((h) => h.name === targetName);
             const finalIdx = indexOfNameInCard(targetCode, name);
-            log.log(`${ts()} keyboardDrag END "${name}" inTarget=${inTargetAtAll} finalIdx=${finalIdx} steps=${steps} finalRegions=${JSON.stringify(finalHits)}`);
+            log.log(`${ts()} keyboardDrag END "${athLogVal(name)}" inTarget=${inTargetAtAll} finalIdx=${finalIdx} steps=${steps} finalRegions=${JSON.stringify(finalHits)}`);
             return { ok: inTargetAtAll, crossed, steps, finalIdx, finalHits };
         }
 
@@ -1924,7 +1980,7 @@
             opts = opts || {};
             const name = itemName(li).trim();
             const handle = itemHandle(li);
-            log.log(`${ts()} ===== pointerDragToBottom(jump) "${name}" -> "${targetName}" =====`);
+            log.log(`${ts()} ===== pointerDragToBottom(jump) "${athLogVal(name)}" -> "${targetName}" =====`);
             if (!handle) { log.warn(`${ts()} no handle`); return { ok: false, reason: 'no-handle' }; }
             const targetCode = codeForName(targetName);
 
@@ -2053,7 +2109,7 @@
             if (!addCodesBtn) { log.warn(`${ts()} no "Add N CPT code" button in dialog`); return false; }
             if (addCodesBtn.disabled) { log.warn(`${ts()} Add button disabled (option not ticked?)`); return false; }
             const pre = countCards(code);
-            log.log(`${ts()} clicking "${addCodesBtn.textContent.trim()}" (single click); ${code} count before add=${pre}`);
+            log.log(`${ts()} clicking "${addCodesBtn.textContent.trim()}" (single click); ${code} count before add=${pre}`);   // log-safe: the dialog's own button label
             addCodesBtn.click();
             for (let i = 0; i < 20; i++) {
                 await sleep(150);
@@ -2194,7 +2250,7 @@
 
                 if (doMove) {
                     prog.update('Moving “' + f.name + '” → ' + cardLabel(f.to));
-                    log.log(`${ts()} --- move "${f.name}" ${f.from} -> ${f.to} ---`);
+                    log.log(`${ts()} --- move "${athLogVal(f.name)}" ${f.from} -> ${f.to} (rule: ${f.label}) ---`);
                     let target = getCards().find((c) => c.code === f.to);
                     if (!target) {
                         const ok = await ensureCard(f.to);
@@ -2208,7 +2264,7 @@
                     if (!target) { log.warn(`${ts()} still no ${f.to}; skip`); continue; }
                     const targetName = target.name;
                     const srcLi = findItemInCardByName(f.from, f.name);
-                    if (!srcLi) { log.warn(`${ts()} "${f.name}" not found in ${f.from}; skip`); continue; }
+                    if (!srcLi) { log.warn(`${ts()} "${athLogVal(f.name)}" not found in ${f.from}; skip`); continue; }
                     let res = usePointer ? await pointerDragToBottom(srcLi, targetName, {}) : await keyboardDrag(srcLi, targetName, {});
                     if (usePointer && (!res || !res.ok)) {
                         log.warn(`${ts()} pointer failed; keyboard for the remainder`);
@@ -2216,7 +2272,7 @@
                         const again = findItemInCardByName(f.from, f.name);
                         if (again) res = await keyboardDrag(again, targetName, {});
                     }
-                    if (!res || !res.ok) { log.warn(`${ts()} move of "${f.name}" failed; skipping it`); athToast('Could not move “' + f.name + '”', { ttl: 3200 }); continue; }
+                    if (!res || !res.ok) { log.warn(`${ts()} move of "${athLogVal(f.name)}" failed; skipping it`); athToast('Could not move “' + f.name + '”', { ttl: 3200 }); continue; }
                     moved++; await sleep(170);
                     if (doJust) {
                         const movedLi = findItemInCardByName(f.to, f.name);
@@ -2329,7 +2385,7 @@
             if (!next) { log.warn('nothing to fix'); return; }
             const tgt = getCards().find((c) => c.code === next.fix.to);
             if (!tgt) { log.warn(`no ${next.fix.to} card present - create it first or run __athelasFixProcedures()`); return; }
-            log.log(`kbd-drag test: "${next.fix.name}" from ${next.fix.from} -> ${next.fix.to}`);
+            log.log(`kbd-drag test: "${athLogVal(next.fix.name)}" from ${next.fix.from} -> ${next.fix.to}`);
             return keyboardDrag(next.li, tgt.name, {});
         };
         window.__athelasPointerDragFirstFix = async () => {
@@ -2337,7 +2393,7 @@
             if (!next) { log.warn('nothing to fix'); return; }
             const tgt = getCards().find((c) => c.code === next.fix.to);
             if (!tgt) { log.warn(`no ${next.fix.to} card present`); return; }
-            log.log(`pointer-drag test: "${next.fix.name}" from ${next.fix.from} -> ${next.fix.to}`);
+            log.log(`pointer-drag test: "${athLogVal(next.fix.name)}" from ${next.fix.from} -> ${next.fix.to}`);
             return pointerDragToBottom(next.li, tgt.name, {});
         };
         log.log(`${ts()} hooks ready: __athelasFixProcedures, __athelasListFixes, __athelasKbdDragFirstFix, __athelasPointerDragFirstFix, __athelasDbgFlowsheet, __athelasListProcedureCards`);
@@ -2500,7 +2556,7 @@
             const maxSteps = opts.maxSteps || MAX_ARROW_STEPS;
             const name = itemName(li).trim();
             const handle = itemHandle(li);
-            log.log(`${ts()} ===== keyboardDrag "${name}" -> "${targetName}" =====`);
+            log.log(`${ts()} ===== keyboardDrag "${athLogVal(name)}" -> "${targetName}" =====`);
             if (!handle) { log.warn(`${ts()} no drag handle on li - abort`); return { ok: false, reason: 'no-handle' }; }
             const targetCode = codeForName(targetName);
             const targetRegion = findRegionByName(getScope(), targetName);
@@ -2548,7 +2604,7 @@
             await sleep(50);
             const inTarget = regionsContainingName(name).some((h) => h.name === targetName);
             const finalIdx = indexOfNameInCard(targetCode, name);
-            log.log(`${ts()} keyboardDrag END "${name}" inTarget=${inTarget} crossed=${crossed} steps=${steps} finalIdx=${finalIdx}`);
+            log.log(`${ts()} keyboardDrag END "${athLogVal(name)}" inTarget=${inTarget} crossed=${crossed} steps=${steps} finalIdx=${finalIdx}`);
             return { ok: inTarget, crossed, steps, finalIdx };
         }
 
@@ -2572,7 +2628,7 @@
             opts = opts || {};
             const name = itemName(li).trim();
             const handle = itemHandle(li);
-            log.log(`${ts()} ===== pointerDragToBottom(jump) "${name}" -> "${targetName}" =====`);
+            log.log(`${ts()} ===== pointerDragToBottom(jump) "${athLogVal(name)}" -> "${targetName}" =====`);
             if (!handle) { log.warn(`${ts()} no handle`); return { ok: false, reason: 'no-handle' }; }
             const targetCode = codeForName(targetName);
 
@@ -2753,9 +2809,9 @@
 
                 if (doMove) {
                     prog.update('Moving “' + it.name + '” → ' + toLabel);
-                    log.log(`${ts()} --- moving Done "${it.name}" -> private pay (mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
+                    log.log(`${ts()} --- moving Done "${athLogVal(it.name)}" -> private pay (mode=${usePointer ? 'pointer' : 'keyboard'}) ---`);
                     const srcLi = findSourceItem(it.name);
-                    if (!srcLi) { log.warn(`${ts()} "${it.name}" not found; skip`); continue; }
+                    if (!srcLi) { log.warn(`${ts()} "${athLogVal(it.name)}" not found; skip`); continue; }
                     let res = usePointer ? await pointerDragToBottom(srcLi, targetName, {}) : await keyboardDrag(srcLi, targetName, {});
                     if (usePointer && (!res || !res.ok)) {
                         log.warn(`${ts()} pointer failed; keyboard for the remainder`);
@@ -2763,7 +2819,7 @@
                         const again = findSourceItem(it.name);
                         if (again) res = await keyboardDrag(again, targetName, {});
                     }
-                    if (!res || !res.ok) { log.warn(`${ts()} move of "${it.name}" failed; skip`); athToast('Could not move “' + it.name + '”', { ttl: 3200 }); continue; }
+                    if (!res || !res.ok) { log.warn(`${ts()} move of "${athLogVal(it.name)}" failed; skip`); athToast('Could not move “' + it.name + '”', { ttl: 3200 }); continue; }
                     moved++; await sleep(170);
                     if (doJust) {
                         const movedLi = findInTarget(it.name);
@@ -2929,7 +2985,7 @@
             const wouldRename = rows.filter((x) => x.rename);
             log.log('%cscan: ' + rows.length + ' item(s) | ' + wouldMove.length + ' would MOVE | ' + wouldRename.length + ' would RENAME (read-only, nothing changed)', 'color:#2a7;font-weight:bold');
             if (console.table) console.table(rows);
-            for (const r of wouldMove) log.log('  MOVE: "' + r.name + '"  ' + r.now + ' -> ' + r.action.replace('MOVE -> ', '') + '  (' + r.rule + ')' + (r.rename ? '  rename->"' + r.rename + '"' : ''));
+            for (const r of wouldMove) log.log('  MOVE: "' + athLogVal(r.name) + '"  ' + r.now + ' -> ' + r.action.replace('MOVE -> ', '') + '  (' + r.rule + ')' + (r.rename ? '  rename->"' + r.rename + '"' : ''));
             return rows;
         }
         window.__athelasScanProcedures = scanProcedures;
@@ -3587,7 +3643,7 @@
         async function runGoal(s, btn) {
             const scores = Surveys.readScores(s.key) || {};
             const fields = { title: Surveys.goalTitle(s.key), date: Surveys.pocEndDate(), initial: Surveys.initialStateText(s.key, scores), target: Surveys.computeTargetState(s.key, scores) };
-            log.log('goal fields for', s.key, fields);
+            log.log('goal fields for', s.key, { title: fields.title, date: athLogVal(fields.date), initial: athLogVal(fields.initial), target: athLogVal(fields.target) });
             // Dialog returns the (possibly edited) initial/target sentences.
             const res = await athConfirmGoal('Create goal — ' + s.key, fields, Surveys.description(s.key));
             if (!res.confirmed) { log.log('goal cancelled'); return; }
@@ -3744,10 +3800,10 @@
         function openNoteFor(cell) {
             const apptId = apptIdOf(cell);
             const live = apptId && liveOpenNote(apptId);
-            if (live) { log.log('open note (live)', live.href); simulateClick(live, log); return; }   // SPA nav
+            if (live) { log.log('open note (live) for appt', athLogVal(apptId)); simulateClick(live, log); return; }   // SPA nav
             const cached = apptId && noteHref[apptId];
-            if (cached) { log.log('open note (cached)', cached); location.assign(cached); return; }
-            log.warn('no note URL for appt', apptId, '- hover the patient first');
+            if (cached) { log.log('open note (cached) for appt', athLogVal(apptId)); location.assign(cached); return; }
+            log.warn('no note URL for appt', athLogVal(apptId), '- hover the patient first');
             athToast('Hover the patient once, then click Open Note.', { ttl: 3500 });
         }
         function injectOpenNoteButtons() {
@@ -3860,14 +3916,14 @@
                         .find((o) => (o.textContent || '').trim().toUpperCase().startsWith(target));
                 }
             }
-            if (!opt) { log.warn(`${ts()} no listbox option for ${target} after 6s`); return false; }
-            log.log(`${ts()} picking option ${target}`);
+            if (!opt) { log.warn(`${ts()} no listbox option for ${athLogVal(target)} after 6s`); return false; }
+            log.log(`${ts()} picking option ${athLogVal(target)}`);
             simulateClick(opt, log);
             for (let i = 0; i < 25; i++) {
                 await sleep(100);
-                if (Dx.chips().some((c) => c.code === target)) { log.log(`${ts()} ${target} chip confirmed`); return true; }
+                if (Dx.chips().some((c) => c.code === target)) { log.log(`${ts()} ${athLogVal(target)} chip confirmed`); return true; }
             }
-            log.warn(`${ts()} clicked ${target} but no chip appeared`);
+            log.warn(`${ts()} clicked ${athLogVal(target)} but no chip appeared`);
             return false;
         }
 
@@ -3877,13 +3933,13 @@
                 const chip = Dx.chips().find((c) => c.code === code);
                 if (!chip) return true;
                 const x = chip.el.querySelector('svg[data-testid="CloseIcon"]') || chip.el.querySelector('svg');
-                if (!x) { log.warn(`${ts()} no delete icon on chip ${code}`); return false; }
+                if (!x) { log.warn(`${ts()} no delete icon on chip ${athLogVal(code)}`); return false; }
                 simulateClick(x, log);
                 for (let i = 0; i < 15; i++) {
                     await sleep(100);
-                    if (!Dx.chips().some((c) => c.code === code)) { log.log(`${ts()} removed ${code}`); return true; }
+                    if (!Dx.chips().some((c) => c.code === code)) { log.log(`${ts()} removed ${athLogVal(code)}`); return true; }
                 }
-                log.warn(`${ts()} ${code} still present after delete attempt ${attempt + 1}`);
+                log.warn(`${ts()} ${athLogVal(code)} still present after delete attempt ${attempt + 1}`);
             }
             return false;
         }
@@ -3900,7 +3956,7 @@
             log.log(`${ts()} ============ Fix Diagnosis START ============`);
             if (!Dx.section()) { log.warn(`${ts()} no diagnosis_codes section`); return { reason: 'no-section', fixed: 0, skipped: 0 }; }
             const rows = Dx.pending();
-            log.log(`${ts()} sequela codes found: ${rows.length}`, rows.map((r) => r.code + ' -> ' + r.to));
+            log.log(`${ts()} sequela codes found: ${rows.length}`, rows.map((r) => athLogVal(r.code) + ' -> ' + athLogVal(r.to)));
             if (!rows.length) return { reason: 'nothing-to-fix', fixed: 0, skipped: 0 };
 
             const review = await athConfirmDiagnosis(rows);
@@ -3916,15 +3972,15 @@
                     const added = await addCode(row.to);
                     if (!added) {
                         skipped++;
-                        log.warn(`${ts()} SKIP ${row.code}: could not add ${row.to} — old code left in place`);
+                        log.warn(`${ts()} SKIP ${athLogVal(row.code)}: could not add ${athLogVal(row.to)} — old code left in place`);
                         athToast(`Could not find ${row.to} — left ${row.code} alone.`, { ttl: 4200 });
                         continue;
                     }
                 } else {
-                    log.log(`${ts()} ${row.to} already present — removal only`);
+                    log.log(`${ts()} ${athLogVal(row.to)} already present — removal only`);
                 }
                 const removed = await removeCode(row.code);
-                if (removed) fixed++; else { skipped++; log.warn(`${ts()} added ${row.to} but could not remove ${row.code}`); }
+                if (removed) fixed++; else { skipped++; log.warn(`${ts()} added ${athLogVal(row.to)} but could not remove ${athLogVal(row.code)}`); }
                 await sleep(150);
             }
             await closeSearch();
@@ -4258,31 +4314,31 @@
             setReactValue(dur, String(p.target), log);
             await sleep(700);                                   // let the app re-derive
             const changed = numOf(field('duration')) === p.target ? 1 : 0;
-            if (!changed) log.warn(`${ts()} duration did not take (still ${valOf(field('duration'))})`);
+            if (!changed) log.warn(`${ts()} duration did not take (still ${athLogVal(valOf(field('duration')))})`);
 
             // Only fill in what the app did NOT recalculate for us.
             const manual = [];
             const endEl = field('end_date');
             if (endEl && projEnd && valOf(endEl) === p.endDate) {
-                log.log(`${ts()} end date unchanged by the app — writing ${projEnd}`);
+                log.log(`${ts()} end date unchanged by the app — writing ${athLogVal(projEnd)}`);
                 const ok = await athTypeDate(endEl, projEnd, log);
                 if (!ok) { manual.push('end date'); log.warn(`${ts()} could not set the end date`); }
-            } else { log.log(`${ts()} app recalculated the end date -> ${valOf(endEl)}`); }
+            } else { log.log(`${ts()} app recalculated the end date -> ${athLogVal(valOf(endEl))}`); }
 
             const visEl = field('visit_count');
             if (visEl && projVisits != null && numOf(visEl) === p.visits) {
-                log.log(`${ts()} visit count unchanged by the app — writing ${projVisits}`);
+                log.log(`${ts()} visit count unchanged by the app — writing ${athLogVal(projVisits)}`);
                 setReactValue(visEl, String(projVisits), log);
                 await sleep(200);
                 if (numOf(field('visit_count')) !== projVisits) { manual.push('visit count'); log.warn(`${ts()} could not set the visit count`); }
-            } else { log.log(`${ts()} app recalculated the visit count -> ${valOf(visEl)}`); }
+            } else { log.log(`${ts()} app recalculated the visit count -> ${athLogVal(valOf(visEl))}`); }
 
             return { ok: true, reason: 'ok', changed, manual, before, after: { duration: p.target, endDate: valOf(field('end_date')), visits: numOf(field('visit_count')) } };
         }
 
         // Put every field back exactly as we found it.
         async function undoTo(before) {
-            log.log(`${ts()} undo -> ${JSON.stringify(before)}`);
+            log.log(`${ts()} undo -> ${JSON.stringify(athLogVal(before))}`);
             const dur = field('duration');
             if (dur && before.duration != null) { setReactValue(dur, String(before.duration), log); await sleep(500); }
             const endEl = field('end_date');
@@ -4335,7 +4391,7 @@
             if (noteIsSigned()) { log.log(`${ts()} auto-default skipped: note is signed`); return; }
             const p = pending();
             if (!p) { log.log(`${ts()} auto-default: nothing to change on first open`); return; }
-            log.log(`${ts()} auto-default: first open of ${key}, ${p.duration} -> ${p.target} ${UNIT_WORD[p.unit] || ''}`);
+            log.log(`${ts()} auto-default: first open of ${athLogVal(key)}, ${athLogVal(p.duration)} -> ${p.target} ${UNIT_WORD[p.unit] || ''}`);
             const r = await applyTarget(p);
             if (!r.ok || !r.changed) { log.warn(`${ts()} auto-default did not take (${r.reason})`); return; }
             const word = UNIT_WORD[p.unit] || '';
@@ -4416,7 +4472,7 @@
             const arr = seenList().filter((k) => k !== only);
             try { localStorage.setItem(SEEN_KEY, JSON.stringify(arr)); } catch (e) {}
             autoDone.delete(only);
-            log.log('forgot', only, '- the auto-default can fire again on this note');
+            log.log('forgot', athLogVal(only), '- the auto-default can fire again on this note');
             return only;
         };
         window.__athelasPocForgetAll = () => { try { localStorage.removeItem(SEEN_KEY); } catch (e) {} autoDone.clear(); log.log('cleared all seen notes'); };
