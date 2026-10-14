@@ -1,5 +1,13 @@
 # Changelog
 
+## 15.25.6 — 2026-10-14
+
+- **Fixed: the survey quick-add buttons had disappeared on evaluations.** Athelas now groups the note into Subjective / Objective / Assessment / Plan, and Functional Outcomes sits inside **Objective**. When that group is closed, Functional Outcomes is hidden — and the quick-add buttons with it. The buttons now move up into the **Objective** heading whenever the group is closed, so they are always in view, and clicking one opens the group before adding the survey.
+- When the group is open, the buttons sit where they always did, above "Add a functional outcome form".
+- (Goals moved too: they are now under **Plan**, just above Plan of Care.)
+
+**Not yet confirmed on a live note.** Checked against two of today's evaluation pages, where the Objective group was closed both times. Opening the group was simulated, because a saved page cannot run Athelas's own code.
+
 ## 15.25.5 — 2026-10-13
 
 No change to what the helper does on the page. This release changes what it writes to the browser console.

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.25.5
+// @version      15.25.6
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -3471,6 +3471,8 @@
             /* The FO section is a flex column with align-items:flex-start, so a child
                won't stretch; align-self:flex-end (not justify-content) right-aligns it. */
             .ath-survey-panel { display: flex; align-self: flex-end; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+            /* In a collapsed group's header row (a 1fr/auto grid): sit in the auto column, centred. */
+            .ath-survey-panel.ath-in-header { align-self: center; justify-self: end; margin: 0; }
             .ath-survey-btn { padding: 4px 10px; background: #0f766e; color: #fff; border: 1px solid #0b5c55; border-radius: 4px; font: 600 12px/1.2 system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
             .ath-survey-btn:hover { background: #0b5c55; }
             .ath-survey-btn:disabled { opacity: .6; cursor: default; }
@@ -3481,11 +3483,40 @@
             const tog = r.querySelector('[aria-expanded="false"]');
             if (tog) { simulateClick(tog, log); log.log('expanded survey', section); }
         }
+        // Since the Oct 2026 site update the note is grouped (Subjective / Objective /
+        // Assessment / Plan ...), each group a collapsible MUI Collapse under a header
+        // row, and Functional Outcomes lives in the Objective group. When that group is
+        // collapsed the panel would be hidden with it, so it moves up into the group's
+        // header row; a click opens the group first (a hidden input cannot be typed into).
+        function foGroup(fo) {
+            const collapse = fo.closest('.MuiCollapse-root');
+            if (!collapse || !collapse.parentElement) return null;
+            const header = [...collapse.parentElement.children].find((c) => c !== collapse && c.querySelector('h1, h2, [role="heading"]'));
+            if (!header) return null;
+            const collapsed = () => collapse.classList.contains('MuiCollapse-hidden') || getComputedStyle(collapse).visibility === 'hidden';
+            return { collapse, header, collapsed };
+        }
+        async function openFoGroup() {
+            const fo = Surveys.foSection(); const g = fo && foGroup(fo);
+            if (!g || !g.collapsed()) return true;
+            const title = g.header.querySelector('h1, h2, [role="heading"]');
+            simulateClick(title, log);   // the click bubbles to the group's expander
+            for (let i = 0; i < 20 && g.collapsed(); i++) await sleep(75);
+            log.log('opened the group holding Functional Outcomes:', !g.collapsed());
+            return !g.collapsed();
+        }
         function injectPanel() {
             if (!Features.enabled('surveyPanel')) { const _p = document.querySelector('.ath-survey-panel'); if (_p) _p.remove(); return; }
             if (!Surveys.isInitialEval()) return;
             const fo = Surveys.foSection(); if (!fo) return;
-            if (fo.querySelector('.ath-survey-panel')) return;
+            const g = foGroup(fo);
+            const existing = document.querySelector('.ath-survey-panel');
+            if (existing) {
+                // Keep it where it can be seen: the section when the group is open, the group header when not.
+                if (g && g.collapsed()) { if (existing.parentElement !== g.header) { existing.classList.add('ath-in-header'); g.header.appendChild(existing); } }
+                else if (existing.parentElement !== fo) { existing.classList.remove('ath-in-header'); fo.insertBefore(existing, fo.firstChild); }
+                return;
+            }
             const panel = document.createElement('div'); panel.className = 'ath-survey-panel';
             for (const s of Surveys.SURVEYS) {
                 const b = document.createElement('button'); b.type = 'button'; b.className = 'ath-survey-btn'; b.textContent = s.key;
@@ -3493,7 +3524,11 @@
                 b.addEventListener('click', async (ev) => {
                     ev.preventDefault(); ev.stopPropagation();
                     b.disabled = true; const old = b.textContent; b.textContent = '…';
-                    try { const okAdd = await Surveys.addSurvey(s.key, log); b.textContent = okAdd ? '✓' : '!'; if (okAdd) { await sleep(400); await expandSurvey(s.section); } }
+                    try {
+                        if (!(await openFoGroup())) log.warn('could not open the group holding Functional Outcomes; trying anyway');
+                        await sleep(150);
+                        const okAdd = await Surveys.addSurvey(s.key, log); b.textContent = okAdd ? '✓' : '!'; if (okAdd) { await sleep(400); await expandSurvey(s.section); }
+                    }
                     catch (e) { log.error('addSurvey failed', e); b.textContent = 'err'; }
                     finally { setTimeout(() => { b.textContent = old; b.disabled = false; }, 1500); }
                 });
@@ -3502,8 +3537,9 @@
             // Its own row at the TOP of the section (above the heading), right-
             // aligned so it sits ABOVE the "Add a functional outcome form" input box.
             // (Inserting it into the header row shifted the input, so keep it separate.)
-            fo.insertBefore(panel, fo.firstChild);
-            log.log('survey quick-add panel injected');
+            if (g && g.collapsed()) { panel.classList.add('ath-in-header'); g.header.appendChild(panel); }
+            else fo.insertBefore(panel, fo.firstChild);
+            log.log('survey quick-add panel injected', g && g.collapsed() ? '(in the collapsed group header)' : '');
         }
         // (The old bottom "collapse survey" button is gone — collapsing + goal
         // creation is now the per-survey status button in MODULE 13.)
