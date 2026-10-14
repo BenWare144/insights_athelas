@@ -4,7 +4,7 @@ Everything below is ready to paste into the Web Store dashboard fields. Adjust t
 
 **Current release: v15.25.6** — zip at `deploy/athelas-insights-helper-v15.25.6.zip` (contents of `athelas-insights-helper-extension/`, `manifest.json` at the zip root).
 
-> ⚠ **Before submitting, read "Local storage — read this before you certify the privacy disclosures" near the bottom.** Since v15.24 the extension stores chart-note identifiers in the browser's local storage, and since v15.25.5 it reads one optional developer flag; the currently-hosted privacy policy describes neither. `deploy/privacy-policy.html` has been updated to match; **the hosted copy must be re-uploaded before you submit**, or the listing and the policy will disagree.
+> **v15.25.6 submitted 2026-10-14, awaiting review; the hosted privacy policy was re-uploaded the same day and matches `deploy/privacy-policy.html`.** Before any future submission, re-read "Local storage" near the bottom: if what the extension stores has changed, the hosted policy must be updated first.
 
 ---
 
