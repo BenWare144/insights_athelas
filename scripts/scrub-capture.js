@@ -46,7 +46,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 
-const SCRUBBER_VERSION = 3;   // bump whenever a scrub rule changes: every capture is then re-scrubbed on the next run
+const SCRUBBER_VERSION = 4;   // bump whenever a scrub rule changes: every capture is then re-scrubbed on the next run
 const REPO = path.join(__dirname, '..');
 const DEFAULT_RAW = process.env.ATHELAS_RAW_CAPTURES || path.join(REPO, '..', 'insights_athelas_raw_captures');
 const DEFAULT_OUT = path.join(REPO, 'captures');
@@ -509,11 +509,15 @@ function scrubMhtml(buf, ctx) {
 const DESCRIPTOR_WORDS = new Set(['dom', 'chart', 'note', 'notes', 'capture', 'html', 'mhtml', 'athelas', 'insights', 'calendar', 'daily', 'progress', 'initial', 'eval', 'evaluation', 'compact', 'phase', 'example', 'screenshot', 'copy']);
 const MARKER = /chart[ _-]?note/i;
 
-function nameTokens(rawName) {
+// `vocab` (optional) matters only for a raw name WITHOUT the "Chart Note" marker - one Ben renamed himself,
+// like "I_dont_see_goals_anymore". Every word of such a name is a possible name, except words that are
+// themselves single-word UI labels: otherwise "goals" in the filename blanks the Goals section it is about.
+function nameTokens(rawName, vocab) {
     const base = rawName.replace(/\.[A-Za-z0-9]+$/, '');
     const m = MARKER.exec(base);
     const words = (s) => (s.match(/\p{L}+/gu) || []).map((w) => w.toLowerCase());
-    const toks = m ? words(base.slice(0, m.index)) : words(base).filter((w) => !DESCRIPTOR_WORDS.has(w));
+    const uiWord = (w) => !!(vocab && vocab.phrases && vocab.phrases.has(w));
+    const toks = m ? words(base.slice(0, m.index)) : words(base).filter((w) => !DESCRIPTOR_WORDS.has(w) && !uiWord(w));
     return [...new Set(toks.filter((w) => w.length >= 2 && !(m && DESCRIPTOR_WORDS.has(w))))];
 }
 function denyRegex(tokens) {
@@ -539,7 +543,7 @@ function cleanName(rawName, mtime, taken) {
 // ---------------------------------------------------------------------------
 function scrubFile(rawPath, vocab, review) {
     const rawName = path.basename(rawPath);
-    const deny = denyRegex(nameTokens(rawName));
+    const deny = denyRegex(nameTokens(rawName, vocab));
     const buf = fs.readFileSync(rawPath);
     const ctx = { vocab, deny, stats: newStats(), review };
     if (/\.html?$/i.test(rawName)) {

@@ -138,6 +138,11 @@ test('filenames: tokens to remove, and a neutral clean name', () => {
     assert.deepEqual(S.nameTokens('Zelda Quixley Chart Note.mhtml'), ['zelda', 'quixley']);
     assert.deepEqual(S.nameTokens('dom-zelda-progress-note.html'), ['zelda'], 'no marker: every word that is not a descriptor is treated as a name');
     assert.deepEqual(S.nameTokens('Example_Chart_Note_3.mhtml'), []);
+    // a name Ben typed himself: UI words in it are not names (else "goals" blanks the Goals section it is about)...
+    assert.deepEqual(S.nameTokens('I_dont_see_goals_anymore.mhtml', vocab), ['dont', 'see', 'anymore']);
+    // ...but a real name in it still is, and a marker-bearing name is unaffected by the vocabulary
+    assert.deepEqual(S.nameTokens('Quixley goals broken.mhtml', vocab), ['quixley', 'broken']);
+    assert.deepEqual(S.nameTokens('Jane Day Chart Note.mhtml', S.parseVocabulary('Day')), ['jane', 'day']);
     const when = new Date(2026, 9, 13, 16, 28).getTime();
     const taken = new Set();
     assert.equal(S.cleanName('Zelda Quixley Chart Note_broken_goals.mhtml', when, taken), '2026-10-13_broken_goals.mhtml');
