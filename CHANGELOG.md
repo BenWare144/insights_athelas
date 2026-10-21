@@ -1,5 +1,15 @@
 # Changelog
 
+## 15.25.7 — 2026-10-20
+
+Three fixes from an automated code review of the October changes.
+
+- **Fix Plan of Care no longer half-changes a plan.** If the duration would not change, it used to carry on and rewrite the end date and visit count for a 12-week plan anyway, leaving the plan inconsistent (and, on a note's first open, with no Undo offered). It now stops, puts back anything it touched, and says the duration has to be set by hand.
+- **Button colours and the pre-signature warnings now update when you tick a box or type.** Ticking or unticking "Done" on an intervention could leave a button showing the wrong colour, or miss a warning that should have appeared, until something else on the page changed.
+- **Fix Procedures moves the right one of two same-named interventions.** When a card had two interventions with the same name and only one of them should move (for example, only one documents a simulated activity), the review dialog showed the right change but applying it moved the first one. Each change now stays tied to the intervention it was worked out from.
+
+**Not yet confirmed on a live note.**
+
 ## 15.25.6 — 2026-10-14
 
 - **Fixed: the survey quick-add buttons had disappeared on evaluations.** Athelas now groups the note into Subjective / Objective / Assessment / Plan, and Functional Outcomes sits inside **Objective**. When that group is closed, Functional Outcomes is hidden — and the quick-add buttons with it. The buttons now move up into the **Objective** heading whenever the group is closed, so they are always in view, and clicking one opens the group before adding the survey.

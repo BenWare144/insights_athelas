@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.25.6
+// @version      15.25.7
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
 // @match        https://insights.athelas.com/*
@@ -2180,9 +2180,14 @@
         function listFixes() {
             const out = [];
             for (const card of getCards()) {
+                const seen = {};
                 for (const li of cardItems(card)) {
                     const fix = resolveItem(li, card.code);
-                    if (fix) out.push(fix);
+                    const nm = itemName(li).trim();
+                    // which same-named item in this card this is (0 = first): duplicates
+                    // can resolve differently, because the top rule reads the details
+                    if (fix) { fix.ordinal = seen[nm] || 0; out.push(fix); }
+                    seen[nm] = (seen[nm] || 0) + 1;
                 }
             }
             return out;
@@ -2195,6 +2200,18 @@
             const c = getCards().find((x) => x.code === code);
             if (!c) return null;
             return cardItems(c).find((li) => itemName(li).trim() === name) || null;
+        }
+        // The item a reviewed fix was computed from. With duplicate names in a card the
+        // first match by name can be the wrong one (only the later duplicate's details
+        // may say "simulates"), so among same-named items prefer the one that still
+        // resolves to this same fix; fall back to its position among the duplicates.
+        function findItemForFix(code, f) {
+            const c = getCards().find((x) => x.code === code);
+            if (!c) return null;
+            const same = cardItems(c).filter((li) => itemName(li).trim() === f.name);
+            if (same.length <= 1) return same[0] || null;
+            return same.find((li) => { const r = resolveItem(li, code); return r && r.to === f.to && r.needsMove === f.needsMove && r.label === f.label; })
+                || same[Math.min(f.ordinal || 0, same.length - 1)];
         }
 
         // ---- display helpers for the confirmation dialog --------------------
@@ -2218,7 +2235,7 @@
 
             // ---- build review rows (read the current details for a real before/after) ----
             const rows = fixes.map((f) => {
-                const li = findItemInCardByName(f.from, f.name);
+                const li = findItemForFix(f.from, f);
                 const cur = li ? currentDetailsText(li) : '';
                 const curName = li ? itemName(li).trim() : f.name;
                 const newJust = computeNewJust(f, cur);
@@ -2237,9 +2254,10 @@
             // ---- confirmation dialog ----
             const { confirmed, decisions } = await athConfirmMoves('Fix Procedures — review changes', rows);
             if (!confirmed) { log.log(`${ts()} user cancelled`); return { reason: 'cancelled', moved: 0, renamed: 0, justified: 0 }; }
-            const byName = {};
-            decisions.forEach((d) => { byName[d.name] = d; });
-            const toDo = fixes.filter((f) => { const d = byName[f.name]; return d && ((d.moveChecked && f.needsMove) || d.justChecked); });
+            // decisions come back in row order, and rows were built from `fixes` in order -
+            // so pair them by position, not by name (two items can share a name)
+            fixes.forEach((f, i) => { f.decision = decisions[i]; });
+            const toDo = fixes.filter((f) => { const d = f.decision; return d && ((d.moveChecked && f.needsMove) || d.justChecked); });
             if (!toDo.length) { log.log(`${ts()} nothing checked`); return { reason: 'nothing-checked', moved: 0, renamed: 0, justified: 0 }; }
 
             // ---- execute the approved changes (with a live progress toast) ----
@@ -2248,7 +2266,7 @@
             const noCard = new Set();   // CPT codes whose card could not be added - reported once each, not per item
 
             for (const f of toDo) {
-                const d = byName[f.name];
+                const d = f.decision;
                 const doMove = d.moveChecked && f.needsMove;
                 const doJust = d.justChecked;
 
@@ -2267,24 +2285,26 @@
                     }
                     if (!target) { log.warn(`${ts()} still no ${f.to}; skip`); continue; }
                     const targetName = target.name;
-                    const srcLi = findItemInCardByName(f.from, f.name);
+                    const srcLi = findItemForFix(f.from, f);
                     if (!srcLi) { log.warn(`${ts()} "${athLogVal(f.name)}" not found in ${f.from}; skip`); continue; }
                     let res = usePointer ? await pointerDragToBottom(srcLi, targetName, {}) : await keyboardDrag(srcLi, targetName, {});
                     if (usePointer && (!res || !res.ok)) {
                         log.warn(`${ts()} pointer failed; keyboard for the remainder`);
                         usePointer = false; await sleep(150);
-                        const again = findItemInCardByName(f.from, f.name);
+                        const again = findItemForFix(f.from, f);
                         if (again) res = await keyboardDrag(again, targetName, {});
                     }
                     if (!res || !res.ok) { log.warn(`${ts()} move of "${athLogVal(f.name)}" failed; skipping it`); athToast('Could not move “' + f.name + '”', { ttl: 3200 }); continue; }
                     moved++; await sleep(170);
                     if (doJust) {
-                        const movedLi = findItemInCardByName(f.to, f.name);
+                        // it was dropped at the bottom, so the LAST same-named item in the target is ours
+                        const tc = getCards().find((x) => x.code === f.to);
+                        const movedLi = tc ? cardItems(tc).filter((li) => itemName(li).trim() === f.name).pop() || null : null;
                         if (movedLi) { const r = await applyItemFix(movedLi, f); if (r.renamed) renamed++; if (r.justified) justified++; }
                     }
                 } else if (doJust) {
                     prog.update('Updating “' + f.name + '”');
-                    const li = findItemInCardByName(f.from, f.name);
+                    const li = findItemForFix(f.from, f);
                     if (li) { const r = await applyItemFix(li, f); if (r.renamed) renamed++; if (r.justified) justified++; }
                 }
                 await sleep(110);
@@ -3214,6 +3234,13 @@
             if (document.body) go();
             else new MutationObserver((_, o) => { if (document.body) { o.disconnect(); go(); } }).observe(document.documentElement, { childList: true });
             document.addEventListener('visibilitychange', () => { if (!document.hidden) schedule(300); });
+            // Ticking a Done box or typing in a field changes a property, not the DOM
+            // tree, so the observer above never hears about it - and the red/green state
+            // and the pre-sign warning would go stale. Form events are just as free while
+            // idle (they fire only when the user acts) and feed the same debounce.
+            const onEdit = () => schedule(QUIET);
+            document.addEventListener('input', onEdit, { capture: true, passive: true });
+            document.addEventListener('change', onEdit, { capture: true, passive: true });
         };
         return {
             add(fn) { subs.push(fn); start(); schedule(400); },
@@ -4335,7 +4362,11 @@
             const prog = athToast('Updating the plan of care…', { ttl: 0 });
             const r = await applyTarget(p);
             prog.done(300);
-            if (!r.ok) return { reason: r.reason, changed: 0 };
+            if (!r.ok) {
+                athToast(r.reason === 'duration-did-not-take' ? 'The duration would not change, so nothing was changed. Set it by hand.' : 'Could not update the plan of care (' + r.reason + ').', { ttl: 6000 });
+                athStatusBus.poke(200);
+                return { reason: r.reason, changed: 0 };
+            }
             if (r.manual.length) athToast(`Duration updated, but check the ${r.manual.join(' and ')} by hand.`, { ttl: 5200 });
             else athToast('Plan of care updated. Click Apply Scribe to save.', { ttl: 4200 });
             log.log(`${ts()} ============ Fix Plan of Care END: changed=${r.changed}, manual=${r.manual.join(',') || 'none'} ============`);
@@ -4353,8 +4384,17 @@
             if (!dur) { log.warn(`${ts()} duration input vanished`); return { ok: false, reason: 'no-duration-field', changed: 0, manual: [], before }; }
             setReactValue(dur, String(p.target), log);
             await sleep(700);                                   // let the app re-derive
-            const changed = numOf(field('duration')) === p.target ? 1 : 0;
-            if (!changed) log.warn(`${ts()} duration did not take (still ${athLogVal(valOf(field('duration')))})`);
+            if (numOf(field('duration')) !== p.target) {
+                // Stop here. End date and visit count are derived from the duration;
+                // writing them for a 12-week plan while the duration stayed short would
+                // leave the plan inconsistent (and the auto-default would then have no
+                // Undo to offer). Put back anything that half-changed and report failure.
+                log.warn(`${ts()} duration did not take (still ${athLogVal(valOf(field('duration')))}) — leaving the plan as it was`);
+                const d2 = field('duration');
+                if (d2 && before.duration != null && numOf(d2) !== before.duration) { setReactValue(d2, String(before.duration), log); await sleep(300); }
+                return { ok: false, reason: 'duration-did-not-take', changed: 0, manual: [], before };
+            }
+            const changed = 1;
 
             // Only fill in what the app did NOT recalculate for us.
             const manual = [];
