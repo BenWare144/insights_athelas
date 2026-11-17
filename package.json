@@ -1,13 +1,14 @@
 {
   "name": "athelas-insights-helper",
-  "version": "15.25.7",
+  "version": "15.25.8",
   "private": true,
   "description": "One-click chart-note workflow helpers for Athelas Insights (userscript + Chrome extension)",
   "type": "commonjs",
   "scripts": {
     "test": "node --test \"tests/*.test.js\"",
     "build:local": "node scripts/build-local.js",
-    "scrub": "node scripts/scrub-capture.js"
+    "scrub": "node scripts/scrub-capture.js",
+    "replay": "node scripts/replay-capture.js"
   },
   "engines": {
     "node": ">=20"

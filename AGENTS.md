@@ -4,7 +4,7 @@ Guidance for AI agents (and humans) working in this repo. Read this first, then 
 
 ## What this is
 
-A **chart-note workflow-automation helper** for **Athelas Insights** (insights.athelas.com), a physical-therapy EHR. Built originally for one working PT (Cheri Ware / "the therapist"); now being evaluated by Choice Therapy for wider rollout. It runs only on `insights.athelas.com` and collects/transmits no data.
+A **chart-note workflow-automation helper** for **Athelas Insights**, a physical-therapy EHR. The app lives at **`air.athelas.com`** since November 2026; it was `insights.athelas.com` before, and that address now redirects. Built originally for one working PT (Cheri Ware / "the therapist"); now being evaluated by Choice Therapy for wider rollout. It runs only on those two hosts and collects/transmits no data. The project, repo and extension keep the "insights" name.
 
 Feature areas (all live):
 
@@ -27,7 +27,7 @@ Shipped two ways, same code:
 
 ## Dual-artifact rule (important)
 
-`athelas-insights-helper-extension/content.js` is the userscript body minus the GM header, regenerated with the command in `athelas-insights-helper-extension/README.md` (currently `tail -n +13`, because the header is 12 lines incl. `@icon`). **Never edit content.js directly.** Edit the userscript, regenerate, and bump the version in all three of `@version` (userscript header), `manifest.json`, and `package.json` together. `npm test` fails if any drift. If the userscript header line count changes, update `GM_HEADER_LINES` in `tests/packaging.test.js` and the README `tail` offset together.
+`athelas-insights-helper-extension/content.js` is the userscript body minus the GM header, regenerated with the command in `athelas-insights-helper-extension/README.md` (currently `tail -n +14`, because the header is 13 lines incl. `@icon` and the two `@match` lines). **Never edit content.js directly.** Edit the userscript, regenerate, and bump the version in all three of `@version` (userscript header), `manifest.json`, and `package.json` together. `npm test` fails if any drift. If the userscript header line count changes, update `GM_HEADER_LINES` in `tests/packaging.test.js` and the README `tail` offset together.
 
 The extension runs the script in the **MAIN world** — required, because the fixers reach Tiptap editors via `__reactFiber$` DOM expandos, invisible from the isolated world. Do NOT remove `"world": "MAIN"`. Consequence: `chrome.*` APIs (incl. `chrome.storage`) are unreachable — that's why feature toggles use page `localStorage`, not `chrome.storage`.
 
@@ -47,6 +47,7 @@ The extension runs the script in the **MAIN world** — required, because the fi
 - `reference/` — source data behind the rules: `Stuff for EMR.xlsx`, exercise-name lists, `reference_surveys.txt` (survey descriptions + scoring). Exercise/survey names only, **not PHI**.
 - `scripts/build-local.js` — `npm run build:local`; generates the git-ignored local Tampermonkey build with a `file://` auto-update URL.
 - `scripts/scrub-capture.js` — `npm run scrub`; de-identifies raw captures into `captures/`. Zero-dependency, fail-closed (see DECISIONS.md "Captures are scrubbed before anyone reads them"). `scripts/scrub-vocabulary.txt` is the list of UI labels allowed to survive — app chrome only, never a name. `tests/scrub-capture.test.js` covers it with synthetic fixtures. A `UserPromptSubmit` hook in `.claude/settings.local.json` (machine-local, not committed) runs it before each prompt.
+- `scripts/replay-capture.js` — `npm run replay`; serves a scrubbed capture on `127.0.0.1:8765` at its real route with the working-copy userscript injected, so you can see what the helper does on a page (which buttons land where, whether selectors match, the `__athelas*` hooks) without the live site. Open `/ehr/calendar?cap=<name>&script=1` or `/ehr/v2/patients/1/appointments/2?cap=<name>&script=1`. It strips the helper's own buttons and stylesheets that a capture picked up from the build running at the time (`keep=1` leaves them). Nothing on the page reacts to a click — no Athelas code survives the scrub.
 - `deploy/` — Web Store assets: `store-listing.md` (copy/paste sheet — item ID + a "don't list survey acronyms" note live here), `privacy-policy.html`, screenshot, the built `.zip` (git-ignored), `store-review/` (rejection emails).
 - `tests/` + `package.json` — `npm test` (Node ≥ 20, zero deps): version/body sync, matching table, survey scoring + sync.
 - `archive/` — historical/dead code kept so nothing is lost (retired compact-mode redesign + postmortem, a parked feature-toggle idea, the original v1 prompt).
@@ -91,7 +92,8 @@ Signature is `resolveProcedure(name, details)`, and each rule's `test(name, deta
 
 - Run `npm test` before calling anything done; include a verification step.
 - Real DOM behavior can only be verified on the live site or against an `.mhtml` capture — when you can't verify, say so. Many features are "best-effort pending live verification"; the human tests and sends back logs/captures.
-- The site changes under us. When a selector fails, check the newest `.mhtml` captures and the DOM facts in `DECISIONS.md` before rewriting.
+- The site changes under us. When a selector fails, check the newest `.mhtml` captures and the DOM facts in `DECISIONS.md` before rewriting. `npm run replay` loads the current script into a capture; comparing the newest capture with the one before it is how the Oct and Nov 2026 site updates were assessed.
+- Never put a hostname in code. Pages are told apart by `location.pathname` only, and the two `@match` lines (mirrored in `manifest.json`) are the one place a host appears. `@namespace` still says `insights.athelas.com` on purpose — see DECISIONS.md "Two hosts, one namespace". `tests/site-move.test.js` guards all of it.
 - Markdown/text files: one line per paragraph/bullet — never hard-wrap mid-sentence (a standing user preference).
 
 ## Versioning

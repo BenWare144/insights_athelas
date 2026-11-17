@@ -2,9 +2,9 @@
 
 Everything below is ready to paste into the Web Store dashboard fields. Adjust to taste.
 
-**Current release: v15.25.6** — zip at `deploy/athelas-insights-helper-v15.25.6.zip` (contents of `athelas-insights-helper-extension/`, `manifest.json` at the zip root).
+**Current release: v15.25.8** — zip at `deploy/athelas-insights-helper-v15.25.8.zip` (contents of `athelas-insights-helper-extension/`, `manifest.json` at the zip root).
 
-> **v15.25.6 submitted 2026-10-14, awaiting review; the hosted privacy policy was re-uploaded the same day and matches `deploy/privacy-policy.html`.** Before any future submission, re-read "Local storage" near the bottom: if what the extension stores has changed, the hosted policy must be updated first.
+> **v15.25.8 is NOT submitted yet (built 2026-11-16).** Athelas moved the app from insights.athelas.com to air.athelas.com, and every published version only loads on the old address, so the store copy does nothing until this one is approved. Three things changed on this sheet and all three have to go into the dashboard with the zip: the detailed description, the single-purpose line, and the host permission justification (there are now two match patterns). **Re-host `deploy/privacy-policy.html` first** — it names the site, so the hosted copy (last uploaded 2026-10-14) is out of date. v15.25.6 was submitted 2026-10-14; whatever its review status, replace it with this build.
 
 ---
 
@@ -24,9 +24,9 @@ English (United States)
 
 ## Detailed description (the big field)
 
-_Paste everything between the rules below. Keep it under 3,000 characters — currently 2,966._
+_Paste everything between the rules below. Keep it under 3,000 characters — currently 2,902._
 
-Athelas Insights Helper streamlines documentation for physical-therapy clinicians working in Athelas Insights (insights.athelas.com). It runs only on Athelas Insights pages. Every change it makes is shown for approval first, and any feature can be switched off.
+Athelas Insights Helper streamlines documentation for physical-therapy clinicians working in Athelas Insights (air.athelas.com). It runs only on Athelas Insights pages. Every change it makes is shown for approval first, and any feature can be switched off.
 
 Features:
 • Fix Procedures — moves interventions marked "Done" that are filed under the wrong billing code to the correct one and appends the standard justification, including any filed under a code the clinic is not reimbursed for. Every change is listed in a confirmation dialog, with a checkbox each.
@@ -42,23 +42,23 @@ Features:
 The extension is a display and workflow aid only. It makes no network requests, contacts no servers, and requests no browser permissions — all processing happens locally. It remembers your feature settings, your professional credential, and which notes it has already offered its plan-of-care default on, in your browser's own local storage; none of it is ever transmitted. Intended for authorized clinic staff.
 
 Recent updates:
+• v15.25.8 — Works at Athelas's new web address.
 • v15.25.6 — Survey buttons stay in view in Athelas's new grouped note layout.
 • v15.25.5 — Diagnostic messages no longer include chart values.
 • v15.25.4 — Fix Procedures can again add a missing billing-code card, and says so if it cannot.
 • v15.25.3 — Layout fixed for Athelas's new sidebar.
 • v15.25.2 — Goal drafting works with Athelas's updated goal form.
-• v15.25 — A task documented as simulating a functional activity is filed under the matching activity code.
 
 ---
 
 ## Privacy tab answers
 
-- Single purpose: "Adds chart-note and calendar workflow shortcuts — correcting mis-filed billing and diagnosis codes, plan-of-care duration, and outcome-survey entry, each behind a review dialog — plus minor layout adjustments, on insights.athelas.com for authorized clinic users."
+- Single purpose: "Adds chart-note and calendar workflow shortcuts — correcting mis-filed billing and diagnosis codes, plan-of-care duration, and outcome-survey entry, each behind a review dialog — plus minor layout adjustments, on Athelas Insights (air.athelas.com) for authorized clinic users."
 
 - Data usage — check NOTHING. The extension collects no user data: nothing is transmitted off the device, which is what the Web Store's "collect" means. (It does keep a few values in the browser's own local storage — see the local-storage section below. That is not collection, but make sure the hosted privacy policy describes it.)
   - Also confirm: not sold to third parties; not used for purposes unrelated to the single purpose; not used to determine creditworthiness / lending.
 
-- Host permission justification (REQUIRED — triggered by the content_scripts match pattern `https://insights.athelas.com/*`). **Max 1,000 characters; the text below is 998 — check the count if you edit it.** Paste everything inside the quotes: "This extension runs only on Athelas Insights (insights.athelas.com), the physical-therapy EHR clinic staff use for charting. The single match pattern https://insights.athelas.com/* is required so the content script can load on the Appointments and Chart Note pages and provide its only functions: one-click helpers that correct mis-filed billing codes, a diagnosis code's episode-of-care character, and an evaluation's plan-of-care duration, each behind a review dialog; warnings above the signature block while a claim-blocking documentation problem remains; adding outcome surveys and drafting goals from their scores; an Open Note shortcut on checked-in appointments; a jump-to-Flowsheet scroll; and minor layout tightening. It matches all paths under that host because chart notes and appointments are served under many different paths in the app. No other host access and no API permissions are requested. All processing is local; the extension makes no network requests and transmits no data."
+- Host permission justification (REQUIRED — triggered by the content_scripts match patterns `https://air.athelas.com/*` and `https://insights.athelas.com/*`). **Max 1,000 characters; the text below is 994 — check the count if you edit it.** Paste everything inside the quotes: "This extension runs only on Athelas Insights, the physical-therapy EHR clinic staff use for charting. The app is at air.athelas.com; insights.athelas.com is its old address and now redirects there. The match patterns https://air.athelas.com/* and https://insights.athelas.com/* let the content script load on the Calendar and Chart Note pages and provide its only functions: one-click helpers correcting mis-filed billing codes, a diagnosis code's episode-of-care character, and an evaluation's plan-of-care duration, each behind a review dialog; warnings above the signature block for claim-blocking problems; adding outcome surveys and drafting goals from their scores; an Open Note shortcut on checked-in appointments; a jump-to-Flowsheet scroll; and minor layout tightening. All paths are matched because the app serves pages under many paths. No other host access and no API permissions are requested. All processing is local; the extension makes no network requests and transmits no data."
 
 - Are you using remote code? → No, I am not using remote code. (All JS is bundled in content.js; no external <script> src, no CDN, no eval. The Justification field under this question stays blank — it only applies if you answer Yes.)
 
@@ -75,7 +75,7 @@ Visibility: **Unlisted**  (installable by link/ID, hidden from search, auto-upda
 
 ## Local storage — read this before you certify the privacy disclosures
 
-The extension runs in the MAIN world, so it cannot use `chrome.storage`; it uses the page's own `localStorage` instead. Four keys, all origin-scoped to insights.athelas.com, none ever transmitted:
+The extension runs in the MAIN world, so it cannot use `chrome.storage`; it uses the page's own `localStorage` instead. Four keys, all origin-scoped to the site (air.athelas.com since the Nov 2026 move), none ever transmitted. Local storage is per-origin, so nothing saved under insights.athelas.com carried over: settings went back to their defaults and the once-per-note list started empty.
 
 | Key | Contents | Notes |
 |---|---|---|

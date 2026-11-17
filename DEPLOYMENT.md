@@ -24,7 +24,7 @@ The plan: publish the extension **unlisted** on the Chrome Web Store (invisible 
 1. Dashboard → **+ New item** → upload the zip.
 2. **Store listing** tab: name, description, category (*Productivity* → *Workflow & Planning* fits), icon (auto-pulled from manifest), screenshot.
 3. **Privacy** tab:
-   - Single purpose: "Adjusts spacing/layout and adds chart-note shortcuts on insights.athelas.com for authorized clinic users."
+   - Single purpose: "Adjusts spacing/layout and adds chart-note shortcuts on Athelas Insights (air.athelas.com) for authorized clinic users." (The current wording, and the host permission justification that two match patterns now require, are in `deploy/store-listing.md`.)
    - Data usage: check **nothing** (no data collected). Certify the disclosures.
    - Privacy policy URL from Part A.
    - There are no permissions to justify — the extension requests none. This makes review fast and rejection unlikely.

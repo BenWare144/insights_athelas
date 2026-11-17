@@ -1,5 +1,15 @@
 # Changelog
 
+## 15.25.8 — 2026-11-16
+
+- **Fixed: the helper had stopped loading.** Athelas moved the app from `insights.athelas.com` to `air.athelas.com`. The helper was only allowed to run on the old address, so after the move none of it appeared: no buttons, no layout, nothing. It now runs on the new address, and still on the old one, which today just forwards to the new one.
+- **Your settings start over, once.** The browser keeps the helper's settings separately for each web address, and it cannot read the old address's copy from the new one. Anything you had switched off under Extension Settings is back on, so switch it off again. For the same reason the plan-of-care default (a short evaluation plan lengthened to 12 weeks, once per note) may run one more time on an evaluation it already handled before the move. It still only lengthens, still leaves signed notes alone, and still offers Undo.
+- **Two safeguards for the AI-scribe side panel.** Athelas now keeps that panel loaded beside every note, even while it is closed, and it holds its own copies of some sections, including a second "Goals". Goal drafting always uses the note's own Goals section, and the layout self-check measures the note alone. Before, the closed panel hid one of the two things that check looks for.
+
+**Checked against two pages saved from the new address on 16 November, a signed daily note and the calendar.** On the note: Extension Settings, Fix Procedures and Fix Diagnosis appear, the signature block is read correctly, the compact layout passes its self-check, and everything the helper looks for on a daily note is still there, compared with October. On the calendar: Extension Settings appears, and the appointment tiles still carry what the Open Note button reads.
+
+**Not confirmed.** Open Note itself: nobody was checked in on the saved calendar and no appointment popup was open, so the "Checked In" label and the popup's link have not been seen at the new address. Anything on an unsigned note or an evaluation (surveys, goals, plan of care), and every fixer's actual changes, since a signed note cannot be edited and a saved page cannot run Athelas's own code.
+
 ## 15.25.7 — 2026-10-20
 
 Three fixes from an automated code review of the October changes.

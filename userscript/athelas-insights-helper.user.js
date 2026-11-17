@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Athelas Insights Helper — Chart-Note Tools
 // @namespace    https://insights.athelas.com/
-// @version      15.25.7
+// @version      15.25.8
 // @description  One-click chart-note workflow helpers for Athelas Insights: Fix Procedures (move "Done" interventions to their correct CPT code + justification) incl. MET, and Fix Private Pay; jump-to-Flowsheet. (Compact layout is a minor background extra.) Verbose logging.
 // @author       Ben
+// @match        https://air.athelas.com/*
 // @match        https://insights.athelas.com/*
 // @run-at       document-start
 // @grant        GM_addStyle
@@ -19,6 +20,12 @@
     // loaded on a non-matching URL and then client-side-navigated in), we now
     // @match the whole domain and decide what to do per-navigation from the
     // CURRENT pathname. pageType() is re-evaluated on every route change.
+    //
+    // v15.25.8: the app moved from insights.athelas.com to air.athelas.com
+    // (Nov 2026; the old host now redirects). Both are matched, the routes below
+    // did not change, and nothing in the body names a host. @namespace keeps the
+    // old URL on purpose: Tampermonkey identifies a script by name + namespace,
+    // so changing it would install a second copy instead of updating this one.
     function pageType() {
         const p = location.pathname;
         return {
@@ -177,6 +184,15 @@
     }
 
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    /** Is `el` inside the app shell's right-hand side panel rather than the note?
+     *  Since Nov 2026 the AI-scribe detail view is mounted there even while the
+     *  panel is collapsed, and it carries its own [data-section] blocks - among
+     *  them a second "goals". Anything that means "the note's own section" has to
+     *  skip those. */
+    function athInAside(el) {
+        return !!(el && typeof el.closest === 'function' && el.closest('[data-slot="app-shell-aside"]'));
+    }
 
     /** Click via a dispatched MouseEvent with simulated=true (same pattern as Ben's Hippo
      *  script). Falls back to native .click() if dispatch returns false.
@@ -1525,6 +1541,7 @@
         const extent = () => {
             let left = Infinity, right = -Infinity;
             for (const e of document.querySelectorAll('[data-section]')) {
+                if (athInAside(e)) continue;   // the scribe side panel is not the note; its blocks would pin the right edge
                 const r = e.getBoundingClientRect();
                 if (r.width > 0) { left = Math.min(left, r.left); right = Math.max(right, r.right); }
             }
@@ -3130,7 +3147,8 @@
         const noteTypeValue = () => { const i = document.querySelector('input[aria-label="Clinical Note Type"]'); return i ? (i.value || '') : ''; };
         const isInitialEval = () => isInitialEvalValue(noteTypeValue());
         const foSection = () => document.querySelector('[data-section="functional_outcomes"]');
-        const goalsSection = () => document.querySelector('[data-section="goals"]');
+        // The note's own Goals section. The scribe side panel has a [data-section="goals"] of its own (Nov 2026).
+        const goalsSection = () => [...document.querySelectorAll('[data-section="goals"]')].find((e) => !athInAside(e)) || null;
         const surveyRegion = (section) => [...document.querySelectorAll('[data-section]')].find((e) => T(e.getAttribute('data-section')) === T(section));
         const scoresRegion = (section) => [...document.querySelectorAll('[aria-label^="Scores for "]')].find((e) => T(e.getAttribute('aria-label').replace(/^Scores for\s+/, '')) === T(section));
         function readScores(key) { const s = byKey(key); if (!s) return null; const r = scoresRegion(s.section); return r ? parseScoreText(r.textContent || '') : null; }

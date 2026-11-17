@@ -16,7 +16,7 @@ const userscript = fs.readFileSync(userscriptPath, 'utf8');
 const content = fs.readFileSync(contentPath, 'utf8');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
-const GM_HEADER_LINES = 12;   // // ==UserScript== ... // ==/UserScript==
+const GM_HEADER_LINES = 13;   // // ==UserScript== ... // ==/UserScript==
 const BANNER_LINES = 8;       // generated banner at the top of content.js
 
 function headerField(name) {
